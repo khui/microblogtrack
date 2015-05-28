@@ -1,0 +1,15 @@
+<project default="CrawTweet" basedir=".">
+	<property name="jarDirectory" value="/local/home/khui/workspace/Dropbox/svnworkspace/generatedJar" />
+	<property name="jarName" value="crawltweet" />
+	
+	<target name="CrawTweet">
+		<echo message="Generate ${jarName}.jar into ${jarDirectory}" />
+		<jar destfile="${jarDirectory}/${jarName}.jar">
+			<manifest>
+				<attribute name="Class-Path" value=".  lib/microblog/twitter4j-stream-4.0.3.jar lib/microblog/twitter4j-core-4.0.3.jar lib/microblog/commons-cli-1.2.jar lib/microblog/commons-compress-1.9.jar lib/microblog/commons-lang3-3.1.jar lib/microblog/trove-3.0.3.jar" />
+			</manifest>
+			<fileset dir="/local/home/khui/git/microblogtrack/microblogtrack/target" />
+		</jar>
+		<scp file="${jarDirectory}/${jarName}.jar" trust="true" todir="khui@contact.mpi-inf.mpg.de:/home/khui/workspace/javaworkspace" keyfile="${user.home}/.ssh/id_rsa" />
+	</target>
+</project>

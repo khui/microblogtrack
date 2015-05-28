@@ -14,6 +14,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -69,7 +70,7 @@ public class ListenerAndDumper {
 		// virtual zip file location
 		private URI zip_disk = null;
 
-		private final int buffersize = 1000;
+		private final int buffersize = 10000;
 
 		private final TLongObjectHashMap<byte[]> tweetbuffer = new TLongObjectHashMap<byte[]>();
 
@@ -111,7 +112,12 @@ public class ListenerAndDumper {
 						root = zipfs.getPath("/");
 						filename = zipfs.getPath(root.toString(),
 								String.valueOf(tid) + ".json");
-						Files.write(filename, tweetbuffer.get(tid));
+						if (!Files.exists(filename)){
+							Files.write(filename, tweetbuffer.get(tid),StandardOpenOption.CREATE,
+						         StandardOpenOption.TRUNCATE_EXISTING);
+						}else{
+							logger.error(tweetid + " already exists in " + zipfilename);
+						}
 					}
 				}
 				tweetbuffer.clear();

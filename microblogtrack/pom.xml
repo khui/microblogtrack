@@ -3,8 +3,8 @@
   <groupId>MPII</groupId>
   <artifactId>microblogtrack</artifactId>
   <version>0.0.1-SNAPSHOT</version>
+  
   <dependencies>
-
 <dependency>
 	<groupId>org.twitter4j</groupId>
 	<artifactId>twitter4j-core</artifactId>
