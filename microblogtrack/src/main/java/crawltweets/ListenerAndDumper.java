@@ -42,11 +42,10 @@ import twitter4j.TwitterStreamFactory;
 import twitter4j.conf.ConfigurationBuilder;
 
 public class ListenerAndDumper {
-	//TODO: process ondelete, filter the tweets
-	
-	
+	// TODO: process ondelete, filter the tweets
+
 	final Logger logger = Logger.getLogger(ListenerAndDumper.class);
-	
+
 	// api-key and the time stamp recording the latest usage;
 	// idealy we want to reuse the api-key after it has been freely for long
 	// enough time
@@ -112,11 +111,13 @@ public class ListenerAndDumper {
 						root = zipfs.getPath("/");
 						filename = zipfs.getPath(root.toString(),
 								String.valueOf(tid) + ".json");
-						if (!Files.exists(filename)){
-							Files.write(filename, tweetbuffer.get(tid),StandardOpenOption.CREATE,
-						         StandardOpenOption.TRUNCATE_EXISTING);
-						}else{
-							logger.error(tweetid + " already exists in " + zipfilename);
+						if (!Files.exists(filename)) {
+							Files.write(filename, tweetbuffer.get(tid),
+									StandardOpenOption.CREATE,
+									StandardOpenOption.TRUNCATE_EXISTING);
+						} else {
+							logger.error(tweetid + " already exists in "
+									+ zipfilename);
 						}
 					}
 				}
@@ -131,7 +132,9 @@ public class ListenerAndDumper {
 		private Timer timer = new Timer();
 
 		private class Printcount extends TimerTask {
-			private DateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmss");
+			private DateFormat dateFormat = new SimpleDateFormat(
+					"yyyyMMddHHmmss");
+
 			public void run() {
 				Date date = new Date();
 				System.out.println(dateFormat.format(date) + " " + minutecount);
@@ -158,8 +161,8 @@ public class ListenerAndDumper {
 
 		@Override
 		public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
-//			 System.err.println("Deletion notice:"
-//			 + statusDeletionNotice.getStatusId());
+			// System.err.println("Deletion notice:"
+			// + statusDeletionNotice.getStatusId());
 		}
 
 		@Override
