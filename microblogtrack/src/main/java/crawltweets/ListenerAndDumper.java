@@ -79,7 +79,7 @@ public class ListenerAndDumper {
 
 		public Archiver(String zipdirectory) {
 			this.zipdirectory = zipdirectory;
-			zip_properties = new HashMap<String, String>();
+			this.zip_properties = new HashMap<String, String>();
 			this.zip_properties.put("create", "true");
 		}
 
