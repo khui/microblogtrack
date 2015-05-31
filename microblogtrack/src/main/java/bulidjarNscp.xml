@@ -1,0 +1,13 @@
+<project default="CrawTweet" basedir=".">
+    <property name="jarDirectory" value="/home/khui/workspace/javaworkspace/jars" />
+    <property name="jarName" value="crawltweet" />
+    <property name="target" value="/home/khui/workspace/javaworkspace/NetBeansProjects/microblogtrack/microblogtrack/target" />
+	
+    <target name="CrawTweet">
+        <echo message="Generate ${jarName}.jar into ${jarDirectory}" />
+        <jar destfile="${jarDirectory}/${jarName}.jar">
+            <fileset dir="${target}" />
+        </jar>
+        <scp file="${jarDirectory}/${jarName}.jar" trust="true" todir="khui@contact.mpi-inf.mpg.de:/home/khui/workspace/javaworkspace" keyfile="${user.home}/.ssh/id_rsa" />
+    </target>
+</project>

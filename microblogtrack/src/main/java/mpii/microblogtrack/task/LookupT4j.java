@@ -1,4 +1,4 @@
-package crawltweets;
+package mpii.microblogtrack.task;
 
 import gnu.trove.list.array.TLongArrayList;
 import gnu.trove.map.TObjectLongMap;
@@ -36,7 +36,7 @@ import twitter4j.TwitterFactory;
 import twitter4j.TwitterObjectFactory;
 import twitter4j.conf.ConfigurationBuilder;
 
-public final class DownloadTweets {
+public final class LookupT4j {
 	
 	private int numInCurrentArchive = 0;
 	
@@ -321,7 +321,7 @@ public final class DownloadTweets {
 		if(cmd.hasOption("z")){
 			numoffileinzip = Integer.parseInt(cmd.getOptionValue("z"));
 		}
-		DownloadTweets dtweet = new DownloadTweets();
+		LookupT4j dtweet = new LookupT4j();
 		dtweet.crawltweets(tweetidinputf, outputdirectory);
     	//readindemo("/home/khui/workspace/result/data/microblog/tweet2011-1.zip");
 

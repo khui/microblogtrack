@@ -1,4 +1,4 @@
-package crawltweets;
+package mpii.microblogtrack.task;
 
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
@@ -41,10 +41,10 @@ import twitter4j.TwitterStream;
 import twitter4j.TwitterStreamFactory;
 import twitter4j.conf.ConfigurationBuilder;
 
-public class ListenerAndDumper {
+public class SampleT4j {
 	// TODO: process ondelete, filter the tweets
 
-	final Logger logger = Logger.getLogger(ListenerAndDumper.class);
+	final Logger logger = Logger.getLogger(SampleT4j.class);
 
 	// api-key and the time stamp recording the latest usage;
 	// idealy we want to reuse the api-key after it has been freely for long
@@ -127,7 +127,7 @@ public class ListenerAndDumper {
 	}
 
 	private class MyStatusListener implements StatusListener {
-		private ListenerAndDumper lad;
+		private SampleT4j lad;
 		private int minutecount = 0;
 		private Timer timer = new Timer();
 
@@ -142,7 +142,7 @@ public class ListenerAndDumper {
 			}
 		}
 
-		public MyStatusListener(ListenerAndDumper lad) {
+		public MyStatusListener(SampleT4j lad) {
 			this.lad = lad;
 			timer.schedule(new Printcount(), 0, 600000);
 		}
@@ -203,7 +203,7 @@ public class ListenerAndDumper {
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
-	public ListenerAndDumper(String keydirectory, String zipdirectory)
+	public SampleT4j(String keydirectory, String zipdirectory)
 			throws IOException {
 		// read-in multiple api-keys, one for connection, others for spare
 		readinAPIConfBuilder(keydirectory);
@@ -348,7 +348,7 @@ public class ListenerAndDumper {
 			keydirectory = cmd.getOptionValue("k");
 		}
 
-		ListenerAndDumper lad = new ListenerAndDumper(keydirectory,
+		SampleT4j lad = new SampleT4j(keydirectory,
 				zipdirectory);
 		lad.restart();
 	}
