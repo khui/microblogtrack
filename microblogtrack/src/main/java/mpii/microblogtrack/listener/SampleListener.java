@@ -30,7 +30,7 @@ import org.apache.log4j.Logger;
  *
  * @author khui
  */
-public class SampleListener implements Callable {
+public class SampleListener implements Callable<Void> {
 
     final Logger logger = Logger.getLogger(SampleListener.class);
 
@@ -112,6 +112,7 @@ public class SampleListener implements Callable {
             br.close();
             apikayKeys.put(keyfile, new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret});
         }
+        logger.info(apikayKeys.size() + " api keys have been read in from " + keydirectory);
     }
 
     /**
@@ -146,6 +147,7 @@ public class SampleListener implements Callable {
         // api-key should be spared for more than 15 min (the length of
         // time window)
         if ((currentTime - minimumTime) <= 15 * 1000) {
+            logger.info(currentKey + " sleep for " + (currentTime - minimumTime));
             Thread.sleep(currentTime - minimumTime);
         }
         logger.info(currentKey + " is being used to connect twiter API.");

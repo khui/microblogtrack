@@ -7,8 +7,8 @@ package mpii.microblogtrack.task;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import mpii.microblogtrack.consumer.Dump2Files;
 import mpii.microblogtrack.listener.SampleListener;
@@ -17,6 +17,7 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 /**
@@ -31,25 +32,28 @@ public class SampleHbc {
     public void listenDump(String keydir, String outdir, int queueBound) throws IOException {
         // Create an appropriately sized blocking queue
         BlockingQueue<String> queue = new LinkedBlockingQueue<>(queueBound);
-        Future listener = Executors.newSingleThreadExecutor().submit(new SampleListener(queue, keydir));
-        Future dumper = Executors.newSingleThreadExecutor().submit(new Dump2Files(queue, outdir));
+        ExecutorService listenerservice = Executors.newSingleThreadExecutor();
+        ExecutorService dumperservice = Executors.newSingleThreadExecutor();
+        listenerservice.submit(new SampleListener(queue, keydir));
+        dumperservice.submit(new Dump2Files(queue, outdir));
         while (true) {
-            if (listener.isDone()) {
+            if (listenerservice.isShutdown()) {
                 logger.warn("Listener stoped!");
             }
-            if (dumper.isDone()) {
+            if (dumperservice.isShutdown()) {
                 logger.warn("Dumper stoped!");
             }
             if (queue.size() > queueBound * 0.99) {
                 logger.warn("queue is almost full with: " + queue.size() + " items.");
             }
             if (queue.size() < queueBound * 0.01) {
-                logger.warn("queue is almost empty with: " + queue.size() + " items.");
+                // logger.warn("queue is almost empty with: " + queue.size() + " items.");
             }
         }
     }
 
     public static void main(String[] args) throws ParseException, IOException {
+        //Logger.getRootLogger().setLevel(Level.DEBUG);
         Options options = new Options();
         options.addOption("o", "outdir", true, "output directory");
         options.addOption("k", "keydirectory", true, "api key directory");
@@ -67,7 +71,7 @@ public class SampleHbc {
         if (cmd.hasOption("s")) {
             queueBound = Integer.parseInt(cmd.getOptionValue("s"));
         }
-        new SampleHbc().listenDump(keydir, keydir, queueBound);
+        new SampleHbc().listenDump(keydir, outputdir, queueBound);
     }
 
 }
