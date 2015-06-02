@@ -31,7 +31,7 @@ public class Dump2Files implements Callable<Void> {
 
     private final String outdir;
 
-    private final long TIMEOUT = 300;
+    private final long TIMEOUT = 60;
 
     public Dump2Files(final BlockingQueue<String> bqueue, final String outdir) {
         this.bqueue = bqueue;
@@ -52,8 +52,8 @@ public class Dump2Files implements Callable<Void> {
         BufferedWriter writer = null;
         try {
             while (true) {
-                if (tweetcount % 200000 == 0) {
-                    if (writer != null) {
+                if (tweetcount % 1000000 == 0) {
+                    if (writer != null && tweetcount != 0) {
                         writer.close();
                         ps.println(filename + ":" + tweetcount);
                         ps.flush();
@@ -64,10 +64,11 @@ public class Dump2Files implements Callable<Void> {
                 }
                 String tweet = bqueue.poll(TIMEOUT, TimeUnit.SECONDS);
                 if (tweet == null) {
-                    logger.error("Get no tweet within " + TIMEOUT + " seconds");
+                    logger.error("Get no tweet within past " + TIMEOUT + " seconds, in total received " + tweetcount);
+                } else {
+                    writer.write(tweet);
+                    tweetcount++;
                 }
-                writer.write(tweet);
-                writer.newLine();
             }
         } finally {
             if (writer != null) {

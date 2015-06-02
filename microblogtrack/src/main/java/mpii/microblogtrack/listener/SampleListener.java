@@ -12,7 +12,9 @@ import com.twitter.hbc.core.processor.StringDelimitedProcessor;
 import com.twitter.hbc.httpclient.BasicClient;
 import com.twitter.hbc.httpclient.auth.Authentication;
 import com.twitter.hbc.httpclient.auth.OAuth1;
+import com.twitter.hbc.twitter4j.parser.JSONObjectParser;
 import gnu.trove.map.hash.TObjectLongHashMap;
+import gnu.trove.set.hash.TLongHashSet;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -23,7 +25,15 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import org.apache.log4j.Logger;
+import twitter4j.JSONException;
+import twitter4j.JSONObject;
+import twitter4j.JSONObjectType;
+import twitter4j.PublicObjectFactory;
+import twitter4j.TwitterException;
+import twitter4j.conf.ConfigurationBuilder;
 
 /**
  * based on com.twitter.hbc.example.SampleStreamExample
@@ -39,6 +49,8 @@ public class SampleListener implements Callable<Void> {
     private final String keydirectory;
 
     private BasicClient clientInUse = null;
+    // keep tracking the tweetid we received, filter out the duplicate tweets
+    private final TLongHashSet tweetids = new TLongHashSet();
 
     public SampleListener(final BlockingQueue<String> bqueue, final String keydirectory) throws IOException {
         this.bqueue = bqueue;
@@ -136,21 +148,21 @@ public class SampleListener implements Callable<Void> {
             Arrays.sort(milsecond);
             minimumTime = milsecond[0];
         }
-        for (String apikey : apikayKeys.keySet()) {
-            if (apikeyTimestamp.get(apikey) <= minimumTime) {
-                String[] keywords = apikayKeys.get(apikey);
-                connect(keywords[0], keywords[1], keywords[2], keywords[3]);
-                currentKey = apikey;
-                break;
-            }
-        }
         // api-key should be spared for more than 15 min (the length of
         // time window)
         if ((currentTime - minimumTime) <= 15 * 1000) {
             logger.info(currentKey + " sleep for " + (currentTime - minimumTime));
             Thread.sleep(currentTime - minimumTime);
         }
-        logger.info(currentKey + " is being used to connect twiter API.");
+        for (String apikey : apikayKeys.keySet()) {
+            if (apikeyTimestamp.get(apikey) <= minimumTime) {
+                String[] keywords = apikayKeys.get(apikey);
+                statuslistener(keywords[0], keywords[1], keywords[2], keywords[3]);
+                currentKey = apikey;
+                logger.info(currentKey + " is being used to connect twiter API.");
+                break;
+            }
+        }
         // update and rewrite the file records the key and the time stamp
         currentTime = System.currentTimeMillis();
         try (PrintStream ps = new PrintStream(
@@ -167,7 +179,17 @@ public class SampleListener implements Callable<Void> {
         return currentKey;
     }
 
-    private void connect(String consumerKey, String consumerSecret, String token, String secret) throws Exception {
+    /**
+     * receive and put all stream heard from api into the queue including delete
+     * msg, status etc..
+     *
+     * @param consumerKey
+     * @param consumerSecret
+     * @param token
+     * @param secret
+     * @throws Exception
+     */
+    private void rawlistener(String consumerKey, String consumerSecret, String token, String secret) throws Exception {
         // Define our endpoint: By default, delimited=length is set (we need this for our processor)
         // and stall warnings are on.
         StatusesSampleEndpoint endpoint = new StatusesSampleEndpoint();
@@ -183,6 +205,154 @@ public class SampleListener implements Callable<Void> {
                 .build();
         // Establish a connection
         clientInUse.connect();
+    }
+
+    /**
+     * only keep recording the status: including the status and the retweet
+     *
+     * @param consumerKey
+     * @param consumerSecret
+     * @param token
+     * @param secret
+     * @throws Exception
+     */
+    private void statuslistener(String consumerKey, String consumerSecret, String token, String secret) throws Exception {
+        // Define our endpoint: By default, delimited=length is set (we need this for our processor)
+        // and stall warnings are on.
+        StatusesSampleEndpoint endpoint = new StatusesSampleEndpoint();
+        endpoint.stallWarnings(false);
+        Authentication auth = new OAuth1(consumerKey, consumerSecret, token, secret);
+        // Create a new BasicClient. By default gzip is enabled.
+        clientInUse = new ClientBuilder()
+                .name("sampleClient")
+                .hosts(Constants.STREAM_HOST)
+                .endpoint(endpoint)
+                .authentication(auth)
+                .processor(new FilteredStringDelimitedProcessor(bqueue))
+                .build();
+        // Establish a connection
+        clientInUse.connect();
+    }
+
+    private class FilteredStringDelimitedProcessor extends StringDelimitedProcessor {
+
+        public FilteredStringDelimitedProcessor(BlockingQueue<String> queue) {
+            super(queue);
+        }
+
+        /**
+         * only put the status into queue
+         */
+        @Override
+        public boolean process() throws IOException, InterruptedException {
+            String msg = processNextMessage();
+            boolean isInsert = true;
+            while (msg == null) {
+                msg = processNextMessage();
+            }
+            try {
+                long tweetid = isStatus(msg);
+                if (tweetid > 0 && !tweetids.contains(tweetid)) {
+                    isInsert = queue.offer(msg, offerTimeoutMillis, TimeUnit.MILLISECONDS);
+                    tweetids.add(tweetid);
+                    // clear the record per 20 mins roughly
+                    if (tweetids.size() >= 50000) {
+                        tweetids.clear();
+                    }
+                }
+            } catch (JSONException | TwitterException ex) {
+                java.util.logging.Logger.getLogger(SampleListener.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            return isInsert;
+        }
+
+    }
+
+    /**
+     * referred com.twitter.hbc.twitter4j.BaseTwitter4jClient given an input
+     * stream, check whether it is status or not currently only response to
+     * status/restatus
+     *
+     * @param msg
+     * @return
+     * @throws JSONException
+     * @throws TwitterException
+     * @throws IOException
+     */
+    private long isStatus(String msg) throws JSONException, TwitterException, IOException {
+        JSONObject json = new JSONObject(msg);
+        JSONObjectType.Type type = JSONObjectType.determine(json);
+        PublicObjectFactory factory = new PublicObjectFactory(new ConfigurationBuilder().build());
+        long tweetid = -1;
+        int statustype = 0;
+        switch (type) {
+            case STATUS:
+                statustype = 1;
+                break;
+            case LIMIT:
+                break;
+            case DELETE:
+                break;
+            case SCRUB_GEO:
+                break;
+            case DIRECT_MESSAGE:
+            case SENDER:
+                break;
+            case FRIENDS:
+                break;
+            case FAVORITE:
+                break;
+            case UNFAVORITE:
+                break;
+            case FOLLOW:
+                break;
+            case UNFOLLOW:
+                break;
+            case USER_LIST_MEMBER_ADDED:
+                break;
+            case USER_LIST_MEMBER_DELETED:
+                break;
+            case USER_LIST_SUBSCRIBED:
+                break;
+            case USER_LIST_UNSUBSCRIBED:
+                break;
+            case USER_LIST_CREATED:
+                break;
+            case USER_LIST_UPDATED:
+                break;
+            case USER_LIST_DESTROYED:
+                break;
+            case BLOCK:
+                break;
+            case UNBLOCK:
+                break;
+            case USER_UPDATE:
+                break;
+            case DISCONNECTION:
+                break;
+            case STALL_WARNING:
+                break;
+            case UNKNOWN:
+            default:
+                // sole RT?
+                if (JSONObjectParser.isRetweetMessage(json)) {
+                    statustype = 2;
+                    logger.info("RT: " + msg);
+                } else if (JSONObjectParser.isControlStreamMessage(json)) {
+                } else {
+                }
+                break;
+        }
+        switch (statustype) {
+            case 1:
+                tweetid = factory.createStatus(json).getId();
+                break;
+            case 2:
+                tweetid = factory.createStatus(JSONObjectParser.parseEventTargetObject(json)).getId();
+                break;
+        }
+
+        return tweetid;
     }
 
 }

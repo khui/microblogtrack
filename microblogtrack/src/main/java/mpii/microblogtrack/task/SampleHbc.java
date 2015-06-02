@@ -43,17 +43,14 @@ public class SampleHbc {
             if (dumperservice.isShutdown()) {
                 logger.warn("Dumper stoped!");
             }
-            if (queue.size() > queueBound * 0.99) {
+            if (queue.size() > queueBound * 0.9) {
                 logger.warn("queue is almost full with: " + queue.size() + " items.");
-            }
-            if (queue.size() < queueBound * 0.01) {
-                // logger.warn("queue is almost empty with: " + queue.size() + " items.");
             }
         }
     }
 
     public static void main(String[] args) throws ParseException, IOException {
-        //Logger.getRootLogger().setLevel(Level.DEBUG);
+        Logger.getRootLogger().setLevel(Level.INFO);
         Options options = new Options();
         options.addOption("o", "outdir", true, "output directory");
         options.addOption("k", "keydirectory", true, "api key directory");
@@ -61,7 +58,7 @@ public class SampleHbc {
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
         String outputdir = null, keydir = null;
-        int queueBound = 10000;
+        int queueBound = 100000;
         if (cmd.hasOption("o")) {
             outputdir = cmd.getOptionValue("o");
         }
