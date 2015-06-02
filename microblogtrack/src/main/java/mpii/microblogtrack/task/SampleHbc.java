@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import mpii.microblogtrack.consumer.Dump2Files;
+import mpii.microblogtrack.consumer.Filters;
 import mpii.microblogtrack.listener.SampleListener;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -30,7 +31,7 @@ public class SampleHbc {
     final Logger logger = Logger.getLogger(SampleHbc.class);
 
     public void listenDump(String keydir, String outdir, int queueBound) throws IOException {
-        // Create an appropriately sized blocking queue
+        // Create an appropriately sized blocking rawStreamQueue
         BlockingQueue<String> queue = new LinkedBlockingQueue<>(queueBound);
         ExecutorService listenerservice = Executors.newSingleThreadExecutor();
         ExecutorService dumperservice = Executors.newSingleThreadExecutor();
@@ -49,6 +50,38 @@ public class SampleHbc {
         }
     }
 
+    public void listenFilterDump(String keydir, String outdir, int queueBound) throws IOException {
+        int TIMEOUT = 60; // in seconds by default
+        int numofthreads2filter = 2;
+        // Create an appropriately sized blocking rawStreamQueue
+        BlockingQueue<String> rawStreamQueue = new LinkedBlockingQueue<>(queueBound);
+        BlockingQueue<String> filteredQueue = new LinkedBlockingQueue<>(queueBound);
+        ExecutorService listenerservice = Executors.newSingleThreadExecutor();
+        ExecutorService filterservice = Executors.newSingleThreadExecutor();
+        ExecutorService dumperservice = Executors.newSingleThreadExecutor();
+
+        listenerservice.submit(new SampleListener(rawStreamQueue, keydir));
+        filterservice.submit(new Filters(rawStreamQueue, filteredQueue, TIMEOUT, numofthreads2filter));
+        dumperservice.submit(new Dump2Files(filteredQueue, outdir));
+        while (true) {
+            if (listenerservice.isShutdown()) {
+                logger.warn("Listener stoped!");
+            }
+            if (dumperservice.isShutdown()) {
+                logger.warn("Dumper stoped!");
+            }
+            if (filterservice.isShutdown()) {
+                logger.warn("Filter stoped!");
+            }
+            if (rawStreamQueue.size() > queueBound * 0.9) {
+                logger.warn("rawStreamQueue is almost full with: " + rawStreamQueue.size() + " items.");
+            }
+            if (filteredQueue.size() > queueBound * 0.9) {
+                logger.warn("filteredQueue is almost full with: " + filteredQueue.size() + " items.");
+            }
+        }
+    }
+
     public static void main(String[] args) throws ParseException, IOException {
         Logger.getRootLogger().setLevel(Level.INFO);
         Options options = new Options();
@@ -58,7 +91,7 @@ public class SampleHbc {
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
         String outputdir = null, keydir = null;
-        int queueBound = 100000;
+        int queueBound = 10000;
         if (cmd.hasOption("o")) {
             outputdir = cmd.getOptionValue("o");
         }
@@ -68,7 +101,7 @@ public class SampleHbc {
         if (cmd.hasOption("s")) {
             queueBound = Integer.parseInt(cmd.getOptionValue("s"));
         }
-        new SampleHbc().listenDump(keydir, outputdir, queueBound);
+        new SampleHbc().listenFilterDump(keydir, outputdir, queueBound);
     }
 
 }
