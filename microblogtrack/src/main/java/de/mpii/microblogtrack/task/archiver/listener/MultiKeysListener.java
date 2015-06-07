@@ -1,17 +1,6 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-package mpii.microblogtrack.listener;
+package de.mpii.microblogtrack.task.archiver.listener;
 
-import com.twitter.hbc.ClientBuilder;
-import com.twitter.hbc.core.Constants;
-import com.twitter.hbc.core.endpoint.StatusesSampleEndpoint;
-import com.twitter.hbc.core.processor.StringDelimitedProcessor;
 import com.twitter.hbc.httpclient.BasicClient;
-import com.twitter.hbc.httpclient.auth.Authentication;
-import com.twitter.hbc.httpclient.auth.OAuth1;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import java.io.BufferedReader;
 import java.io.File;
@@ -32,19 +21,21 @@ import org.apache.log4j.Logger;
  *
  * @author khui
  */
-public class SampleListener implements Callable<Void> {
+public abstract class MultiKeysListener implements Callable<Void> {
 
-    final Logger logger = Logger.getLogger(SampleListener.class);
+    final Logger logger = Logger.getLogger(MultiKeysListener.class);
 
-    private final BlockingQueue<String> outQueue;
+    protected final BlockingQueue<String> outQueue;
 
     private final String keydirectory;
 
-    private BasicClient clientInUse = null;
-
     private String currentKey = "";
 
-    public SampleListener(final BlockingQueue<String> outQueue, final String keydirectory) throws IOException {
+    protected TObjectLongHashMap<String> apikeyTimestamp = new TObjectLongHashMap<>();
+
+    protected HashMap<String, String[]> apikayKeys = new HashMap<>();
+
+    public MultiKeysListener(final BlockingQueue<String> outQueue, final String keydirectory) throws IOException {
         this.outQueue = outQueue;
         this.keydirectory = keydirectory;
     }
@@ -52,17 +43,9 @@ public class SampleListener implements Callable<Void> {
     @Override
     public Void call() throws Exception {
         // recorder for multiple api-keys, for the sake of robustness
-        TObjectLongHashMap<String> apikeyTimestamp = new TObjectLongHashMap<>();
-        HashMap<String, String[]> apikayKeys = new HashMap<>();
-
         readinAPIConfBuilder(apikeyTimestamp, apikayKeys);
-        updateListener(apikeyTimestamp, apikayKeys);
-        while (true) {
-            if (clientInUse.isDone()) {
-                logger.error("Current client connection closed unexpectedly: " + clientInUse.getExitEvent().getMessage());
-                updateListener(apikeyTimestamp, apikayKeys);
-            }
-        }
+        keepconnecting();
+        return null;
     }
 
     /**
@@ -123,11 +106,12 @@ public class SampleListener implements Callable<Void> {
      * pick up the api-key, being spared for longest time and establish the
      * standing connection with twitter api
      *
-     * @param statuslistener
+     * @param apikeyTimestamp
+     * @param apikayKeys
      * @throws InterruptedException
      * @throws FileNotFoundException
      */
-    private void updateListener(TObjectLongHashMap<String> apikeyTimestamp, HashMap<String, String[]> apikayKeys) throws InterruptedException,
+    protected void updateListener(TObjectLongHashMap<String> apikeyTimestamp, HashMap<String, String[]> apikayKeys) throws InterruptedException,
             FileNotFoundException,
             Exception {
         long currentTime = System.currentTimeMillis();
@@ -152,7 +136,7 @@ public class SampleListener implements Callable<Void> {
                 keywords = apikayKeys.get(apikey);
                 logger.info(apikey + " is being used to connect twiter API.");
                 currentKey = apikey;
-                rawlistener(keywords[0], keywords[1], keywords[2], keywords[3]);
+                listener(keywords[0], keywords[1], keywords[2], keywords[3]);
                 break;
             }
         }
@@ -181,22 +165,7 @@ public class SampleListener implements Callable<Void> {
      * @param secret
      * @throws Exception
      */
-    private void rawlistener(String consumerKey, String consumerSecret, String token, String secret) throws Exception {
-        // Define our endpoint: By default, delimited=length is set (we need this for our processor)
-        // and stall warnings are on.
-        StatusesSampleEndpoint endpoint = new StatusesSampleEndpoint();
-        endpoint.stallWarnings(false);
-        Authentication auth = new OAuth1(consumerKey, consumerSecret, token, secret);
-        // Create a new BasicClient. By default gzip is enabled.
-        clientInUse = new ClientBuilder()
-                .name("sampleClient")
-                .hosts(Constants.STREAM_HOST)
-                .endpoint(endpoint)
-                .authentication(auth)
-                .processor(new StringDelimitedProcessor(outQueue))
-                .build();
-        // Establish a connection
-        clientInUse.connect();
-    }
+    protected abstract void listener(String consumerKey, String consumerSecret, String token, String secret) throws Exception;
 
+    protected abstract void keepconnecting() throws FileNotFoundException, InterruptedException, Exception;
 }

@@ -1,4 +1,4 @@
-package mpii.microblogtrack.task;
+package de.mpii.microblogtrack.task.archiver;
 
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;

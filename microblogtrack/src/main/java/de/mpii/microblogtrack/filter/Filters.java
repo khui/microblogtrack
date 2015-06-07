@@ -1,9 +1,4 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-package mpii.microblogtrack.consumer;
+package de.mpii.microblogtrack.filter;
 
 import gnu.trove.set.hash.TLongHashSet;
 import java.util.concurrent.BlockingQueue;
@@ -13,14 +8,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import mpii.microblogtrack.listener.filter.FiltUniqTweet;
-import mpii.microblogtrack.listener.filter.Filter;
-import mpii.microblogtrack.listener.filter.LangFilter;
-import mpii.microblogtrack.listener.filter.StatusFilter;
-import mpii.microblogtrack.utility.UniqTweet;
+import de.mpii.microblogtrack.filter.FiltUniqTweet;
+import de.mpii.microblogtrack.filter.Filter;
+import de.mpii.microblogtrack.filter.LangFilter;
+import de.mpii.microblogtrack.filter.StatusFilter;
+import de.mpii.microblogtrack.utility.UniqTweet;
 import org.apache.log4j.Logger;
 
 /**

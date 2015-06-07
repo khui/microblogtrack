@@ -1,18 +1,14 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-package mpii.microblogtrack.task;
+package de.mpii.microblogtrack.task.archiver;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import mpii.microblogtrack.consumer.Dump2Files;
-import mpii.microblogtrack.consumer.Filters;
-import mpii.microblogtrack.listener.SampleListener;
+import de.mpii.microblogtrack.task.archiver.filewriter.Dump2Files;
+import de.mpii.microblogtrack.filter.Filters;
+import de.mpii.microblogtrack.task.archiver.listener.MultiKeysListenerHBC;
+import de.mpii.microblogtrack.task.archiver.listener.MultiKeysListenerT4J;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -26,16 +22,16 @@ import org.apache.log4j.Logger;
  *
  * @author khui
  */
-public class SampleHbc {
+public class SampleMitBQ {
 
-    final Logger logger = Logger.getLogger(SampleHbc.class);
+    final Logger logger = Logger.getLogger(SampleMitBQ.class);
 
     public void listenDump(String keydir, String outdir, int queueBound) throws IOException {
         // Create an appropriately sized blocking rawStreamQueue
         BlockingQueue<String> queue = new LinkedBlockingQueue<>(queueBound);
         ExecutorService listenerservice = Executors.newSingleThreadExecutor();
         ExecutorService dumperservice = Executors.newSingleThreadExecutor();
-        listenerservice.submit(new SampleListener(queue, keydir));
+        listenerservice.submit(new MultiKeysListenerHBC(queue, keydir));
         dumperservice.submit(new Dump2Files(queue, outdir));
         while (true) {
             if (listenerservice.isShutdown()) {
@@ -60,7 +56,7 @@ public class SampleHbc {
         ExecutorService filterservice = Executors.newSingleThreadExecutor();
         ExecutorService dumperservice = Executors.newSingleThreadExecutor();
 
-        listenerservice.submit(new SampleListener(rawStreamQueue, keydir));
+        listenerservice.submit(new MultiKeysListenerHBC(rawStreamQueue, keydir));
         filterservice.submit(new Filters(rawStreamQueue, filteredQueue, TIMEOUT, numofthreads2filter));
         dumperservice.submit(new Dump2Files(filteredQueue, outdir));
         while (true) {
@@ -82,6 +78,15 @@ public class SampleHbc {
         }
     }
 
+    public void multikeylistenerDumper(String keydir, String outdir, int queueBound) throws IOException {
+        // Create an appropriately sized blocking rawStreamQueue
+        BlockingQueue<String> rawStreamQueue = new LinkedBlockingQueue<>(queueBound);
+        ExecutorService listenerservice = Executors.newSingleThreadExecutor();
+        ExecutorService dumperservice = Executors.newSingleThreadExecutor();
+        listenerservice.submit(new MultiKeysListenerT4J(rawStreamQueue, keydir));
+        dumperservice.submit(new Dump2Files(rawStreamQueue, outdir));
+    }
+
     public static void main(String[] args) throws ParseException, IOException {
         Logger.getRootLogger().setLevel(Level.INFO);
         Options options = new Options();
@@ -101,7 +106,9 @@ public class SampleHbc {
         if (cmd.hasOption("s")) {
             queueBound = Integer.parseInt(cmd.getOptionValue("s"));
         }
-        new SampleHbc().listenFilterDump(keydir, outputdir, queueBound);
+        //new SampleMitBQ().listenFilterDump(keydir, outputdir, queueBound);
+        new SampleMitBQ().multikeylistenerDumper(keydir, outputdir, queueBound);
+
     }
 
 }

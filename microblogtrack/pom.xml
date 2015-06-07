@@ -104,7 +104,6 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>mpii.microblogtrack.task.SampleHbc</mainClass>
                         </manifest>
                         <manifestEntries>
                             <Class-Path>.</Class-Path>
