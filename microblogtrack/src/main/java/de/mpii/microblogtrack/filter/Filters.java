@@ -10,10 +10,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import de.mpii.microblogtrack.filter.FiltUniqTweet;
-import de.mpii.microblogtrack.filter.Filter;
-import de.mpii.microblogtrack.filter.LangFilter;
-import de.mpii.microblogtrack.filter.StatusFilter;
 import de.mpii.microblogtrack.utility.UniqTweet;
 import org.apache.log4j.Logger;
 
@@ -54,7 +50,7 @@ public class Filters implements Callable<Void> {
         CompletionService<UniqTweet> completionService
                 = new ExecutorCompletionService<>(executor);
         // multiple filters
-        Filter[] filters = {new StatusFilter(), new LangFilter()};
+        Filter[] filters = {new StatusFilter(), new LangFilterTW()};
 
         int numberoftasksOneRound = numProcessingThreads * 10; // larger than numProcessingThreads
         while (true) {

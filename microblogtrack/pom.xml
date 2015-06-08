@@ -59,6 +59,11 @@
             <artifactId>hbc-twitter4j</artifactId>
             <version>2.2.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.cybozu.labs</groupId>
+            <artifactId>langdetect</artifactId>
+            <version>1.1-20120112</version>
+        </dependency>
     </dependencies>
     <build>
         <finalName>${artifactId}</finalName>
@@ -109,7 +114,6 @@
                             <Class-Path>.</Class-Path>
                         </manifestEntries>
                     </archive>
-                    
                 </configuration>
             </plugin>
             <plugin>
@@ -124,7 +128,17 @@
                         </goals>
                         <configuration>
                             <target>
-                                <scp file="${basedir}/target/${artifactId}.jar" trust="true" todir="khui@contact.mpi-inf.mpg.de:/home/khui/workspace/javaworkspace" keyfile="${user.home}/.ssh/id_rsa" />
+                                <scp file="${basedir}/target/${artifactId}.jar" 
+                                     trust="true" 
+                                     todir="khui@contact.mpi-inf.mpg.de:/home/khui/workspace/javaworkspace" 
+                                     keyfile="${user.home}/.ssh/id_rsa" />
+                                <scp trust="true" 
+                                     todir="khui@contact.mpi-inf.mpg.de:/home/khui/workspace/script/crawltweet/test" 
+                                     keyfile="${user.home}/.ssh/id_rsa">
+                                    <fileset dir="${basedir}/target/test-classes/">
+                                        <include name="**/*.class"/>
+                                    </fileset>
+                                </scp>>
                             </target>
                         </configuration>
                     </execution>
@@ -141,6 +155,15 @@
                         <version>1.9.4</version>
                     </dependency>
                 </dependencies>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>2.3.2</version>
+                <configuration>
+                    <source>1.7</source>
+                    <target>1.7</target>
+                </configuration>
             </plugin>
         </plugins>       
     </build>
