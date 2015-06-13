@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.filter;
+package de.mpii.microblogtrack.component.filter;
 
 import com.twitter.hbc.twitter4j.parser.JSONObjectParser;
 import java.io.IOException;

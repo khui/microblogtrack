@@ -1,14 +1,14 @@
-package de.mpii.microblogtrack.task.archiver;
+package de.mpii.microblogtrack.archiver;
 
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import de.mpii.microblogtrack.task.archiver.filewriter.Dump2Files;
-import de.mpii.microblogtrack.filter.Filters;
-import de.mpii.microblogtrack.task.archiver.listener.MultiKeysListenerHBC;
-import de.mpii.microblogtrack.task.archiver.listener.MultiKeysListenerT4J;
+import de.mpii.microblogtrack.archiver.filewriter.Dump2Files;
+import de.mpii.microblogtrack.component.filter.Filters;
+import de.mpii.microblogtrack.archiver.listener.MultiKeysListenerHBC;
+import de.mpii.microblogtrack.archiver.listener.MultiKeysListenerT4J;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;

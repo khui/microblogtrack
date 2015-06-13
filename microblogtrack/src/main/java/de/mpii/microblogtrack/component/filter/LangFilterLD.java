@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.filter;
+package de.mpii.microblogtrack.component.filter;
 
 import twitter4j.JSONObject;
 import twitter4j.Status;
@@ -17,22 +17,20 @@ public class LangFilterLD implements Filter {
 
     final Logger logger = Logger.getLogger(LangFilterLD.class);
 
-    public static void loadprofile() throws LangDetectException {
-        String profileDirectory = "/GW/D5data-2/khui/microblogtrack/lang-dect-profile";
+    public static void loadprofile(String profileDirectory) throws LangDetectException {
         DetectorFactory.loadProfile(profileDirectory);
     }
 
     @Override
     public boolean isRetain(String msg, JSONObject json, Status status) {
-        String profileDirectory = this.getClass().getClassLoader().getResource("lang-dect-profile").getFile();
-        System.out.println(profileDirectory);
+        String errorstr = "";
         try {
-            DetectorFactory.loadProfile(profileDirectory);
             Detector detector = DetectorFactory.create();
             detector.append(status.getText());
             return detector.detect().equals("en");
         } catch (LangDetectException ex) {
-            logger.error(ex.getCode() + ":" + ex.getMessage());
+            errorstr = ex.getCode() + ":" + ex.getMessage();
+            System.err.println(errorstr);
         }
         return false;
     }

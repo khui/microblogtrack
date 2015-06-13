@@ -1,7 +1,8 @@
 package de.mpii.microblogtrack.filter;
 
+import de.mpii.microblogtrack.component.filter.LangFilterLD;
 import com.cybozu.labs.langdetect.LangDetectException;
-import de.mpii.microblogtrack.task.archiver.listener.MultiKeysListenerT4J;
+import de.mpii.microblogtrack.archiver.listener.MultiKeysListenerT4J;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;
@@ -44,7 +45,7 @@ public class LangFilterLDTest {
         String keydir = "/GW/D5data-2/khui/microblogtrack/apikeys/batchkeys/apikey4";
         listenerservice.submit(new MultiKeysListenerT4J(rawStreamQueue, keydir));
         ArrayList<Status[]> statusTwitterlang = new ArrayList<>();
-        while (statusTwitterlang.size() <= 10000) {
+        while (statusTwitterlang.size() <= 1000000) {
             String json = rawStreamQueue.poll(TIMEOUT, TimeUnit.SECONDS);
             if (json != null) {
                 Status tweet = TwitterObjectFactory.createStatus(json);
@@ -56,7 +57,7 @@ public class LangFilterLDTest {
             }
         }
         listenerservice.shutdownNow();
-        LangFilterLD.loadprofile();
+        // LangFilterLD.loadprofile();
         return statusTwitterlang;
     }
 
@@ -69,7 +70,6 @@ public class LangFilterLDTest {
     @Test
     public void testLangdetect()
             throws TwitterException, InterruptedException {
-        System.out.println("* testLangdetect: equalsCheck()");
         LangFilterLD instance = new LangFilterLD();
         Status status = this.tweet;
         String text = status.getText();
@@ -84,6 +84,9 @@ public class LangFilterLDTest {
                 System.err.println(failurecount + "/" + totalcount + ":\t" + cf.getMessage());
             }
 
+        }
+        if (totalcount != 0 && totalcount % 1000 == 0) {
+            System.out.println(failurecount + "/" + totalcount);
         }
     }
 }

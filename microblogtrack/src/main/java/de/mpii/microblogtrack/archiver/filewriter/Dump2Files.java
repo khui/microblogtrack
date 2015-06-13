@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.task.archiver.filewriter;
+package de.mpii.microblogtrack.archiver.filewriter;
 
 import java.io.BufferedWriter;
 import java.io.File;

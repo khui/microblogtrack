@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.filter;
+package de.mpii.microblogtrack.component.filter;
 
 import gnu.trove.set.hash.TLongHashSet;
 import java.util.concurrent.BlockingQueue;

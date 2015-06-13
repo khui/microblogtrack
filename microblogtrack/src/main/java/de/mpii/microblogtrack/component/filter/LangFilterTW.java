@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.filter;
+package de.mpii.microblogtrack.component.filter;
 
 import org.apache.log4j.Logger;
 import twitter4j.JSONObject;

@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.filter;
+package de.mpii.microblogtrack.component.filter;
 
 import twitter4j.JSONObject;
 import twitter4j.Status;

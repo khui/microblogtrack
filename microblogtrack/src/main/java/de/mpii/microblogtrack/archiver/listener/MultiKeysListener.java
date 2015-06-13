@@ -1,6 +1,5 @@
-package de.mpii.microblogtrack.task.archiver.listener;
+package de.mpii.microblogtrack.archiver.listener;
 
-import com.twitter.hbc.httpclient.BasicClient;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import java.io.BufferedReader;
 import java.io.File;

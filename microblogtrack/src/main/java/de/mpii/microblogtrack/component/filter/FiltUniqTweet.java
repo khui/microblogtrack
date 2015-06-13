@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.filter;
+package de.mpii.microblogtrack.component.filter;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
