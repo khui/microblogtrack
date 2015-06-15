@@ -1,7 +1,5 @@
 package de.mpii.microblogtrack.component.features;
 
-import gnu.trove.list.TLongList;
-import gnu.trove.list.array.TLongArrayList;
 import gnu.trove.map.TLongDoubleMap;
 import gnu.trove.map.hash.TLongDoubleHashMap;
 import java.io.IOException;
