@@ -11,8 +11,12 @@ import com.twitter.hbc.httpclient.auth.Authentication;
 import com.twitter.hbc.httpclient.auth.OAuth1;
 import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
 import de.mpii.microblogtrack.component.features.ExtractTweetText;
+import de.mpii.microblogtrack.component.features.LuceneScores;
+import de.mpii.microblogtrack.component.filter.DuplicateTweet;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterLD;
+import de.mpii.microblogtrack.userprofiles.TrecQuery;
+import gnu.trove.map.TLongDoubleMap;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import java.io.BufferedReader;
@@ -21,17 +25,24 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
-import twitter4j.HashtagEntity;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.lucene.benchmark.quality.QualityQuery;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.Query;
 import twitter4j.StallWarning;
 import twitter4j.Status;
 import twitter4j.StatusDeletionNotice;
 import twitter4j.StatusListener;
-import twitter4j.URLEntity;
-import twitter4j.UserMentionEntity;
 
 /**
  * based on com.twitter.hbc.example.Twitter4jSampleStreamExample
@@ -48,7 +59,13 @@ public class OnlineProcessor {
 
     private final Filter langfilter;
 
+    private final DuplicateTweet duplicateTweet;
+
     private final ExtractTweetText turlexpand;
+
+    private final LuceneScores lscore;
+
+    private final List<Query> queries;
 
     private final StatusListener listener = new StatusListener() {
 
@@ -56,7 +73,14 @@ public class OnlineProcessor {
         public void onStatus(Status status) {
             boolean isEng = langfilter.isRetain(null, null, status);
             if (isEng) {
-
+                boolean isNew = duplicateTweet.isRetain(null, null, status);
+                if (isNew) {
+                    try {
+                        lscore.indexDoc(status);
+                    } catch (IOException ex) {
+                        Logger.getLogger(OnlineProcessor.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
             }
         }
 
@@ -81,11 +105,17 @@ public class OnlineProcessor {
         }
     };
 
-    public OnlineProcessor(int numProcessingThreads, int queuesize) throws LangDetectException {
+    public OnlineProcessor(int numProcessingThreads, int queuesize, String indexdir, String queryfile) throws LangDetectException, IOException, ParseException {
         this.numProcessingThreads = numProcessingThreads;
         this.queue = new LinkedBlockingQueue<>(queuesize);
         this.langfilter = new LangFilterLD();
+        this.duplicateTweet = new DuplicateTweet();
         this.turlexpand = new ExtractTweetText();
+        this.lscore = new LuceneScores(indexdir);
+        TrecQuery tq = new TrecQuery();
+        QualityQuery[] qqs = tq.readTrecQuery(queryfile);
+        this.queries = tq.parseQualityQuery(qqs);
+
     }
 
     /**
@@ -187,12 +217,31 @@ public class OnlineProcessor {
         client.stop();
     }
 
-    public static void main(String[] args) throws LangDetectException, InterruptedException, IOException {
-        String directory = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        OnlineProcessor op = new OnlineProcessor(2, 10);
-        LangFilterLD.loadprofile(directory + "/lang-dect-profile");
-        System.out.println("Finished loading lang profiles");
-        op.process(directory + "/twitterkeys");
+    public void retrieveTopTweet() throws IOException, InterruptedException, ExecutionException {
+        ExecutorService service = Executors.newFixedThreadPool(4);
+        Set<Future<TLongDoubleMap>> resultset = new HashSet<>();
+        TLongDoubleMap tweetidScore;
+        while (!Thread.interrupted()) {
+            long[] minmax = duplicateTweet.getTweetIdRange();
+            for (Query termquery : queries) {
+                LuceneScores.NRTSearch nrtsearch = lscore.new NRTSearch(10, minmax[0], minmax[1], termquery);
+                Future<TLongDoubleMap> tids = service.submit(nrtsearch);
+                resultset.add(tids);
+            }
+            for (Future<TLongDoubleMap> future : resultset) {
+                tweetidScore = future.get();
+            }
+            Thread.sleep(60 * 1000);
+        }
+    }
 
+    public static void main(String[] args) throws LangDetectException, InterruptedException, IOException, ParseException, ExecutionException {
+        String dir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        String queryfile = "/home/khui/workspace/result/data/query/microblog";
+        String indexdir = dir + "/index";
+        LangFilterLD.loadprofile(dir + "/lang-dect-profile");
+        OnlineProcessor op = new OnlineProcessor(2, 1000, indexdir, queryfile);
+        op.process(dir + "/twitterkeys");
+        op.retrieveTopTweet();
     }
 }
