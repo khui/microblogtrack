@@ -1,9 +1,10 @@
 package de.mpii.microblogtrack.component.filter;
 
 import gnu.trove.TCollections;
-import gnu.trove.set.TLongSet;
-import gnu.trove.set.hash.TLongHashSet;
+import gnu.trove.map.TLongObjectMap;
+import gnu.trove.map.hash.TLongObjectHashMap;
 import java.util.Arrays;
+import org.apache.log4j.Logger;
 import twitter4j.JSONObject;
 import twitter4j.Status;
 
@@ -13,9 +14,11 @@ import twitter4j.Status;
  */
 public class DuplicateTweet implements Filter {
 
-    private static final TLongSet tweetids_0 = TCollections.synchronizedSet(new TLongHashSet());
+    final Logger logger = Logger.getLogger(DuplicateTweet.class);
 
-    private static final TLongSet tweetids_1 = new TLongHashSet();
+    private static final TLongObjectMap<Status> tweetidStatus_0 = TCollections.synchronizedMap(new TLongObjectHashMap<Status>(10000));
+
+    private static final TLongObjectMap<Status> tweetidStatus_1 = TCollections.synchronizedMap(new TLongObjectHashMap<Status>(10000));
 
     private final int tracklength = 10000;
 
@@ -33,9 +36,9 @@ public class DuplicateTweet implements Filter {
     public boolean isRetain(String msg, JSONObject json, Status status) {
         long tweetid = status.getId();
         boolean isNew = true;
-        synchronized (tweetids_0) {
-            if (!tweetids_0.contains(tweetid) && !tweetids_1.contains(tweetid)) {
-                tweetids_0.add(tweetid);
+        synchronized (tweetidStatus_0) {
+            if (!tweetidStatus_0.containsKey(tweetid) && !tweetidStatus_1.containsKey(tweetid)) {
+                tweetidStatus_0.put(tweetid, status);
             } else {
                 isNew = false;
             }
@@ -43,28 +46,30 @@ public class DuplicateTweet implements Filter {
         return isNew;
     }
 
-    public void clearIdSet() {
-        synchronized (tweetids_0) {
-            tweetids_1.clear();
-            tweetids_1.addAll(tweetids_0);
-            tweetids_0.clear();
-        }
-    }
-
     public long[] getTweetIdRange() {
         long maxid;
         long minid;
         long[] ids;
-        synchronized (tweetids_0) {
-            ids = tweetids_0.toArray();
-            tweetids_1.clear();
-            tweetids_1.addAll(tweetids_0);
-            tweetids_0.clear();
+
+        synchronized (tweetidStatus_0) {
+            ids = tweetidStatus_0.keys();
+            tweetidStatus_1.clear();
+            tweetidStatus_1.putAll(tweetidStatus_0);
+            tweetidStatus_0.clear();
         }
         Arrays.sort(ids);
         minid = ids[0];
         maxid = ids[ids.length - 1];
         return new long[]{minid, maxid};
+    }
+
+    public Status getStatus(long tweetid) {
+        if (tweetidStatus_1.containsKey(tweetid)) {
+            return tweetidStatus_1.get(tweetid);
+        } else {
+            logger.error("the map doesnot contain tweetid: " + tweetid);
+            return null;
+        }
     }
 
 }

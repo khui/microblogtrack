@@ -1,11 +1,13 @@
 package de.mpii.microblogtrack.component.features;
 
-import gnu.trove.map.TLongDoubleMap;
-import gnu.trove.map.hash.TLongDoubleHashMap;
+import de.mpii.microblogtrack.component.filter.DuplicateTweet;
+import de.mpii.microblogtrack.utility.QueryTweetPair;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -43,7 +45,9 @@ public class LuceneScores {
 
     private final ExtractTweetText textextractor;
 
-    public LuceneScores(String indexdir) throws IOException {
+    private final DuplicateTweet duplicateDetector;
+
+    public LuceneScores(String indexdir, DuplicateTweet duplicateDetector) throws IOException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         Analyzer analyzer = new StandardAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
@@ -53,6 +57,7 @@ public class LuceneScores {
         this.reader = DirectoryReader.open(writer, false);
         this.searcher = new IndexSearcher(reader);
         this.textextractor = new ExtractTweetText();
+        this.duplicateDetector = duplicateDetector;
     }
 
     private HashMap<String, String> status2Fields(Status status) {
@@ -60,6 +65,10 @@ public class LuceneScores {
         String tweeturl = textextractor.getExpanded(status);
         fieldnameStr.put("tweeturl", tweeturl);
         return fieldnameStr;
+    }
+
+    public int getIndexSize() {
+        return reader.numDocs();
     }
 
     /**
@@ -83,53 +92,41 @@ public class LuceneScores {
         writer.close();
     }
 
-    public void nrtSearch(int topN, long startId, long endId, Query termquery) throws IOException {
-        BooleanQuery combinedQuery = new BooleanQuery();
-        combinedQuery.add(termquery, BooleanClause.Occur.SHOULD);
-        NumericRangeQuery tweetidrg = NumericRangeQuery.newLongRange("tweetid", startId, endId, true, true);
-        combinedQuery.add(tweetidrg, BooleanClause.Occur.MUST);
-        TopDocs topdocs = searcher.search(combinedQuery, topN);
-        ScoreDoc[] hits = topdocs.scoreDocs;
-        for (ScoreDoc sdoc : hits) {
-            Document tweet = searcher.doc(sdoc.doc);
-            long tweetid = Long.parseLong(tweet.get("tweetid"));
-            System.out.println(tweetid + ":" + sdoc.score);
+    public class NRTSearch implements Callable<Void> {
+
+        private int topN = 5;
+
+        private final String queryId;
+
+        private final BooleanQuery combinedQuery = new BooleanQuery();
+
+        private final BlockingQueue<QueryTweetPair> querytweetpairs;
+
+        public NRTSearch(long[] minmaxId, Query termquery, String queryId, BlockingQueue<QueryTweetPair> querytweetpairs) {
+            this.combinedQuery.add(termquery, BooleanClause.Occur.SHOULD);
+            this.combinedQuery.add(NumericRangeQuery.newLongRange("tweetid", minmaxId[0], minmaxId[1], true, true), BooleanClause.Occur.MUST);
+            this.queryId = queryId;
+            this.querytweetpairs = querytweetpairs;
         }
-    }
 
-    public class NRTSearch implements Callable<TLongDoubleMap> {
-
-        private final int topN;
-
-        private final long startId;
-
-        private final long endId;
-
-        private final Query termquery;
-
-        public NRTSearch(int topN, long startId, long endId, Query termquery) {
+        public void setTopN(int topN) {
             this.topN = topN;
-            this.startId = startId;
-            this.endId = endId;
-            this.termquery = termquery;
         }
 
         @Override
-        public TLongDoubleMap call() throws Exception {
-            BooleanQuery combinedQuery = new BooleanQuery();
-            combinedQuery.add(termquery, BooleanClause.Occur.SHOULD);
-            NumericRangeQuery tweetidrg = NumericRangeQuery.newLongRange("tweetid", startId, endId, true, true);
-            combinedQuery.add(tweetidrg, BooleanClause.Occur.MUST);
+        public Void call() throws Exception {
             TopDocs topdocs = searcher.search(combinedQuery, topN);
             ScoreDoc[] hits = topdocs.scoreDocs;
-            TLongDoubleMap tidScore = new TLongDoubleHashMap();
+            QueryTweetPair qtp;
             for (ScoreDoc sdoc : hits) {
                 Document tweet = searcher.doc(sdoc.doc);
                 long tweetid = Long.parseLong(tweet.get("tweetid"));
-                tidScore.put(tweetid, sdoc.score);
+                qtp = new QueryTweetPair(tweetid, queryId, duplicateDetector.getStatus(tweetid));
+                qtp.updateFeatures("tfidf", sdoc.score);
+                querytweetpairs.offer(new QueryTweetPair(qtp), 60, TimeUnit.SECONDS);
                 System.out.println(tweetid + ":" + sdoc.score);
             }
-            return tidScore;
+            return null;
         }
     }
 

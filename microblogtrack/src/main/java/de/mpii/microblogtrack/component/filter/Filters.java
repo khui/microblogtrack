@@ -58,12 +58,13 @@ public class Filters implements Callable<Void> {
                 completionService.submit(
                         new FiltUniqTweet(rawmsgQueue, filters, TIMEOUT));
             }
-            for (int i = 0; i < numberoftasksOneRound; i++) {
+            for (int i = 0; i < numberoftasksOneRound;) {
                 UniqTweet unitweet = completionService.take().get(TIMEOUT, TimeUnit.SECONDS);
                 if (unitweet == null) {
                     logger.error("Get no tweet within past " + TIMEOUT + " seconds");
                 } else if (unitweet.isStatus) {
                     totalTweetReceived++;
+                    i++;
                     if (unitweet.isRetained && !tweetids.contains(unitweet.getTweetId())) {
                         filteredQueue.offer(unitweet.getMsg());
                         tweetids.add(unitweet.getTweetId());

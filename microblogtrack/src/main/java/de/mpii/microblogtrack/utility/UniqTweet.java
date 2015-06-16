@@ -1,5 +1,7 @@
 package de.mpii.microblogtrack.utility;
 
+import gnu.trove.map.TObjectDoubleMap;
+import gnu.trove.map.hash.TObjectDoubleHashMap;
 import twitter4j.JSONObject;
 import twitter4j.Status;
 
@@ -20,10 +22,17 @@ public class UniqTweet {
     private long tweetid = -1;
 
     public boolean isStatus = false;
+
     /**
      * by default, the stream is discarded
      */
     public boolean isRetained = false;
+
+    public UniqTweet(long tweetid) {
+        this.tweetid = tweetid;
+        this.isStatus = true;
+        this.isRetained = true;
+    }
 
     public UniqTweet(Status tweet, JSONObject json, String rawString) {
         this.tweet = tweet;

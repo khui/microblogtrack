@@ -18,12 +18,6 @@
         </dependency>
         <dependency>
             <groupId>org.kie.modules</groupId>
-            <artifactId>org-apache-commons-cli-main</artifactId>
-            <version>6.2.0.Final</version>
-            <type>pom</type>
-        </dependency>
-        <dependency>
-            <groupId>org.kie.modules</groupId>
             <artifactId>org-apache-commons-compress</artifactId>
             <version>6.2.0.Final</version>
             <type>pom</type>
@@ -37,8 +31,9 @@
         <dependency>
             <groupId>commons-cli</groupId>
             <artifactId>commons-cli</artifactId>
-            <version>20040117.000000</version>
+            <version>1.2</version>
         </dependency>
+
         <dependency>
             <groupId>ant</groupId>
             <artifactId>ant-apache-log4j</artifactId>
@@ -111,9 +106,26 @@
             <version>0.0.1-SNAPSHOT</version>
             <type>jar</type>
         </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.5</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.6.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.5</version>
+        </dependency>
     </dependencies>
     <build>
-        <finalName>${artifactId}</finalName>
+        <finalName>${project.artifactId}</finalName>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -175,7 +187,7 @@
                         </goals>
                         <configuration>
                             <target>
-                                <scp file="${basedir}/target/${artifactId}.jar" 
+                                <scp file="${basedir}/target/${project.artifactId}.jar" 
                                      trust="true" 
                                      todir="khui@contact.mpi-inf.mpg.de:/home/khui/workspace/javaworkspace" 
                                      keyfile="${user.home}/.ssh/id_rsa" />
