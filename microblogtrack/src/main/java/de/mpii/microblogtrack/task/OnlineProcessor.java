@@ -1,6 +1,5 @@
 package de.mpii.microblogtrack.task;
 
-import com.cybozu.labs.langdetect.LangDetectException;
 import com.google.common.collect.Lists;
 import com.twitter.hbc.ClientBuilder;
 import com.twitter.hbc.core.Constants;
@@ -10,12 +9,7 @@ import com.twitter.hbc.httpclient.BasicClient;
 import com.twitter.hbc.httpclient.auth.Authentication;
 import com.twitter.hbc.httpclient.auth.OAuth1;
 import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
-import de.mpii.microblogtrack.component.features.ExtractTweetText;
-import de.mpii.microblogtrack.component.features.LuceneScores;
-import de.mpii.microblogtrack.component.filter.DuplicateTweet;
-import de.mpii.microblogtrack.component.filter.Filter;
-import de.mpii.microblogtrack.component.filter.LangFilterLD;
-import de.mpii.microblogtrack.component.filter.LangFilterTW;
+import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.map.hash.TLongObjectHashMap;
@@ -32,8 +26,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -56,31 +48,18 @@ public class OnlineProcessor {
 
     private BasicClient client;
 
-    private final Filter langfilter;
-
-    private final DuplicateTweet duplicateTweet;
-
-    private final LuceneScores lscore;
-
     private final Map<String, Query> queries;
 
-    private int indexnum = 0;
+    private final LuceneScorer lscorer;
 
     private final StatusListener listener = new StatusListener() {
 
         @Override
         public void onStatus(Status status) {
-            boolean isEng = langfilter.isRetain(null, null, status);
-            if (isEng) {
-                boolean isNew = duplicateTweet.isRetain(null, null, status);
-                if (isNew) {
-                    try {
-                        lscore.indexDoc(status);
-                        indexnum++;
-                    } catch (IOException ex) {
-                        logger.error(ex.getMessage());
-                    }
-                }
+            try {
+                lscorer.write2Index(status);
+            } catch (IOException ex) {
+                logger.error(ex.getMessage());
             }
         }
 
@@ -105,11 +84,8 @@ public class OnlineProcessor {
         }
     };
 
-    public OnlineProcessor(String indexdir, String queryfile) throws LangDetectException, IOException, ParseException {
-        this.langfilter = new LangFilterTW();
-        //new LangFilterLD();
-        this.duplicateTweet = new DuplicateTweet();
-        this.lscore = new LuceneScores(indexdir, this.duplicateTweet);
+    public OnlineProcessor(String indexdir, String queryfile) throws IOException, ParseException {
+        this.lscorer = new LuceneScorer(indexdir);
         TrecQuery tq = new TrecQuery();
         this.queries = tq.readInQueries(queryfile);
     }
@@ -174,8 +150,8 @@ public class OnlineProcessor {
         return new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret};
     }
 
-    public void listenPreprocess(String keydir, int numProcessingThreads, int queuesize) throws InterruptedException, IOException {
-        BlockingQueue<String> queue = new LinkedBlockingQueue<>(queuesize);
+    public void listen2API(String keydir, int numProcessingThreads, int queuesize, BlockingQueue<QueryTweetPair> qtweetpairs) throws InterruptedException, IOException, ExecutionException {
+        BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>(queuesize);
         String[] apikey = readAPIKey(keydir);
         String consumerKey = apikey[0];
         String consumerSecret = apikey[1];
@@ -191,7 +167,7 @@ public class OnlineProcessor {
                 .hosts(Constants.STREAM_HOST)
                 .endpoint(endpoint)
                 .authentication(auth)
-                .processor(new StringDelimitedProcessor(queue))
+                .processor(new StringDelimitedProcessor(api2indexqueue))
                 .build();
 
         // Create an executor service which will spawn threads to do the actual work of parsing the incoming messages and
@@ -200,72 +176,34 @@ public class OnlineProcessor {
 
         // Wrap our BasicClient with the twitter4j client
         Twitter4jStatusClient t4jClient = new Twitter4jStatusClient(
-                client, queue, Lists.newArrayList(listener), service);
+                client, api2indexqueue, Lists.newArrayList(listener), service);
 
         // Establish a connection
         t4jClient.connect();
         for (int threads = 0; threads < numProcessingThreads; threads++) {
             t4jClient.process();
         }
+
+        lscorer.multiQuerySearch(qtweetpairs, queries);
     }
 
     public void close() {
         client.stop();
     }
 
-    public void retrieveTopTweets(final BlockingQueue<QueryTweetPair> querytweetpairs) throws IOException, InterruptedException, ExecutionException {
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        final Runnable searcher = new Runnable() {
-            private final ExecutorService service = Executors.newFixedThreadPool(10);
-
-            @Override
-            public void run() {
-                long[] minmax = duplicateTweet.getTweetIdRange();
-                try {
-                    lscore.commmitChg();
-                } catch (IOException ex) {
-                    logger.error(ex.getMessage());
-                }
-                logger.info("min:" + minmax[0] + "  " + "max:" + minmax[1]);
-                logger.info("current index size:" + lscore.getIndexSize() + ", " + indexnum);
-                for (String queryid : queries.keySet()) {
-                    service.submit(lscore.new NRTSearch(minmax, queries.get(queryid), queryid, querytweetpairs));
-                }
-                service.shutdown();
-                try {
-                    boolean isFinished = service.awaitTermination(50, TimeUnit.SECONDS);
-                    logger.info("Retrieval task finished: " + isFinished);
-                } catch (InterruptedException ie) {
-                    logger.error(ie.getMessage());
-                }
-            }
-        };
-        logger.info("current index size:" + lscore.getIndexSize() + ", " + indexnum);
-        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(searcher, 60, 60, TimeUnit.SECONDS);
-        // the task will be canceled after running 30 days automatically
-        logger.info("current index size:" + lscore.getIndexSize());
-        scheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-                sercherHandler.cancel(true);
-            }
-        }, 30, TimeUnit.DAYS);
-
-    }
-
-    public static void main(String[] args) throws LangDetectException, InterruptedException, IOException, ParseException, ExecutionException {
+    public static void main(String[] args) throws InterruptedException, IOException, ParseException, ExecutionException {
         org.apache.log4j.PropertyConfigurator.configure("src/main/java/log4j.xml");
         LogManager.getRootLogger().setLevel(Level.INFO);
         String dir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
         String queryfile = "/home/khui/workspace/result/data/query/microblog/11";
         String indexdir = dir + "/index";
         logger.info("start to process");
-        LangFilterLD.loadprofile(dir + "/lang-dect-profile");
-        OnlineProcessor op = new OnlineProcessor(indexdir, queryfile);
-        op.listenPreprocess(dir + "/twitterkeys", 1, 1000);
-
+        //LangFilterLD.loadprofile(dir + "/lang-dect-profile");
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
-        op.retrieveTopTweets(querytweetpairs);
+        OnlineProcessor op = new OnlineProcessor(indexdir, queryfile);
+        op.listen2API(dir + "/twitterkeys", 1, 1000, querytweetpairs);
+
+        // op.retrieveTopTweets(querytweetpairs);
         while (true) {
             QueryTweetPair qtp = querytweetpairs.poll(100, TimeUnit.MILLISECONDS);
             if (qtp == null) {

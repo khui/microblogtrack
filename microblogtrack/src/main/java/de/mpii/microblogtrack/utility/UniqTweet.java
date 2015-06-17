@@ -1,7 +1,5 @@
 package de.mpii.microblogtrack.utility;
 
-import gnu.trove.map.TObjectDoubleMap;
-import gnu.trove.map.hash.TObjectDoubleHashMap;
 import twitter4j.JSONObject;
 import twitter4j.Status;
 

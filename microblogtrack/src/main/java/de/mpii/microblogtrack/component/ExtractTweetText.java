@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.component.features;
+package de.mpii.microblogtrack.component;
 
 import java.io.IOException;
 import org.jsoup.Jsoup;
