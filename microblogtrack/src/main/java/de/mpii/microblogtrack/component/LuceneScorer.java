@@ -6,6 +6,7 @@ import de.mpii.microblogtrack.utility.QueryTweetPair;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -27,6 +28,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -55,9 +57,9 @@ public class LuceneScorer {
 
     private final IndexWriter writer;
 
-    private final IndexReader reader;
+    private IndexReader reader;
 
-    private final IndexSearcher searcher;
+    private IndexSearcher searcher;
     // track duplicate tweet and allocate unique tweetCountId to each received tweet
     private final IndexTracker indexTracker;
 
@@ -72,8 +74,8 @@ public class LuceneScorer {
         iwc.setOpenMode(OpenMode.CREATE);
         //iwc.setRAMBufferSizeMB(1024.0 * 5);
         this.writer = new IndexWriter(dir, iwc);
-        this.reader = DirectoryReader.open(writer, false);
-        this.searcher = new IndexSearcher(reader);
+
+        //this.searcher = new IndexSearcher(reader);
         this.textextractor = new ExtractTweetText();
         this.indexTracker = new IndexTracker();
         this.langfilter = new LangFilterTW();
@@ -91,8 +93,27 @@ public class LuceneScorer {
         }, 30, TimeUnit.DAYS);
     }
 
+    /**
+     * for debug
+     *
+     * @throws java.io.IOException
+     */
+    public void readIndex() throws IOException {
+        writer.commit();
+        this.reader = DirectoryReader.open(writer, false);
+        int docnum = writer.numDocs();
+        logger.info("readIndex:" + docnum);
+        for (int i = 0; i < docnum; i++) {
+            Document doc = reader.document(i);
+            List<IndexableField> fields = doc.getFields();
+            for (IndexableField f : fields) {
+                logger.info(f.name() + ":" + f.stringValue());
+            }
+        }
+    }
+
     public int getIndexSize() {
-        return reader.numDocs();
+        return writer.numDocs();
     }
 
     public void closeWriter() throws IOException {
@@ -104,20 +125,22 @@ public class LuceneScorer {
         writer.commit();
     }
 
-    public void write2Index(Status tweet) throws IOException {
+    public long write2Index(Status tweet) throws IOException {
         boolean isEng = langfilter.isRetain(null, null, tweet);
         if (isEng) {
             long tweetcountId = indexTracker.isDuplicate(null, null, tweet);
             if (tweetcountId > 0) {
                 HashMap<String, String> fieldContent = status2Fields(tweet);
                 Document doc = new Document();
-                doc.add(new LongField("tweetcountid", tweetcountId, Field.Store.NO));
+                doc.add(new LongField("tweetcountid", tweetcountId, Field.Store.YES));
                 for (String fieldname : fieldContent.keySet()) {
-                    doc.add(new TextField(fieldname, fieldContent.get(fieldname), Field.Store.NO));
+                    doc.add(new TextField(fieldname, fieldContent.get(fieldname), Field.Store.YES));
                 }
                 writer.addDocument(doc);
+                return tweetcountId;
             }
         }
+        return -1;
     }
 
     private HashMap<String, String> status2Fields(Status status) {
@@ -125,6 +148,7 @@ public class LuceneScorer {
         String tweeturl = textextractor.getTweet(status);
         fieldnameStr.put("tweeturl", tweeturl);
         return fieldnameStr;
+
     }
 
     private class MultiQuerySearcher implements Runnable {

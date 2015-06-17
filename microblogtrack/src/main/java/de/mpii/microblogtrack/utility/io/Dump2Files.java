@@ -1,10 +1,11 @@
-package de.mpii.microblogtrack.archiver.filewriter;
+package de.mpii.microblogtrack.utility.io;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -36,7 +37,7 @@ public class Dump2Files implements Callable<Void> {
     private String filename() {
         DateFormat dateFormat = new SimpleDateFormat("yyyyMMddHH");
         Date date = new Date();
-        return dateFormat.format(date) + ".gzip";
+        return dateFormat.format(date) + ".gz";
     }
 
     @Override
@@ -47,7 +48,7 @@ public class Dump2Files implements Callable<Void> {
         BufferedWriter writer = null;
         try {
             while (true) {
-                if (tweetcount % 1000000 == 0) {
+                if (tweetcount % 4000000 == 0) {
                     if (writer != null && tweetcount != 0) {
                         writer.close();
                         ps.println(filename + ":" + tweetcount);
@@ -55,13 +56,13 @@ public class Dump2Files implements Callable<Void> {
                     }
                     filename = filename();
                     writer = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(
-                            new FileOutputStream(new File(outdir, filename), true))));
+                            new FileOutputStream(new File(outdir, filename), true)), StandardCharsets.UTF_8));
                 }
                 String tweet = bqueue.poll(TIMEOUT, TimeUnit.SECONDS);
                 if (tweet == null) {
                     logger.error("Get no tweet within past " + TIMEOUT + " seconds, in total received " + tweetcount);
                 } else {
-                    writer.write(tweet);
+                    writer.write(tweet + "\n");
                     tweetcount++;
                 }
             }

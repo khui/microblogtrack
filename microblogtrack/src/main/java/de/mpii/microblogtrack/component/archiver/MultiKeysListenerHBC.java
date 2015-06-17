@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.archiver.listener;
+package de.mpii.microblogtrack.component.archiver;
 
 import com.twitter.hbc.ClientBuilder;
 import com.twitter.hbc.core.Constants;

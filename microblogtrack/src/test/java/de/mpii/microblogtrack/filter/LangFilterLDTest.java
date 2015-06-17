@@ -2,7 +2,7 @@ package de.mpii.microblogtrack.filter;
 
 import de.mpii.microblogtrack.component.filter.LangFilterLD;
 import com.cybozu.labs.langdetect.LangDetectException;
-import de.mpii.microblogtrack.archiver.listener.MultiKeysListenerT4J;
+import de.mpii.microblogtrack.component.archiver.MultiKeysListenerT4J;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;

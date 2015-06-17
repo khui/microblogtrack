@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.mpii.microblogtrack.archiver.listener;
+package de.mpii.microblogtrack.component.archiver;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

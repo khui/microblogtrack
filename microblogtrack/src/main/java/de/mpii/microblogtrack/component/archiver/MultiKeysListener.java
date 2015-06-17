@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.archiver.listener;
+package de.mpii.microblogtrack.component.archiver;
 
 import gnu.trove.map.hash.TObjectLongHashMap;
 import java.io.BufferedReader;
