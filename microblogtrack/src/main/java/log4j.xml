@@ -10,17 +10,16 @@ log4j.rootLogger=debug, stdout, R
 # Print only messages of level WARN or above in the package
 #This is use for debuging mode
 log4j.logger.testlogging=DEBUG
- 
-&nbsp;
- 
+
+
 #### Appender writes to console
 log4j.appender.stdout=org.apache.log4j.ConsoleAppender
 log4j.appender.stdout.layout=org.apache.log4j.PatternLayout
 # Pattern to output the caller's file name and line number.
-log4j.appender.stdout.layout.ConversionPattern=%d{yyyy-MM-dd} %5p [%t] (%F:%L) - %m%n
+# log4j.appender.stdout.layout.ConversionPattern=%d{yyyy-MM-dd} %5p [%t] (%F:%L) - %m%n
+log4j.appender.stdout.layout.ConversionPattern=%d %p (%t) [%c] - %m%n
  
-&nbsp;
- 
+
 #### Appender writes to a file
 #log4j.appender.R=org.apache.log4j.FileAppender
 log4j.appender.R=org.apache.log4j.RollingFileAppender

@@ -15,6 +15,7 @@ import de.mpii.microblogtrack.component.features.LuceneScores;
 import de.mpii.microblogtrack.component.filter.DuplicateTweet;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterLD;
+import de.mpii.microblogtrack.component.filter.LangFilterTW;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.map.hash.TLongObjectHashMap;
@@ -53,21 +54,17 @@ public class OnlineProcessor {
 
     static Logger logger = Logger.getLogger(OnlineProcessor.class.getName());
 
-    private final int numProcessingThreads;
-
-    private final BlockingQueue<String> queue;
-
     private BasicClient client;
 
     private final Filter langfilter;
 
     private final DuplicateTweet duplicateTweet;
 
-    private final ExtractTweetText turlexpand;
-
     private final LuceneScores lscore;
 
     private final Map<String, Query> queries;
+
+    private int indexnum = 0;
 
     private final StatusListener listener = new StatusListener() {
 
@@ -79,6 +76,7 @@ public class OnlineProcessor {
                 if (isNew) {
                     try {
                         lscore.indexDoc(status);
+                        indexnum++;
                     } catch (IOException ex) {
                         logger.error(ex.getMessage());
                     }
@@ -107,12 +105,10 @@ public class OnlineProcessor {
         }
     };
 
-    public OnlineProcessor(int numProcessingThreads, int queuesize, String indexdir, String queryfile) throws LangDetectException, IOException, ParseException {
-        this.numProcessingThreads = numProcessingThreads;
-        this.queue = new LinkedBlockingQueue<>(queuesize);
-        this.langfilter = new LangFilterLD();
+    public OnlineProcessor(String indexdir, String queryfile) throws LangDetectException, IOException, ParseException {
+        this.langfilter = new LangFilterTW();
+        //new LangFilterLD();
         this.duplicateTweet = new DuplicateTweet();
-        this.turlexpand = new ExtractTweetText();
         this.lscore = new LuceneScores(indexdir, this.duplicateTweet);
         TrecQuery tq = new TrecQuery();
         this.queries = tq.readInQueries(queryfile);
@@ -178,7 +174,8 @@ public class OnlineProcessor {
         return new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret};
     }
 
-    public void listenPreprocess(String keydir) throws InterruptedException, IOException {
+    public void listenPreprocess(String keydir, int numProcessingThreads, int queuesize) throws InterruptedException, IOException {
+        BlockingQueue<String> queue = new LinkedBlockingQueue<>(queuesize);
         String[] apikey = readAPIKey(keydir);
         String consumerKey = apikey[0];
         String consumerSecret = apikey[1];
@@ -208,7 +205,6 @@ public class OnlineProcessor {
         // Establish a connection
         t4jClient.connect();
         for (int threads = 0; threads < numProcessingThreads; threads++) {
-            // This must be called once per processing thread
             t4jClient.process();
         }
     }
@@ -225,8 +221,13 @@ public class OnlineProcessor {
             @Override
             public void run() {
                 long[] minmax = duplicateTweet.getTweetIdRange();
+                try {
+                    lscore.commmitChg();
+                } catch (IOException ex) {
+                    logger.error(ex.getMessage());
+                }
                 logger.info("min:" + minmax[0] + "  " + "max:" + minmax[1]);
-                logger.info("current index size:" + lscore.getIndexSize());
+                logger.info("current index size:" + lscore.getIndexSize() + ", " + indexnum);
                 for (String queryid : queries.keySet()) {
                     service.submit(lscore.new NRTSearch(minmax, queries.get(queryid), queryid, querytweetpairs));
                 }
@@ -239,7 +240,7 @@ public class OnlineProcessor {
                 }
             }
         };
-        logger.info("current index size:" + lscore.getIndexSize());
+        logger.info("current index size:" + lscore.getIndexSize() + ", " + indexnum);
         final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(searcher, 60, 60, TimeUnit.SECONDS);
         // the task will be canceled after running 30 days automatically
         logger.info("current index size:" + lscore.getIndexSize());
@@ -260,14 +261,15 @@ public class OnlineProcessor {
         String indexdir = dir + "/index";
         logger.info("start to process");
         LangFilterLD.loadprofile(dir + "/lang-dect-profile");
-        OnlineProcessor op = new OnlineProcessor(2, 1000, indexdir, queryfile);
-        op.listenPreprocess(dir + "/twitterkeys");
+        OnlineProcessor op = new OnlineProcessor(indexdir, queryfile);
+        op.listenPreprocess(dir + "/twitterkeys", 1, 1000);
+
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
         op.retrieveTopTweets(querytweetpairs);
         while (true) {
             QueryTweetPair qtp = querytweetpairs.poll(100, TimeUnit.MILLISECONDS);
             if (qtp == null) {
-                logger.error("we fail to get query tweet pairs in last period");
+                //logger.error("we fail to get query tweet pairs in last period");
             } else {
                 logger.info(qtp.toString());
                 logger.info(querytweetpairs.size());

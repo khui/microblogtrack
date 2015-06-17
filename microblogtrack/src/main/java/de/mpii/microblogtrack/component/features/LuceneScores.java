@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -28,6 +29,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.Version;
 import twitter4j.Status;
 
 /**
@@ -36,39 +38,46 @@ import twitter4j.Status;
  * @author khui
  */
 public class LuceneScores {
-
+    
+    static Logger logger = Logger.getLogger(LuceneScores.class.getName());
+    
     private final IndexWriter writer;
-
+    
     private final IndexReader reader;
-
+    
     private final IndexSearcher searcher;
-
+    
     private final ExtractTweetText textextractor;
-
+    
     private final DuplicateTweet duplicateDetector;
-
+    
     public LuceneScores(String indexdir, DuplicateTweet duplicateDetector) throws IOException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         Analyzer analyzer = new StandardAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
-        iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
-        iwc.setRAMBufferSizeMB(1024.0 * 5);
+        iwc.setOpenMode(OpenMode.CREATE);
+        //iwc.setRAMBufferSizeMB(1024.0 * 5);
         this.writer = new IndexWriter(dir, iwc);
         this.reader = DirectoryReader.open(writer, false);
         this.searcher = new IndexSearcher(reader);
         this.textextractor = new ExtractTweetText();
         this.duplicateDetector = duplicateDetector;
     }
-
+    
     private HashMap<String, String> status2Fields(Status status) {
         HashMap<String, String> fieldnameStr = new HashMap<>();
-        String tweeturl = textextractor.getExpanded(status);
+        String tweeturl = textextractor.getTweet(status);
         fieldnameStr.put("tweeturl", tweeturl);
         return fieldnameStr;
     }
-
+    
     public int getIndexSize() {
         return reader.numDocs();
+    }
+    
+    public void commmitChg() throws IOException {
+        logger.info("Committing changes.");
+        writer.commit();
     }
 
     /**
@@ -87,32 +96,32 @@ public class LuceneScores {
         }
         writer.addDocument(doc);
     }
-
+    
     public void closeIndexWriter() throws IOException {
         writer.close();
     }
-
+    
     public class NRTSearch implements Callable<Void> {
-
+        
         private int topN = 5;
-
-        private final String queryId;
-
+        
+        private final String queryid;
+        
         private final BooleanQuery combinedQuery = new BooleanQuery();
-
+        
         private final BlockingQueue<QueryTweetPair> querytweetpairs;
-
+        
         public NRTSearch(long[] minmaxId, Query termquery, String queryId, BlockingQueue<QueryTweetPair> querytweetpairs) {
             this.combinedQuery.add(termquery, BooleanClause.Occur.SHOULD);
             this.combinedQuery.add(NumericRangeQuery.newLongRange("tweetid", minmaxId[0], minmaxId[1], true, true), BooleanClause.Occur.MUST);
-            this.queryId = queryId;
+            this.queryid = queryId;
             this.querytweetpairs = querytweetpairs;
         }
-
+        
         public void setTopN(int topN) {
             this.topN = topN;
         }
-
+        
         @Override
         public Void call() throws Exception {
             TopDocs topdocs = searcher.search(combinedQuery, topN);
@@ -121,13 +130,13 @@ public class LuceneScores {
             for (ScoreDoc sdoc : hits) {
                 Document tweet = searcher.doc(sdoc.doc);
                 long tweetid = Long.parseLong(tweet.get("tweetid"));
-                qtp = new QueryTweetPair(tweetid, queryId, duplicateDetector.getStatus(tweetid));
+                qtp = new QueryTweetPair(tweetid, queryid, duplicateDetector.getStatus(tweetid));
                 qtp.updateFeatures("tfidf", sdoc.score);
                 querytweetpairs.offer(new QueryTweetPair(qtp), 60, TimeUnit.SECONDS);
-                System.out.println(tweetid + ":" + sdoc.score);
+                logger.info(tweetid + ":" + sdoc.score);
             }
             return null;
         }
     }
-
+    
 }
