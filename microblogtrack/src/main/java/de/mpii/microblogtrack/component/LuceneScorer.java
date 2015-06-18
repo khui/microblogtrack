@@ -3,8 +3,13 @@ package de.mpii.microblogtrack.component;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
+import gnu.trove.map.TLongObjectMap;
+import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +23,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -29,13 +35,20 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.DFRSimilarity;
+import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import twitter4j.Status;
@@ -59,6 +72,8 @@ public class LuceneScorer {
 
     private IndexReader reader;
 
+    private final Analyzer analyzer;
+
     private IndexSearcher searcher;
     // track duplicate tweet and allocate unique tweetCountId to each received tweet
     private final IndexTracker indexTracker;
@@ -67,14 +82,16 @@ public class LuceneScorer {
     // language filter, retaining english tweets
     private final Filter langfilter;
 
+    private final String[] searchModels = new String[]{"tfidf", "bm25", "lmd"};
+
     public LuceneScorer(String indexdir) throws IOException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
-        Analyzer analyzer = new StandardAnalyzer();
+        this.analyzer = new EnglishAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
         iwc.setOpenMode(OpenMode.CREATE);
         //iwc.setRAMBufferSizeMB(1024.0 * 5);
         this.writer = new IndexWriter(dir, iwc);
-
+        this.reader = DirectoryReader.open(writer, false);
         //this.searcher = new IndexSearcher(reader);
         this.textextractor = new ExtractTweetText();
         this.indexTracker = new IndexTracker();
@@ -93,21 +110,72 @@ public class LuceneScorer {
         }, 30, TimeUnit.DAYS);
     }
 
+    private Collection<QueryTweetPair> mutliScorers(IndexReader reader, Query query, String queryId, int topN) throws IOException {
+        TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
+        IndexSearcher searcherInUse;
+        ScoreDoc[] hits;
+        Document tweet;
+        long tweetid;
+        for (String name : searchModels) {
+            searcherInUse = new IndexSearcher(reader);
+            switch (name) {
+                case "tfidf":
+                    break;
+                case "bm25":
+                    searcherInUse.setSimilarity(new BM25Similarity());
+                    break;
+                case "lmd":
+                    searcherInUse.setSimilarity(new LMDirichletSimilarity());
+                    break;
+            }
+            hits = searcherInUse.search(query, topN).scoreDocs;
+            for (ScoreDoc hit : hits) {
+                tweet = searcherInUse.doc(hit.doc);
+                tweetid = Long.parseLong(tweet.get("tweetid"));
+                if (!searchresults.containsKey(tweetid)) {
+                    searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
+                }
+                searchresults.get(tweetid).updateFeatures(name, hit.score);
+            }
+        }
+        return searchresults.valueCollection();
+    }
+
     /**
      * for debug
      *
      * @throws java.io.IOException
      */
-    public void readIndex() throws IOException {
-        writer.commit();
-        this.reader = DirectoryReader.open(writer, false);
-        int docnum = writer.numDocs();
-        logger.info("readIndex:" + docnum);
-        for (int i = 0; i < docnum; i++) {
-            Document doc = reader.document(i);
-            List<IndexableField> fields = doc.getFields();
-            for (IndexableField f : fields) {
-                logger.info(f.name() + ":" + f.stringValue());
+    public void multiScorerDemo() throws IOException {
+        NumericRangeQuery rangeQuery;
+        StringBuilder sb = null;
+        int resultcount = 0;
+        DecimalFormat df = new DecimalFormat("#.000");
+        Collection<QueryTweetPair> qtpairs;
+        reader = DirectoryReader.openIfChanged((DirectoryReader) reader);
+        QueryBuilder qb = new QueryBuilder(this.analyzer);
+        Query termquery = qb.createBooleanQuery("tweeturl", "RT");
+        Query phrasequery = qb.createPhraseQuery("tweeturl", "thanks for");
+        long[] minmax = indexTracker.getAcurateTweetCount();
+        rangeQuery = NumericRangeQuery.newLongRange("tweetcountid", minmax[0], minmax[1], true, false);
+        BooleanQuery combinedQuery = new BooleanQuery();
+        combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
+        combinedQuery.add(termquery, BooleanClause.Occur.SHOULD);
+        combinedQuery.add(phrasequery, BooleanClause.Occur.SHOULD);
+        logger.info("**************************************************************");
+        logger.info("**************************************************************");
+        logger.info("indexed documents: " + minmax[0] + " -------- " + minmax[1]);
+        if (reader != null) {
+            qtpairs = mutliScorers(reader, combinedQuery, "queryid", 10);
+            for (QueryTweetPair qtp : qtpairs) {
+                sb = new StringBuilder();
+                sb.append("#").append((++resultcount)).append(" ");
+                sb.append(qtp.tweetid).append(" ");
+                for (String name : searchModels) {
+                    sb.append(name).append(":").append(df.format(qtp.getFeature(name))).append(",");
+                }
+                sb.append(" ").append(qtp.getStatus().getText());
+                logger.info(sb.toString());
             }
         }
     }
@@ -133,6 +201,7 @@ public class LuceneScorer {
                 HashMap<String, String> fieldContent = status2Fields(tweet);
                 Document doc = new Document();
                 doc.add(new LongField("tweetcountid", tweetcountId, Field.Store.YES));
+                doc.add(new LongField("tweetid", tweet.getId(), Field.Store.YES));
                 for (String fieldname : fieldContent.keySet()) {
                     doc.add(new TextField(fieldname, fieldContent.get(fieldname), Field.Store.YES));
                 }

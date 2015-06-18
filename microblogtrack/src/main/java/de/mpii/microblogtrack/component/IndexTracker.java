@@ -59,10 +59,10 @@ public class IndexTracker {
         long[] minmax = new long[2];
         synchronized (tweetidStatus_0) {
             // twitter tweetCountId to report
-            minmax[1] = twittercount;
+            minmax[1] = twittercount + 1;
             // twitter tweetCountId that last time reported
             minmax[0] = lastreportedcount;
-            lastreportedcount = twittercount;
+            lastreportedcount = minmax[1];
             tweetidStatus_1.clear();
             tweetidStatus_1.putAll(tweetidStatus_0);
             tweetidStatus_0.clear();

@@ -31,20 +31,25 @@ public class OfflineTrainer {
         Map<String, Query> queries = tq.readInQueries(queryfile);
         //lscorer.multiQuerySearch(outbq, queries);
         Status status;
+        long tweetcountId = 0;
         int indexcount = 0;
-        while (indexcount < 8142) {
+        while (indexcount < 8000) {
             status = intbq.poll(100, TimeUnit.MILLISECONDS);
             if (status != null) {
-                long tweetcountId = lscorer.write2Index(status);
+                tweetcountId = lscorer.write2Index(status);
                 if (tweetcountId > 0) {
                     indexcount++;
                 }
+                if (tweetcountId % 400 == 0) {
+                    lscorer.multiScorerDemo();
+                }
+
             } else {
                 System.err.println("status is null: " + outbq.size() + " " + intbq.size());
             }
         }
-        
-        lscorer.readIndex();
+
+        //lscorer.multiScorerDemo(tweetcountId);
         lscorer.closeWriter();
     }
 
@@ -63,6 +68,7 @@ public class OfflineTrainer {
         service.submit(new ReadStatus(gzipDir, inbq));
         OfflineTrainer ot = new OfflineTrainer();
         ot.process(indexdir, queryfile, inbq, outbq);
+        service.shutdownNow();
     }
 
 }

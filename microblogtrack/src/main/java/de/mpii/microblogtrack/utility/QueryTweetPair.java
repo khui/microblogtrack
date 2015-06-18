@@ -42,7 +42,9 @@ public class QueryTweetPair {
      * #retweet #like
      */
     private void generateTweetFeature() {
-
+        for (String featurename : new String[]{"tfidf", "bm25", "lmd"}) {
+            featureValues.put(featurename, 0);
+        }
     }
 
     /**
