@@ -104,10 +104,4 @@ public class TrecQuery {
         return queries;
     }
 
-    public static void main(String[] args) throws IOException {
-        String dir = "/home/khui/workspace/result/data/query/microblog";
-        String queryfile = new File(dir, "14").toString();
-        TrecQuery.readTrecQuery(queryfile);
-    }
-
 }

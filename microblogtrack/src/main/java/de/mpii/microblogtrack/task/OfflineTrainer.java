@@ -51,22 +51,21 @@ public class OfflineTrainer {
         lscorer.closeWriter();
     }
 
-    public static void main(String[] args) throws InterruptedException, IOException, ParseException, ExecutionException, TwitterException {
-        org.apache.log4j.PropertyConfigurator.configure("src/main/java/log4j.xml");
-        LogManager.getRootLogger().setLevel(Level.INFO);
-        String dir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        String queryfile = "/home/khui/workspace/result/data/query/microblog/11";
-        String gzipDir = "/home/khui/workspace/javaworkspace/twitter-localdebug/gzipdump";
-        String indexdir = dir + "/index";
-        System.out.println("start to process");
-        //LangFilterLD.loadprofile(dir + "/lang-dect-profile");
-        BlockingQueue<Status> inbq = new LinkedBlockingQueue<>(100);
-        BlockingQueue<QueryTweetPair> outbq = new LinkedBlockingQueue<>(10000);
-        ExecutorService service = Executors.newSingleThreadExecutor();
-        service.submit(new ReadStatus(gzipDir, inbq));
-        OfflineTrainer ot = new OfflineTrainer();
-        ot.process(indexdir, queryfile, inbq, outbq);
-        service.shutdownNow();
-    }
-
+//    public static void main(String[] args) throws InterruptedException, IOException, ParseException, ExecutionException, TwitterException {
+//        org.apache.log4j.PropertyConfigurator.configure("src/main/java/log4j.xml");
+//        LogManager.getRootLogger().setLevel(Level.INFO);
+//        String dir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+//        String queryfile = "/home/khui/workspace/result/data/query/microblog/11";
+//        String gzipDir = "/home/khui/workspace/javaworkspace/twitter-localdebug/gzipdump";
+//        String indexdir = dir + "/index";
+//        System.out.println("start to process");
+//        //LangFilterLD.loadprofile(dir + "/lang-dect-profile");
+//        BlockingQueue<Status> inbq = new LinkedBlockingQueue<>(100);
+//        BlockingQueue<QueryTweetPair> outbq = new LinkedBlockingQueue<>(10000);
+//        ExecutorService service = Executors.newSingleThreadExecutor();
+//        service.submit(new ReadStatus(gzipDir, inbq));
+//        OfflineTrainer ot = new OfflineTrainer();
+//        ot.process(indexdir, queryfile, inbq, outbq);
+//        service.shutdownNow();
+//    }
 }

@@ -198,7 +198,7 @@ public class OnlineProcessor {
         String keydir = "/GW/D5data-2/khui/microblogtrack/apikeys/batchkeys/apikey4-local";
         //dir + "/twitterkeys"
         String indexdir = dir + "/index";
-        logger.info("START TO Process");
+        logger.info("Start To Process");
         //LangFilterLD.loadprofile(dir + "/lang-dect-profile");
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
         OnlineProcessor op = new OnlineProcessor(indexdir, queryfile);
