@@ -2,16 +2,15 @@ package de.mpii.microblogtrack.component;
 
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
+import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.map.TLongObjectMap;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -24,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
@@ -34,20 +32,15 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -70,11 +63,10 @@ public class LuceneScorer {
 
     private final IndexWriter writer;
 
-    private IndexReader reader;
+    private DirectoryReader directoryReader;
 
     private final Analyzer analyzer;
 
-    private IndexSearcher searcher;
     // track duplicate tweet and allocate unique tweetCountId to each received tweet
     private final IndexTracker indexTracker;
 
@@ -82,23 +74,25 @@ public class LuceneScorer {
     // language filter, retaining english tweets
     private final Filter langfilter;
 
-    private final String[] searchModels = new String[]{"tfidf", "bm25", "lmd"};
+    private static final String[] searchModels = new String[]{"tfidf", "bm25", "lmd"};
 
     public LuceneScorer(String indexdir) throws IOException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         this.analyzer = new EnglishAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
         iwc.setOpenMode(OpenMode.CREATE);
-        //iwc.setRAMBufferSizeMB(1024.0 * 5);
+        iwc.setRAMBufferSizeMB(1024.0 * 5);
         this.writer = new IndexWriter(dir, iwc);
-        this.reader = DirectoryReader.open(writer, false);
-        //this.searcher = new IndexSearcher(reader);
+        this.directoryReader = DirectoryReader.open(writer, false);
         this.textextractor = new ExtractTweetText();
         this.indexTracker = new IndexTracker();
         this.langfilter = new LangFilterTW();
+
     }
 
-    public void multiQuerySearch(final BlockingQueue<QueryTweetPair> bq, final Map<String, Query> queries) throws IOException, InterruptedException, ExecutionException {
+    public void multiQuerySearch(final BlockingQueue<QueryTweetPair> bq, String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException {
+        TrecQuery tq = new TrecQuery();
+        Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, "tweeturl");
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, bq), 60, 60, TimeUnit.SECONDS);
         // the task will be canceled after running 30 days automatically
@@ -148,11 +142,9 @@ public class LuceneScorer {
      */
     public void multiScorerDemo() throws IOException {
         NumericRangeQuery rangeQuery;
-        StringBuilder sb = null;
         int resultcount = 0;
-        DecimalFormat df = new DecimalFormat("#.000");
         Collection<QueryTweetPair> qtpairs;
-        reader = DirectoryReader.openIfChanged((DirectoryReader) reader);
+        directoryReader = DirectoryReader.openIfChanged(directoryReader);
         QueryBuilder qb = new QueryBuilder(this.analyzer);
         Query termquery = qb.createBooleanQuery("tweeturl", "RT");
         Query phrasequery = qb.createPhraseQuery("tweeturl", "thanks for");
@@ -162,22 +154,35 @@ public class LuceneScorer {
         combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
         combinedQuery.add(termquery, BooleanClause.Occur.SHOULD);
         combinedQuery.add(phrasequery, BooleanClause.Occur.SHOULD);
-        logger.info("**************************************************************");
-        logger.info("**************************************************************");
-        logger.info("indexed documents: " + minmax[0] + " -------- " + minmax[1]);
-        if (reader != null) {
-            qtpairs = mutliScorers(reader, combinedQuery, "queryid", 10);
+        logger.info("***************************************************************************");
+        logger.info("***************************************************************************");
+        logger.info("indexed documents: " + minmax[0] + " -------- " + (minmax[1] - 1));
+        if (directoryReader != null) {
+            qtpairs = mutliScorers(directoryReader, combinedQuery, "queryid", 10);
             for (QueryTweetPair qtp : qtpairs) {
-                sb = new StringBuilder();
-                sb.append("#").append((++resultcount)).append(" ");
-                sb.append(qtp.tweetid).append(" ");
-                for (String name : searchModels) {
-                    sb.append(name).append(":").append(df.format(qtp.getFeature(name))).append(",");
-                }
-                sb.append(" ").append(qtp.getStatus().getText());
-                logger.info(sb.toString());
+                resultcount++;
+                logger.info(printQueryTweet(qtp, resultcount));
             }
         }
+    }
+
+    /**
+     * for debug
+     *
+     * @param qtp
+     * @param resultcount
+     * @return
+     */
+    public static String printQueryTweet(QueryTweetPair qtp, int resultcount) {
+        DecimalFormat df = new DecimalFormat("#.000");
+        StringBuilder sb = new StringBuilder();
+        sb.append("#").append(resultcount).append(" ");
+        sb.append(qtp.queryid).append("--").append(qtp.tweetid).append(" ");
+        for (String name : searchModels) {
+            sb.append(name).append(":").append(df.format(qtp.getFeature(name))).append(",");
+        }
+        sb.append(" ").append(qtp.getStatus().getText());
+        return sb.toString();
     }
 
     public int getIndexSize() {
@@ -186,11 +191,6 @@ public class LuceneScorer {
 
     public void closeWriter() throws IOException {
         writer.close();
-    }
-
-    public void commmitChange() throws IOException {
-        logger.info("Committing changes.");
-        writer.commit();
     }
 
     public long write2Index(Status tweet) throws IOException {
@@ -222,48 +222,62 @@ public class LuceneScorer {
 
     private class MultiQuerySearcher implements Runnable {
 
-        private final NumericRangeQuery rangeQuery;
-
         private final Map<String, Query> queries;
 
         private final BlockingQueue<QueryTweetPair> qtweetpairs;
 
+        private int threadnum = 12;
+
         public MultiQuerySearcher(final Map<String, Query> queries, BlockingQueue<QueryTweetPair> bq) {
             this.queries = queries;
             this.qtweetpairs = bq;
-            long[] minmax = indexTracker.getAcurateTweetCount();
-            this.rangeQuery = NumericRangeQuery.newLongRange("tweetcountid", minmax[0], minmax[1], true, true);
+        }
+
+        public void setThreadNum(int threadnum) {
+            this.threadnum = threadnum;
         }
 
         @Override
         public void run() {
+            BooleanQuery combinedQuery;
+            ExecutorService service = Executors.newFixedThreadPool(threadnum);
+            long[] minmax = indexTracker.getAcurateTweetCount();
+            NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange("tweetcountid", minmax[0], minmax[1], true, true);
+            DirectoryReader reopenedReader = null;
             try {
-                LuceneScorer.this.commmitChange();
+                reopenedReader = DirectoryReader.openIfChanged(directoryReader);
             } catch (IOException ex) {
                 logger.error(ex.getMessage());
             }
-            BooleanQuery combinedQuery;
-            ExecutorService service = Executors.newFixedThreadPool(10);
-
-            for (String queryid : queries.keySet()) {
-                combinedQuery = new BooleanQuery();
-                combinedQuery.add(queries.get(queryid), BooleanClause.Occur.SHOULD);
-                combinedQuery.add(this.rangeQuery, BooleanClause.Occur.MUST);
-                service.submit(new UniqQuerySearcher(combinedQuery, queryid, qtweetpairs));
-            }
-            service.shutdown();
-            try {
-                boolean isFinished = service.awaitTermination(50, TimeUnit.SECONDS);
-                logger.info("Retrieval task finished: " + isFinished);
-            } catch (InterruptedException ie) {
-                logger.error(ie.getMessage());
+            if (reopenedReader != null) {
+                try {
+                    directoryReader.close();
+                } catch (IOException ex) {
+                    logger.error(ex.getMessage());
+                }
+                directoryReader = reopenedReader;
+                for (String queryid : queries.keySet()) {
+                    combinedQuery = new BooleanQuery();
+                    combinedQuery.add(queries.get(queryid), BooleanClause.Occur.SHOULD);
+                    combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
+                    service.submit(new UniqQuerySearcher(combinedQuery, queryid, qtweetpairs, directoryReader));
+                }
+                service.shutdown();
+                try {
+                    boolean isFinished = service.awaitTermination(50, TimeUnit.SECONDS);
+                    logger.info("Retrieval task finished: " + isFinished);
+                } catch (InterruptedException ie) {
+                    logger.error(ie.getMessage());
+                }
+            } else {
+                logger.warn("Nothing added to the index since last open of reader.");
             }
         }
     }
 
     private class UniqQuerySearcher implements Callable<Void> {
 
-        private int topN = 5;
+        private int topN = 2;
 
         private final String queryid;
 
@@ -271,10 +285,13 @@ public class LuceneScorer {
 
         private final BlockingQueue<QueryTweetPair> querytweetpairs;
 
-        public UniqQuerySearcher(Query query, String queryId, BlockingQueue<QueryTweetPair> bq) {
+        private final DirectoryReader reader;
+
+        public UniqQuerySearcher(Query query, String queryId, BlockingQueue<QueryTweetPair> bq, DirectoryReader reader) {
             this.query = query;
             this.queryid = queryId;
             this.querytweetpairs = bq;
+            this.reader = reader;
         }
 
         public void setTopN(int topN) {
@@ -283,16 +300,12 @@ public class LuceneScorer {
 
         @Override
         public Void call() throws Exception {
-            TopDocs topdocs = searcher.search(query, topN);
-            ScoreDoc[] hits = topdocs.scoreDocs;
-            QueryTweetPair qtp;
-            for (ScoreDoc sdoc : hits) {
-                Document tweet = searcher.doc(sdoc.doc);
-                long tweetid = Long.parseLong(tweet.get("tweetid"));
-                qtp = new QueryTweetPair(tweetid, queryid, indexTracker.getStatus(tweetid));
-                qtp.updateFeatures("tfidf", sdoc.score);
+            Collection<QueryTweetPair> qtpairs = mutliScorers(this.reader, this.query, this.queryid, this.topN);
+            int resultcount = 1;
+            for (QueryTweetPair qtp : qtpairs) {
                 querytweetpairs.offer(new QueryTweetPair(qtp), 60, TimeUnit.SECONDS);
-                logger.info(tweetid + ":" + sdoc.score);
+                //logger.info(printQueryTweet(qtp, resultcount));
+                resultcount++;
             }
             return null;
         }

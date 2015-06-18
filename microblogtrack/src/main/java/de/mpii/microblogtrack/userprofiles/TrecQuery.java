@@ -1,21 +1,18 @@
 package de.mpii.microblogtrack.userprofiles;
 
-import gnu.trove.map.TIntObjectMap;
-import gnu.trove.map.hash.TIntObjectHashMap;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.benchmark.quality.QualityQuery;
 import org.apache.lucene.benchmark.quality.trec.Trec1MQReader;
-import org.apache.lucene.benchmark.quality.utils.SimpleQQParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.QueryBuilder;
 //import org.apache.lucene.benchmark.quality.trec.TrecTopicsReader;
 
 /**
@@ -41,12 +38,14 @@ public class TrecQuery {
         return queries;
     }
 
-    public Map<String, Query> readInQueries(String queryfile) throws IOException, ParseException {
+    public Map<String, Query> readInQueries(String queryfile, Analyzer analyzer, String field) throws IOException, ParseException {
         QualityQuery[] qqs = readTrecQuery(queryfile);
-        SimpleQQParser sqqp = new SimpleQQParser(new String[]{"query"}, "tweeturl");
+        QueryBuilder qb = new QueryBuilder(analyzer);
+        String querystr;
         Map<String, Query> res = new HashMap<>();
         for (QualityQuery qq : qqs) {
-            res.put(qq.getQueryID(), sqqp.parse(qq));
+            querystr = qq.getValue("query");
+            res.put(qq.getQueryID(), qb.createBooleanQuery(field, querystr));
         }
         return res;
     }

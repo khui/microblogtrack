@@ -10,7 +10,6 @@ import com.twitter.hbc.httpclient.auth.Authentication;
 import com.twitter.hbc.httpclient.auth.OAuth1;
 import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
 import de.mpii.microblogtrack.component.LuceneScorer;
-import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
@@ -20,7 +19,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -31,7 +29,6 @@ import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.search.Query;
 import twitter4j.StallWarning;
 import twitter4j.Status;
 import twitter4j.StatusDeletionNotice;
@@ -48,7 +45,7 @@ public class OnlineProcessor {
 
     private BasicClient client;
 
-    private final Map<String, Query> queries;
+    private final String queryfile;
 
     private final LuceneScorer lscorer;
 
@@ -84,10 +81,9 @@ public class OnlineProcessor {
         }
     };
 
-    public OnlineProcessor(String indexdir, String queryfile) throws IOException, ParseException {
+    public OnlineProcessor(String indexdir, String queryfile) throws IOException {
         this.lscorer = new LuceneScorer(indexdir);
-        TrecQuery tq = new TrecQuery();
-        this.queries = tq.readInQueries(queryfile);
+        this.queryfile = queryfile;
     }
 
     /**
@@ -150,7 +146,7 @@ public class OnlineProcessor {
         return new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret};
     }
 
-    public void listen2API(String keydir, int numProcessingThreads, int queuesize, BlockingQueue<QueryTweetPair> qtweetpairs) throws InterruptedException, IOException, ExecutionException {
+    public void listen2Process(String keydir, int numProcessingThreads, int queuesize, BlockingQueue<QueryTweetPair> qtweetpairs) throws InterruptedException, IOException, ExecutionException, ParseException {
         BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>(queuesize);
         String[] apikey = readAPIKey(keydir);
         String consumerKey = apikey[0];
@@ -184,7 +180,7 @@ public class OnlineProcessor {
             t4jClient.process();
         }
 
-        lscorer.multiQuerySearch(qtweetpairs, queries);
+        lscorer.multiQuerySearch(qtweetpairs, queryfile);
     }
 
     public void close() {
@@ -192,25 +188,28 @@ public class OnlineProcessor {
     }
 
     public static void main(String[] args) throws InterruptedException, IOException, ParseException, ExecutionException {
-        org.apache.log4j.PropertyConfigurator.configure("src/main/java/log4j.xml");
+        org.apache.log4j.PropertyConfigurator.configure("/home/khui/workspace/javaworkspace/log4j.xml");
+        //("src/main/java/log4j.xml");
         LogManager.getRootLogger().setLevel(Level.INFO);
-        String dir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        String queryfile = "/home/khui/workspace/result/data/query/microblog/11";
+        String dir = "/scratch/GW/pool0/khui/result/microblogtrack";
+        //"/home/khui/workspace/javaworkspace/twitter-localdebug";
+        String queryfile = "/GW/D5data-2/khui/microblogtrack/queries/14";
+        //"/home/khui/workspace/result/data/query/microblog/14";
+        String keydir = "/GW/D5data-2/khui/microblogtrack/apikeys/batchkeys/apikey4-local";
+        //dir + "/twitterkeys"
         String indexdir = dir + "/index";
-        logger.info("start to process");
+        logger.info("START TO Process");
         //LangFilterLD.loadprofile(dir + "/lang-dect-profile");
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
         OnlineProcessor op = new OnlineProcessor(indexdir, queryfile);
-        op.listen2API(dir + "/twitterkeys", 1, 1000, querytweetpairs);
-
-        // op.retrieveTopTweets(querytweetpairs);
+        op.listen2Process(keydir, 3, 100000, querytweetpairs);
+        int resultcount = 1;
         while (true) {
-            QueryTweetPair qtp = querytweetpairs.poll(100, TimeUnit.MILLISECONDS);
+            QueryTweetPair qtp = querytweetpairs.poll(5000, TimeUnit.MILLISECONDS);
             if (qtp == null) {
-                //logger.error("we fail to get query tweet pairs in last period");
+                // logger.error("we fail to get query tweet pairs in last period");
             } else {
-                logger.info(qtp.toString());
-                logger.info(querytweetpairs.size());
+                logger.info(LuceneScorer.printQueryTweet(qtp, resultcount++));
             }
         }
     }
