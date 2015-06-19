@@ -11,6 +11,7 @@ import com.twitter.hbc.httpclient.auth.OAuth1;
 import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
 import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
+import de.mpii.microblogtrack.utility.MYConstants;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import java.io.BufferedReader;
@@ -202,7 +203,7 @@ public class OnlineProcessor {
         //LangFilterLD.loadprofile(dir + "/lang-dect-profile");
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
         OnlineProcessor op = new OnlineProcessor(indexdir, queryfile);
-        op.listen2Process(keydir, 3, 100000, querytweetpairs);
+        op.listen2Process(keydir, MYConstants.LISTENER_THREADNUM, 10000, querytweetpairs);
         int resultcount = 1;
         while (true) {
             QueryTweetPair qtp = querytweetpairs.poll(5000, TimeUnit.MILLISECONDS);

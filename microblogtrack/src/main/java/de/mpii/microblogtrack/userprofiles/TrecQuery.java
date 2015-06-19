@@ -13,8 +13,8 @@ import org.apache.lucene.benchmark.quality.trec.Trec1MQReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
+import de.mpii.microblogtrack.utility.MYConstants;
 //import org.apache.lucene.benchmark.quality.trec.TrecTopicsReader;
-
 /**
  * based on org.apache.lucene.benchmark.quality.trec.TrecTopicsReader
  *
@@ -44,7 +44,7 @@ public class TrecQuery {
         String querystr;
         Map<String, Query> res = new HashMap<>();
         for (QualityQuery qq : qqs) {
-            querystr = qq.getValue("query");
+            querystr = qq.getValue(MYConstants.QUERYSTR);
             res.put(qq.getQueryID(), qb.createBooleanQuery(field, querystr));
         }
         return res;

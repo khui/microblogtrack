@@ -16,6 +16,8 @@ public class QueryTweetPair {
 
     public final long tweetid;
 
+    public double predictscore = 0;
+
     public final String queryid;
 
     private final Status status;
@@ -42,7 +44,7 @@ public class QueryTweetPair {
      * #retweet #like
      */
     private void generateTweetFeature() {
-        for (String featurename : new String[]{"tfidf", "bm25", "lmd"}) {
+        for (String featurename : MYConstants.irModels) {
             featureValues.put(featurename, 0);
         }
     }
@@ -74,11 +76,21 @@ public class QueryTweetPair {
         return this.status;
     }
 
+    public void setPredictScore(double predictscore) {
+        this.predictscore = predictscore;
+    }
+
+    public double getPredictScore() {
+        return this.predictscore;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(queryid).append(":").append(tweetid).append(" ");
-        sb.append(featureValues.get("tfidf"));
+        for (String featurename : MYConstants.irModels) {
+            sb.append(featurename).append(":").append(featureValues.get(featurename)).append(" ");
+        }
         return sb.toString();
     }
 
