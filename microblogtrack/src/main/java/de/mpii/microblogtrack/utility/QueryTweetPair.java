@@ -16,8 +16,6 @@ public class QueryTweetPair {
 
     public final long tweetid;
 
-    public double predictscore = 0;
-
     public final String queryid;
 
     private final Status status;
@@ -76,12 +74,8 @@ public class QueryTweetPair {
         return this.status;
     }
 
-    public void setPredictScore(double predictscore) {
-        this.predictscore = predictscore;
-    }
-
-    public double getPredictScore() {
-        return this.predictscore;
+    public void setPredictScore(String predictresultname, double predictscore) {
+        this.predictorResults.put(predictresultname, predictscore);
     }
 
     @Override

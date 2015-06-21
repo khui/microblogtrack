@@ -44,5 +44,9 @@ public class MYConstants {
     public final static int MULTIQUERYSEARCH_THREADNUM = 12;
 
     public final static int LISTENER_THREADNUM = 2;
+    /**
+     * pointwise predictor outcome: confidence, score, etc..
+     */
+    public final static String PREDICTSCORE = "predictScore";
 
 }

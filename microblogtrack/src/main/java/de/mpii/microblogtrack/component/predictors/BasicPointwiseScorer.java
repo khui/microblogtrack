@@ -13,13 +13,13 @@ import org.apache.log4j.Logger;
  *
  * @author khui
  */
-public class BasicPredictor implements Callable<Void> {
+public class BasicPointwiseScorer implements Callable<Void> {
 
-    static Logger logger = Logger.getLogger(BasicPredictor.class);
+    static Logger logger = Logger.getLogger(BasicPointwiseScorer.class);
 
     private final BlockingQueue<QueryTweetPair> querytweetpairs;
 
-    public BasicPredictor(BlockingQueue<QueryTweetPair> qtp) {
+    public BasicPointwiseScorer(BlockingQueue<QueryTweetPair> qtp) {
         this.querytweetpairs = qtp;
     }
 
@@ -29,7 +29,7 @@ public class BasicPredictor implements Callable<Void> {
         for (String model : retrievalmodels) {
             scoresum += qtr.getFeature(model);
         }
-        qtr.setPredictScore(scoresum);
+        qtr.setPredictScore(MYConstants.PREDICTSCORE, scoresum);
     }
 
     @Override
