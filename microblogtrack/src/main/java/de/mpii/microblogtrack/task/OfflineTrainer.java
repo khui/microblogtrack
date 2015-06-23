@@ -3,19 +3,15 @@ package de.mpii.microblogtrack.task;
 import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
-import de.mpii.microblogtrack.utility.io.ReadStatus;
+import de.mpii.microblogtrack.utility.QueryTweets;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
 import org.apache.lucene.queryparser.classic.ParseException;
 import twitter4j.Status;
-import twitter4j.TwitterException;
 
 /**
  *
@@ -23,8 +19,10 @@ import twitter4j.TwitterException;
  */
 public class OfflineTrainer {
 
+    private final Map<String, QueryTweets> queryTweetList = new HashMap<>(250);
+
     public void process(String indexdir, String queryfile, BlockingQueue<Status> intbq, BlockingQueue<QueryTweetPair> outbq) throws IOException, InterruptedException, ParseException, ExecutionException {
-        LuceneScorer lscorer = new LuceneScorer(indexdir);
+        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTweetList);
         TrecQuery tq = new TrecQuery();
         //Map<String, Query> queries = tq.readInQueries(queryfile);
         //lscorer.multiQuerySearch(outbq, queries);

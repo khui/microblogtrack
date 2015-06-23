@@ -2,6 +2,9 @@ package de.mpii.microblogtrack.utility;
 
 import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
+import java.util.Arrays;
+import org.apache.mahout.math.DenseVector;
+import org.apache.mahout.math.Vector;
 import twitter4j.Status;
 
 /**
@@ -13,6 +16,8 @@ public class QueryTweetPair {
     private final TObjectDoubleMap<String> featureValues = new TObjectDoubleHashMap<>();
 
     private final TObjectDoubleMap<String> predictorResults = new TObjectDoubleHashMap<>();
+
+    private static String[] featureNames = null;
 
     public final long tweetid;
 
@@ -76,6 +81,25 @@ public class QueryTweetPair {
 
     public void setPredictScore(String predictresultname, double predictscore) {
         this.predictorResults.put(predictresultname, predictscore);
+    }
+
+    public Vector vectorize() {
+        boolean regenerateFeatureNames = false;
+        if (featureNames == null) {
+            regenerateFeatureNames = true;
+        } else if (featureNames.length != featureValues.size()) {
+            regenerateFeatureNames = true;
+        }
+        if (regenerateFeatureNames) {
+            featureNames = featureValues.keys(new String[0]);
+            Arrays.sort(featureNames);
+        }
+        double[] fvalues = new double[featureNames.length];
+        for (int i = 0; i < fvalues.length; i++) {
+            fvalues[i] = featureValues.get(featureNames[i]);
+        }
+        Vector fVector = new DenseVector(fvalues);
+        return fVector;
     }
 
     @Override

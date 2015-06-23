@@ -6,6 +6,7 @@ import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.map.TLongObjectMap;
 import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.QueryTweets;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -13,10 +14,11 @@ import java.text.DecimalFormat;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -75,9 +77,11 @@ public class LuceneScorer {
     // language filter, retaining english tweets
     private final Filter langfilter;
 
+    private final Map<String, QueryTweets> queryTweetList;
+
     private static final String[] searchModels = MYConstants.irModels;
 
-    public LuceneScorer(String indexdir) throws IOException {
+    public LuceneScorer(String indexdir, Map<String, QueryTweets> queryTweetList) throws IOException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         this.analyzer = new EnglishAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
@@ -88,20 +92,17 @@ public class LuceneScorer {
         this.textextractor = new ExtractTweetText();
         this.indexTracker = new IndexTracker();
         this.langfilter = new LangFilterTW();
-
+        this.queryTweetList = queryTweetList;
     }
 
-    public void multiQuerySearch(final BlockingQueue<QueryTweetPair> bq, String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException {
+    public void multiQuerySearch(String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException {
         TrecQuery tq = new TrecQuery();
         Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, MYConstants.TWEETSTR);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, bq), 60, 60, TimeUnit.SECONDS);
+        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries), 60, 60, TimeUnit.SECONDS);
         // the task will be canceled after running 30 days automatically
-        scheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-                sercherHandler.cancel(true);
-            }
+        scheduler.schedule(() -> {
+            sercherHandler.cancel(true);
         }, 30, TimeUnit.DAYS);
     }
 
@@ -225,13 +226,10 @@ public class LuceneScorer {
 
         private final Map<String, Query> queries;
 
-        private final BlockingQueue<QueryTweetPair> qtweetpairs;
-
         private int threadnum = MYConstants.MULTIQUERYSEARCH_THREADNUM;
 
-        public MultiQuerySearcher(final Map<String, Query> queries, BlockingQueue<QueryTweetPair> bq) {
+        public MultiQuerySearcher(final Map<String, Query> queries) {
             this.queries = queries;
-            this.qtweetpairs = bq;
         }
 
         public void setThreadNum(int threadnum) {
@@ -241,7 +239,8 @@ public class LuceneScorer {
         @Override
         public void run() {
             BooleanQuery combinedQuery;
-            ExecutorService service = Executors.newFixedThreadPool(threadnum);
+            Executor excutor = Executors.newFixedThreadPool(threadnum);
+            CompletionService<Collection<QueryTweetPair>> completeservice = new ExecutorCompletionService<>(excutor);
             long[] minmax = indexTracker.getAcurateTweetCount();
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(MYConstants.TWEETNUM, minmax[0], minmax[1], true, false);
             DirectoryReader reopenedReader = null;
@@ -273,17 +272,28 @@ public class LuceneScorer {
                 // end test
                 ///////////////////////////////////////
                 for (String queryid : queries.keySet()) {
+                    if (!queryTweetList.containsKey(queryid)) {
+                        queryTweetList.put(queryid, new QueryTweets(queryid));
+                    }
                     combinedQuery = new BooleanQuery();
                     combinedQuery.add(queries.get(queryid), BooleanClause.Occur.SHOULD);
                     combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
-                    service.submit(new UniqQuerySearcher(combinedQuery, queryid, qtweetpairs, directoryReader));
+                    completeservice.submit(new UniqQuerySearcher(combinedQuery, queryid, directoryReader));
                 }
-                service.shutdown();
-                try {
-                    boolean isFinished = service.awaitTermination(50, TimeUnit.SECONDS);
-                    logger.info("Retrieval task finished: " + isFinished);
-                } catch (InterruptedException ie) {
-                    logger.error(ie.getMessage());
+                int resultnum = queries.size();
+                Collection<QueryTweetPair> queryranking;
+                for (int i = 0; i < resultnum; ++i) {
+                    try {
+                        queryranking = completeservice.take().get();
+                        if (queryranking != null) {
+                            queryranking
+                                    .forEach(qtp -> queryTweetList.get(qtp.queryid).addTweet(qtp));
+                        } else {
+                            logger.error("queryranking is null.");
+                        }
+                    } catch (ExecutionException | InterruptedException ex) {
+                        logger.error(ex.getMessage());
+                    }
                 }
             } else {
                 logger.warn("Nothing added to the index since last open of reader.");
@@ -291,22 +301,19 @@ public class LuceneScorer {
         }
     }
 
-    private class UniqQuerySearcher implements Callable<Void> {
+    private class UniqQuerySearcher implements Callable<Collection<QueryTweetPair>> {
 
-        private int topN = 2;
+        private int topN = MYConstants.TOP_N_FROM_LUCENE;
 
         private final String queryid;
 
         private final Query query;
 
-        private final BlockingQueue<QueryTweetPair> querytweetpairs;
-
         private final DirectoryReader reader;
 
-        public UniqQuerySearcher(Query query, String queryId, BlockingQueue<QueryTweetPair> bq, DirectoryReader reader) {
+        public UniqQuerySearcher(Query query, String queryId, DirectoryReader reader) {
             this.query = query;
             this.queryid = queryId;
-            this.querytweetpairs = bq;
             this.reader = reader;
         }
 
@@ -315,18 +322,9 @@ public class LuceneScorer {
         }
 
         @Override
-        public Void call() throws Exception {
+        public Collection<QueryTweetPair> call() throws Exception {
             Collection<QueryTweetPair> qtpairs = mutliScorers(this.reader, this.query, this.queryid, this.topN);
-            //int resultcount = 1;
-            for (QueryTweetPair qtp : qtpairs) {
-                boolean isSuccess = querytweetpairs.offer(new QueryTweetPair(qtp), 1, TimeUnit.SECONDS);
-                if (!isSuccess) {
-                    logger.error("querytweetpairs offer failed!");
-                }
-                //logger.info(printQueryTweet(qtp, resultcount));
-                //resultcount++;
-            }
-            return null;
+            return qtpairs;
         }
     }
 

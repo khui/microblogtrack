@@ -12,6 +12,7 @@ import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
 import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.QueryTweets;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import java.io.BufferedReader;
@@ -20,6 +21,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -49,6 +52,8 @@ public class OnlineProcessor {
     private final String queryfile;
 
     private final LuceneScorer lscorer;
+
+    private final Map<String, QueryTweets> queryTweetList = new HashMap<>(250);
 
     private final StatusListener listener = new StatusListener() {
 
@@ -83,7 +88,7 @@ public class OnlineProcessor {
     };
 
     public OnlineProcessor(String indexdir, String queryfile) throws IOException {
-        this.lscorer = new LuceneScorer(indexdir);
+        this.lscorer = new LuceneScorer(indexdir, queryTweetList);
         this.queryfile = queryfile;
     }
 
@@ -180,8 +185,7 @@ public class OnlineProcessor {
         for (int threads = 0; threads < numProcessingThreads; threads++) {
             t4jClient.process();
         }
-
-        lscorer.multiQuerySearch(qtweetpairs, queryfile);
+        lscorer.multiQuerySearch(queryfile);
     }
 
     public void close() {
