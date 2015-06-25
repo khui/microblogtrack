@@ -46,10 +46,16 @@ public class MYConstants {
     public final static int LISTENER_THREADNUM = 2;
 
     public final static int TOP_N_FROM_LUCENE = 3;
-    
+
     public final static int MAX_ITERATE_BALLKMEAN = 3;
     // compute how many latest tweets we want to retain for each query: TOP_N_FROM_LUCENE * RECORD_MINIUTES
     public final static int RECORD_MINIUTES = 20;
+    // the computation for the upper bound of cluster numbers is computed as #desired cluster * log(#data number)
+    // we estimate the expected tweet number for 10 hours
+    public final static int STREAMKMEAN_CLUSTERNUM = 400;
+    // the clustering distance measure for the clustering algorithm
+    // SquaredEuclideanDistanceMeasure, CosineDistanceMeasure, EuclideanDistanceMeasure etc..
+    public final static String DISTANT_MEASURE_CLUSTER = "CosineDistanceMeasure";
     /**
      * pointwise predictor outcome: confidence, score, etc..
      */

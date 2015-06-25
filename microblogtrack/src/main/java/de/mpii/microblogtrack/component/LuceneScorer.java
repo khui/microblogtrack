@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
@@ -273,7 +274,11 @@ public class LuceneScorer {
                 ///////////////////////////////////////
                 for (String queryid : queries.keySet()) {
                     if (!queryTweetList.containsKey(queryid)) {
-                        queryTweetList.put(queryid, new QueryTweets(queryid));
+                        try {
+                            queryTweetList.put(queryid, new QueryTweets(queryid));
+                        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
+                            logger.error(ex.getMessage());
+                        }
                     }
                     combinedQuery = new BooleanQuery();
                     combinedQuery.add(queries.get(queryid), BooleanClause.Occur.SHOULD);

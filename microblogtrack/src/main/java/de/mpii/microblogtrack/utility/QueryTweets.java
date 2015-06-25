@@ -1,14 +1,13 @@
 package de.mpii.microblogtrack.utility;
 
-import gnu.trove.list.TDoubleList;
-import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.TCollections;
+import gnu.trove.map.TIntDoubleMap;
 import gnu.trove.map.TIntIntMap;
 import gnu.trove.map.TIntObjectMap;
-import gnu.trove.map.TLongObjectMap;
 import gnu.trove.map.TObjectDoubleMap;
+import gnu.trove.map.hash.TIntDoubleHashMap;
 import gnu.trove.map.hash.TIntIntHashMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
-import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -22,7 +21,6 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.mahout.clustering.streaming.cluster.BallKMeans;
 import org.apache.mahout.clustering.streaming.cluster.StreamingKMeans;
-import org.apache.mahout.common.distance.CosineDistanceMeasure;
 import org.apache.mahout.common.distance.DistanceMeasure;
 import org.apache.mahout.math.Centroid;
 import org.apache.mahout.math.DenseVector;
@@ -44,21 +42,24 @@ public class QueryTweets {
     // contain feature vector for latest RECORD_MINIUTES minutes tweets
     private final TIntObjectMap<CandidateTweet> tidFeatures;
 
-    private final int numberOfTweetsToKeep = MYConstants.TOP_N_FROM_LUCENE * MYConstants.RECORD_MINIUTES;
+    private final TIntObjectMap<double[]> tidPointwiseScores = new TIntObjectHashMap<>();
 
-    private final TLongObjectMap<double[]> tidPointwiseScores;
+    private final int numberOfTweetsToKeep = MYConstants.TOP_N_FROM_LUCENE * MYConstants.RECORD_MINIUTES;
+    // track the score of the tweets for the query to generate relative score for each upcoming tweets
+    // we only track the scores for the latest 24 hours
+    private final int numberOfScoreToTrack = MYConstants.TOP_N_FROM_LUCENE * 3600;
 
     private EmpiricalDistribution edistPredictScore = null;
     // summarized pointwise prediction results for the computation of empirical dist
-    private final TDoubleList pointwiseScore;
+    private final TIntDoubleMap pointwiseScore = new TIntDoubleHashMap(numberOfScoreToTrack);
 
     private final String[] scorenames = new String[]{MYConstants.PREDICTSCORE};
 
-    private UpdatableSearcher streamKMCentroids;
+    private final UpdatableSearcher streamKMCentroids;
 
-    private StreamingKMeans clusterer;
+    private final StreamingKMeans clusterer;
 
-    private final DistanceMeasure distanceMeasure = new CosineDistanceMeasure();
+    private final String distanceMeasure = MYConstants.DISTANT_MEASURE_CLUSTER;
 
     private final int numProjections = 20;
 
@@ -66,22 +67,12 @@ public class QueryTweets {
 
     private int tweetcount = 0;
 
-    public QueryTweets(String queryid) {
+    public QueryTweets(String queryid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryid = queryid;
-        this.tidFeatures = new TIntObjectHashMap<>(numberOfTweetsToKeep);
-        this.tidPointwiseScores = new TLongObjectHashMap<>();
-        this.pointwiseScore = new TDoubleArrayList();
-        initialStreamingKmean();
-    }
-
-    private void initialStreamingKmean() {
-
-        // the computation for the upper bound of cluster numbers is computed as #desired cluster * log(#data number)
-        // we estimate the expected tweet number for 10 hours
-        int streamkmeanClusterNum = 400;
+        this.tidFeatures = TCollections.synchronizedMap(new TIntObjectHashMap<>(numberOfTweetsToKeep));
         // initialize an empty streamKMCentroids set
-        this.streamKMCentroids = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
-        this.clusterer = new StreamingKMeans(streamKMCentroids, streamkmeanClusterNum);
+        this.streamKMCentroids = new ProjectionSearch((DistanceMeasure) Class.forName(distanceMeasure).newInstance(), numProjections, searchSize);
+        this.clusterer = new StreamingKMeans(streamKMCentroids, MYConstants.STREAMKMEAN_CLUSTERNUM);
     }
 
     /**
@@ -94,15 +85,18 @@ public class QueryTweets {
      * @param qtp
      */
     public void addTweet(QueryTweetPair qtp) {
+        tweetcount++;
         long tweetid = qtp.tweetid;
         Vector v = qtp.vectorize();
         double score = summarizePointwisePrediction(tweetid, qtp.getPredictRes());
         // the unique predicting score for one tweet, and the corresponding cumulative prob is used as vector weight
         double prob = getCumulativeProb(score);
         // keep tracking the latest numberOfTweetsToKeep tweets
-        tidFeatures.put(tweetcount % numberOfTweetsToKeep, new CandidateTweet(tweetid, prob, this.queryid, v));
+        tidFeatures.put(tweetcount % numberOfTweetsToKeep, new CandidateTweet(tweetid, score, prob, this.queryid, v));
         // use the tweet count as the centroid key
-        clusterer.cluster(new Centroid(++tweetcount, v.clone(), prob));
+        synchronized (clusterer) {
+            clusterer.cluster(new Centroid(tweetcount, v.clone(), prob));
+        }
     }
 
     /**
@@ -118,13 +112,16 @@ public class QueryTweets {
      * @param topk
      * @return
      */
-    public List<CandidateTweet> getToptweetsEachCentroid(int centroidnum, int topk) {
+    public List<CandidateTweet> getToptweetsEachCentroid(int centroidnum, int topk) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         // get the updated centroids, each one represents a potential subtopic
         Iterable<Vector> centroids = getCentroids(centroidnum);
         // latest tweets being tracked
-        TIntObjectMap<CandidateTweet> latestTweets = new TIntObjectHashMap<>(tidFeatures);
+        TIntObjectMap<CandidateTweet> latestTweets;
+        synchronized (tidFeatures) {
+            latestTweets = new TIntObjectHashMap<>(tidFeatures);
+        }
         // construct a searcher
-        UpdatableSearcher latestTweetSearcher = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
+        UpdatableSearcher latestTweetSearcher = new ProjectionSearch((DistanceMeasure) Class.forName(distanceMeasure).newInstance(), numProjections, searchSize);
         // result list
         List<CandidateTweet> candidateTweets = new ArrayList<>();
         // use all latest results to generate the searcher, against which to conduct search
@@ -156,15 +153,17 @@ public class QueryTweets {
      * @param maxNumIterations
      * @return
      */
-    private Iterable<Vector> getCentroids(int centroidnum) {
+    private Iterable<Vector> getCentroids(int centroidnum) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         int maxNumIterations = MYConstants.MAX_ITERATE_BALLKMEAN;
-        UpdatableSearcher emptySercher = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
+        UpdatableSearcher emptySercher = new ProjectionSearch((DistanceMeasure) Class.forName(distanceMeasure).newInstance(), numProjections, searchSize);
         BallKMeans exactCentroids = new BallKMeans(emptySercher, centroidnum, maxNumIterations);
         List<Centroid> centroidList = new ArrayList<>();
-        clusterer.reindexCentroids();
-        Iterator<Centroid> it = clusterer.iterator();
-        while (it.hasNext()) {
-            centroidList.add(it.next().clone());
+        synchronized (clusterer) {
+            clusterer.reindexCentroids();
+            Iterator<Centroid> it = clusterer.iterator();
+            while (it.hasNext()) {
+                centroidList.add(it.next().clone());
+            }
         }
         return exactCentroids.cluster(centroidList);
     }
@@ -194,16 +193,16 @@ public class QueryTweets {
                 scores[i] = predictScores.get(scorenames[i]);
                 if (scorenames[i].equals(MYConstants.PREDICTSCORE)) {
                     presentativescore = scores[i];
-                    pointwiseScore.add(presentativescore);
+                    pointwiseScore.put(tweetcount % numberOfScoreToTrack, presentativescore);
                     // reload the estimate of probility per 10000 entries
                     if (pointwiseScore.size() % 10000 == 0 && edistPredictScore != null) {
                         this.edistPredictScore = new EmpiricalDistribution();
-                        edistPredictScore.load(pointwiseScore.toArray());
+                        edistPredictScore.load(pointwiseScore.values(new double[]{}));
                     }
                 }
             }
         }
-        tidPointwiseScores.put(tweetid, scores);
+        tidPointwiseScores.put(tweetcount % numberOfTweetsToKeep, scores);
         return presentativescore;
     }
 
