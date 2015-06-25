@@ -30,6 +30,9 @@ import org.apache.mahout.math.neighborhood.ProjectionSearch;
 import org.apache.mahout.math.random.WeightedThing;
 
 /**
+ * main facility for ranking and pointwise prediction. for each query, we
+ * construct one QueryTweets instance, keeping track of the relevant tweets for
+ * this query, meanwhile keeping track of the centroid by streaming k-means.. 
  *
  * @author khui
  */
