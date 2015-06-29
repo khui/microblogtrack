@@ -10,9 +10,11 @@ import com.twitter.hbc.httpclient.auth.Authentication;
 import com.twitter.hbc.httpclient.auth.OAuth1;
 import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
 import de.mpii.microblogtrack.component.LuceneScorer;
+import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
+import de.mpii.microblogtrack.component.predictor.PointwiseScorerSVM;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.MYConstants;
-import de.mpii.microblogtrack.utility.QueryTweets;
+import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import java.io.BufferedReader;
@@ -53,7 +55,7 @@ public class OnlineProcessor {
 
     private final LuceneScorer lscorer;
 
-    private final Map<String, QueryTweets> queryTweetList = new HashMap<>(250);
+    private final Map<String, ResultTweetsTracker> queryTweetList = new HashMap<>(250);
 
     private final StatusListener listener = new StatusListener() {
 
@@ -87,8 +89,8 @@ public class OnlineProcessor {
         }
     };
 
-    public OnlineProcessor(String indexdir, String queryfile) throws IOException {
-        this.lscorer = new LuceneScorer(indexdir, queryTweetList);
+    public OnlineProcessor(String indexdir, String queryfile, PointwiseScorer pwScorer) throws IOException {
+        this.lscorer = new LuceneScorer(indexdir, queryTweetList, pwScorer);
         this.queryfile = queryfile;
     }
 
@@ -206,7 +208,7 @@ public class OnlineProcessor {
         logger.info("Start To Process");
         //LangFilterLD.loadprofile(dir + "/lang-dect-profile");
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
-        OnlineProcessor op = new OnlineProcessor(indexdir, queryfile);
+        OnlineProcessor op = new OnlineProcessor(indexdir, queryfile, new PointwiseScorer());
         op.listen2Process(keydir, MYConstants.LISTENER_THREADNUM, 10000, querytweetpairs);
         int resultcount = 1;
         while (true) {

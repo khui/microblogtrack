@@ -3,7 +3,7 @@ package de.mpii.microblogtrack.task;
 import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
-import de.mpii.microblogtrack.utility.QueryTweets;
+import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,7 +19,7 @@ import twitter4j.Status;
  */
 public class OfflineTrainer {
 
-    private final Map<String, QueryTweets> queryTweetList = new HashMap<>(250);
+    private final Map<String, ResultTweetsTracker> queryTweetList = new HashMap<>(250);
 
     public void process(String indexdir, String queryfile, BlockingQueue<Status> intbq, BlockingQueue<QueryTweetPair> outbq) throws IOException, InterruptedException, ParseException, ExecutionException {
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTweetList);

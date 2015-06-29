@@ -59,6 +59,8 @@ public class MYConstants {
     /**
      * pointwise predictor outcome: confidence, score, etc..
      */
-    public final static String PREDICTSCORE = "predictScore";
+    public final static String PRED_ABSOLUTESCORE = "absolutePrimaryScore";
+
+    public final static String PRED_RELATIVESCORE = "relativePrimaryScore";
 
 }

@@ -25,12 +25,15 @@ public class QueryTweetPair {
 
     private final Status status;
 
+    private Vector featureVector = null;
+
     public QueryTweetPair(long tweetid, String queryid, Status status) {
         this.tweetid = tweetid;
         this.queryid = queryid;
         this.status = status;
-        generateTweetFeature();
-        generateUserFeature();
+        semanticMatchFeatures();
+        tweetFeatures();
+        userFeatures();
     }
 
     public QueryTweetPair(QueryTweetPair qtp) {
@@ -43,28 +46,8 @@ public class QueryTweetPair {
         this.predictorResults.putAll(qtp.getPredictRes());
     }
 
-    /**
-     * #retweet #like
-     */
-    private void generateTweetFeature() {
-        for (String featurename : MYConstants.irModels) {
-            featureValues.put(featurename, 0);
-        }
-    }
-
-    /**
-     * #retweet #following #follower
-     */
-    private void generateUserFeature() {
-
-    }
-
     public void updateFeatures(String name, double score) {
         featureValues.put(name, score);
-    }
-
-    public TObjectDoubleMap<String> getFeatures() {
-        return featureValues;
     }
 
     public TObjectDoubleMap<String> getPredictRes() {
@@ -75,15 +58,39 @@ public class QueryTweetPair {
         return featureValues.get(name);
     }
 
-    public Status getStatus() {
-        return this.status;
-    }
-
     public void setPredictScore(String predictresultname, double predictscore) {
         this.predictorResults.put(predictresultname, predictscore);
     }
 
+    public double getAbsScore() {
+        double score = -1;
+        if (predictorResults.containsKey(MYConstants.PRED_ABSOLUTESCORE)) {
+            score = predictorResults.get(MYConstants.PRED_ABSOLUTESCORE);
+        }
+        return score;
+    }
+
+    public double getRelScore() {
+        double score = -1;
+        if (predictorResults.containsKey(MYConstants.PRED_RELATIVESCORE)) {
+            score = predictorResults.get(MYConstants.PRED_RELATIVESCORE);
+        }
+        return score;
+    }
+
+    /**
+     * for debug to printQueryTweet
+     *
+     * @return
+     */
+    public Status getStatus() {
+        return this.status;
+    }
+
     public Vector vectorize() {
+        if (featureVector != null) {
+            return featureVector;
+        }
         boolean regenerateFeatureNames = false;
         if (featureNames == null) {
             regenerateFeatureNames = true;
@@ -98,8 +105,8 @@ public class QueryTweetPair {
         for (int i = 0; i < fvalues.length; i++) {
             fvalues[i] = featureValues.get(featureNames[i]);
         }
-        Vector fVector = new DenseVector(fvalues);
-        return fVector;
+        featureVector = new DenseVector(fvalues);
+        return featureVector;
     }
 
     @Override
@@ -110,6 +117,33 @@ public class QueryTweetPair {
             sb.append(featurename).append(":").append(featureValues.get(featurename)).append(" ");
         }
         return sb.toString();
+    }
+
+    /**
+     * semantic matching features
+     */
+    private void semanticMatchFeatures() {
+        for (String featurename : MYConstants.irModels) {
+            featureValues.put(featurename, 0);
+        }
+    }
+
+    /**
+     * #retweet #like #hashmap url
+     */
+    private void tweetFeatures() {
+
+    }
+
+    /**
+     * #retweet #following #follower
+     */
+    private void userFeatures() {
+
+    }
+
+    private TObjectDoubleMap<String> getFeatures() {
+        return featureValues;
     }
 
 }

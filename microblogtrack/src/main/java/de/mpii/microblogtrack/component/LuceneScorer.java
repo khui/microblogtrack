@@ -2,11 +2,13 @@ package de.mpii.microblogtrack.component;
 
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
+import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.map.TLongObjectMap;
 import de.mpii.microblogtrack.utility.MYConstants;
-import de.mpii.microblogtrack.utility.QueryTweets;
+import de.mpii.microblogtrack.utility.ResultTweetsTracker;
+import de.mpii.microblogtrack.utility.ResultTrackerKMean;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -77,11 +79,13 @@ public class LuceneScorer {
     // language filter, retaining english tweets
     private final Filter langfilter;
 
-    private final Map<String, QueryTweets> queryTweetList;
+    private final Map<String, ResultTweetsTracker> queryResultTrackers;
 
     private static final String[] searchModels = MYConstants.irModels;
 
-    public LuceneScorer(String indexdir, Map<String, QueryTweets> queryTweetList) throws IOException {
+    private final PointwiseScorer pwScorer;
+
+    public LuceneScorer(String indexdir, Map<String, ResultTweetsTracker> queryTweetList, PointwiseScorer pwScorer) throws IOException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         this.analyzer = new EnglishAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
@@ -92,7 +96,8 @@ public class LuceneScorer {
         this.textextractor = new ExtractTweetText();
         this.indexTracker = new IndexTracker();
         this.langfilter = new LangFilterTW();
-        this.queryTweetList = queryTweetList;
+        this.queryResultTrackers = queryTweetList;
+        this.pwScorer = pwScorer;
     }
 
     public void multiQuerySearch(String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException {
@@ -104,37 +109,6 @@ public class LuceneScorer {
         scheduler.schedule(() -> {
             sercherHandler.cancel(true);
         }, 30, TimeUnit.DAYS);
-    }
-
-    private Collection<QueryTweetPair> mutliScorers(IndexReader reader, Query query, String queryId, int topN) throws IOException {
-        TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
-        IndexSearcher searcherInUse;
-        ScoreDoc[] hits;
-        Document tweet;
-        long tweetid;
-        for (String name : searchModels) {
-            searcherInUse = new IndexSearcher(reader);
-            switch (name) {
-                case MYConstants.TFIDF:
-                    break;
-                case MYConstants.BM25:
-                    searcherInUse.setSimilarity(new BM25Similarity());
-                    break;
-                case MYConstants.LMD:
-                    searcherInUse.setSimilarity(new LMDirichletSimilarity());
-                    break;
-            }
-            hits = searcherInUse.search(query, topN).scoreDocs;
-            for (ScoreDoc hit : hits) {
-                tweet = searcherInUse.doc(hit.doc);
-                tweetid = Long.parseLong(tweet.get(MYConstants.TWEETID));
-                if (!searchresults.containsKey(tweetid)) {
-                    searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
-                }
-                searchresults.get(tweetid).updateFeatures(name, hit.score);
-            }
-        }
-        return searchresults.valueCollection();
     }
 
     /**
@@ -160,7 +134,8 @@ public class LuceneScorer {
         logger.info("***************************************************************************");
         logger.info("indexed documents: " + minmax[0] + " -------- " + (minmax[1] - 1));
         if (directoryReader != null) {
-            qtpairs = mutliScorers(directoryReader, combinedQuery, MYConstants.QUERYID, 10);
+            qtpairs = null;
+            //mutliScorers(directoryReader, combinedQuery, MYConstants.QUERYID, 10);
             for (QueryTweetPair qtp : qtpairs) {
                 resultcount++;
                 logger.info(printQueryTweet(qtp, resultcount));
@@ -185,10 +160,6 @@ public class LuceneScorer {
         }
         sb.append(" ").append(qtp.getStatus().getText());
         return sb.toString();
-    }
-
-    public int getIndexSize() {
-        return writer.numDocs();
     }
 
     public void closeWriter() throws IOException {
@@ -272,9 +243,9 @@ public class LuceneScorer {
                 // end test
                 ///////////////////////////////////////
                 for (String queryid : queries.keySet()) {
-                    if (!queryTweetList.containsKey(queryid)) {
+                    if (!queryResultTrackers.containsKey(queryid)) {
                         try {
-                            queryTweetList.put(queryid, new QueryTweets(queryid));
+                            queryResultTrackers.put(queryid, new ResultTrackerKMean(queryid));
                         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
                             logger.error(ex.getMessage());
                         }
@@ -291,7 +262,7 @@ public class LuceneScorer {
                         queryranking = completeservice.take().get();
                         if (queryranking != null) {
                             queryranking
-                                    .forEach(qtp -> queryTweetList.get(qtp.queryid).addTweet(qtp));
+                                    .forEach(qtp -> queryResultTrackers.get(qtp.queryid).addTweet(qtp));
                         } else {
                             logger.error("queryranking is null.");
                         }
@@ -323,6 +294,43 @@ public class LuceneScorer {
 
         public void setTopN(int topN) {
             this.topN = topN;
+        }
+
+        private Collection<QueryTweetPair> mutliScorers(IndexReader reader, Query query, String queryId, int topN) throws IOException {
+            TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
+            IndexSearcher searcherInUse;
+            ScoreDoc[] hits;
+            Document tweet;
+            long tweetid;
+            for (String name : searchModels) {
+                searcherInUse = new IndexSearcher(reader);
+                switch (name) {
+                    case MYConstants.TFIDF:
+                        break;
+                    case MYConstants.BM25:
+                        searcherInUse.setSimilarity(new BM25Similarity());
+                        break;
+                    case MYConstants.LMD:
+                        searcherInUse.setSimilarity(new LMDirichletSimilarity());
+                        break;
+                }
+                hits = searcherInUse.search(query, topN).scoreDocs;
+                for (ScoreDoc hit : hits) {
+                    tweet = searcherInUse.doc(hit.doc);
+                    tweetid = Long.parseLong(tweet.get(MYConstants.TWEETID));
+                    if (!searchresults.containsKey(tweetid)) {
+                        searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
+                    }
+                    searchresults.get(tweetid).updateFeatures(name, hit.score);
+                }
+            }
+            /**
+             * conduct pointwise prediction
+             */
+            for (QueryTweetPair qtp : searchresults.valueCollection()) {
+                pwScorer.predictor(qtp);
+            }
+            return searchresults.valueCollection();
         }
 
         @Override
