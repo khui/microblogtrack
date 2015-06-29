@@ -31,6 +31,14 @@ public class CandidateTweet {
         this.isSelected = selected;
     }
 
+    public CandidateTweet(long tweetid, double absoluteS, double prob, String queryId, Vector featureVector) {
+        this.tweetid = tweetid;
+        this.featureVector = featureVector;
+        this.relativeScore = prob;
+        this.queryId = queryId;
+        this.absoluteScore = absoluteS;
+    }
+
     public CandidateTweet(CandidateTweet candidatetweet) {
         this.tweetid = candidatetweet.tweetid;
         this.featureVector = candidatetweet.getFeature();
@@ -47,5 +55,16 @@ public class CandidateTweet {
 
     public Vector getFeature() {
         return this.featureVector;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(queryId).append("\t");
+        sb.append(tweetid).append("\t");
+        sb.append(absoluteScore).append("\t");
+        sb.append(relativeScore).append("\t");
+        sb.append(isSelected);
+        return sb.toString();
     }
 }

@@ -16,6 +16,7 @@ import java.text.DecimalFormat;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
@@ -100,11 +101,11 @@ public class LuceneScorer {
         this.pwScorer = pwScorer;
     }
 
-    public void multiQuerySearch(String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException {
+    public void multiQuerySearch(String queryfile, BlockingQueue<QueryTweetPair> tweetqueue) throws IOException, InterruptedException, ExecutionException, ParseException {
         TrecQuery tq = new TrecQuery();
         Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, MYConstants.TWEETSTR);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries), 60, 60, TimeUnit.SECONDS);
+        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, tweetqueue), 60, 60, TimeUnit.SECONDS);
         // the task will be canceled after running 30 days automatically
         scheduler.schedule(() -> {
             sercherHandler.cancel(true);
@@ -199,8 +200,11 @@ public class LuceneScorer {
 
         private int threadnum = MYConstants.MULTIQUERYSEARCH_THREADNUM;
 
-        public MultiQuerySearcher(final Map<String, Query> queries) {
+        private final BlockingQueue<QueryTweetPair> tweetqueue;
+
+        public MultiQuerySearcher(final Map<String, Query> queries, BlockingQueue<QueryTweetPair> tweetqueue) {
             this.queries = queries;
+            this.tweetqueue = tweetqueue;
         }
 
         public void setThreadNum(int threadnum) {
@@ -247,7 +251,7 @@ public class LuceneScorer {
                         try {
                             queryResultTrackers.put(queryid, new ResultTrackerKMean(queryid));
                         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
-                            logger.error(ex.getMessage());
+                            logger.error("multiquery search", ex);
                         }
                     }
                     combinedQuery = new BooleanQuery();
@@ -256,18 +260,27 @@ public class LuceneScorer {
                     completeservice.submit(new UniqQuerySearcher(combinedQuery, queryid, directoryReader));
                 }
                 int resultnum = queries.size();
+                logger.info(resultnum);
                 Collection<QueryTweetPair> queryranking;
                 for (int i = 0; i < resultnum; ++i) {
                     try {
                         queryranking = completeservice.take().get();
                         if (queryranking != null) {
-                            queryranking
-                                    .forEach(qtp -> queryResultTrackers.get(qtp.queryid).addTweet(qtp));
+                            for (QueryTweetPair qtp : queryranking) {
+                                // update the result tracker
+                                queryResultTrackers.get(qtp.queryid).addTweet(qtp);
+                                // offer to the blocking queue for the decision maker
+                                boolean isSucceed = tweetqueue.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
+                                logger.info(qtp.toString());
+                                if (!isSucceed) {
+                                    logger.error("offer to queue failed.");
+                                }
+                            }
                         } else {
                             logger.error("queryranking is null.");
                         }
                     } catch (ExecutionException | InterruptedException ex) {
-                        logger.error(ex.getMessage());
+                        logger.error("pass qtp", ex);
                     }
                 }
             } else {
@@ -330,6 +343,7 @@ public class LuceneScorer {
             for (QueryTweetPair qtp : searchresults.valueCollection()) {
                 pwScorer.predictor(qtp);
             }
+
             return searchresults.valueCollection();
         }
 

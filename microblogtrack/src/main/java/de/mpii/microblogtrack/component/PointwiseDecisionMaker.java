@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 import org.apache.log4j.Logger;
 import org.apache.mahout.common.distance.DistanceMeasure;
 import org.apache.mahout.math.Vector;
@@ -24,81 +25,92 @@ import org.apache.mahout.math.Vector;
  *
  * @author khui
  */
-public class PointwiseDecisionMaker implements Callable<Void> {
-
+public class PointwiseDecisionMaker implements Runnable {
+    
     static Logger logger = Logger.getLogger(PointwiseDecisionMaker.class);
-
+    
     private final Map<String, ResultTweetsTracker> queryResultTrackers;
-
+    
     private final TObjectDoubleMap<String> queryidThresholds = new TObjectDoubleHashMap<>();
-
+    
     private final BlockingQueue<QueryTweetPair> tweetqueue;
-
+    
     private final DistanceMeasure distanceMeasure;
-
+    
+    private int tweetNumberCount;
+    
     private final int centroidnum = 10;
-    // the number of closest tweets w.r.t. each centroid being selected
-    private final int topk = 3;
 
-    private double avgCentroidDistance = 0;
-    // keep tracking the latest numberOfTweetsToKeep tweets
-    //tidFeatures.put(tweetcount % numberOfTweetsToKeep, new CandidateTweet(tweetid, score, prob, this.queryid, v));
-    // contain feature vector for latest RECORD_MINIUTES minutes tweets
-    //private final TIntObjectMap<CandidateTweet> tidFeatures;
-    //private final TIntObjectMap<double[]> tidPointwiseScores = new TIntObjectHashMap<>();
-    // track the tweets being sent
-    private final Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();
-
-    public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue) throws ClassNotFoundException {
+    // track the tweets being sent in the full duration
+    private final static Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();
+    
+    public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.DISTANT_MEASURE_CLUSTER).newInstance();
         this.queryResultTrackers = tracker;
         this.tweetqueue = tweetqueue;
+        this.tweetNumberCount = 0;
     }
-
+    
     @Override
-    public Void call() throws Exception {
-        QueryTweetPair tweet;
+    public void run() {
+        QueryTweetPair tweet = null;
         while (!Thread.interrupted()) {
-            tweet = tweetqueue.poll(100, TimeUnit.MILLISECONDS);
-            if (tweet != null) {
+            try {
+                tweet = tweetqueue.poll(100, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ex) {
+                logger.error(ex.getMessage());
+            }
+            if (tweet != null && tweetNumberCount <= centroidnum) {
                 if (scoreFilter(tweet)) {
                     double[] distances = distFilter(tweet);
                     if (distances != null) {
-
+                        CandidateTweet resultTweet = decisionMake(tweet, distances);
+                        if (resultTweet.isSelected) {
+                            tweetNumberCount++;
+                            // write down the tweets that are notified
+                            logger.info(resultTweet.toString());
+                        }
                     }
                 }
+            } else if (tweetNumberCount > centroidnum) {
+                logger.info("we have finished pop-up tweets.");
+                break;
             } else {
                 logger.error("we get no tweet with past time window");
             }
         }
-
-        for (String queryid : queryResultTrackers.keySet()) {
-
-        }
-        return null;
     }
 
+    /**
+     * filter out the tweets that with low score
+     *
+     * @param tweet
+     * @return
+     */
     private boolean scoreFilter(QueryTweetPair tweet) {
         boolean isRetain = false;
         double relativeScore = tweet.getRelScore();
-        if (relativeScore > 0.95) {
+        if (relativeScore > MYConstants.DECISION_MAKER_SCORE_FILTER) {
             isRetain = true;
         }
         return isRetain;
     }
-
+    
     private double[] distFilter(QueryTweetPair tweet) {
         TDoubleList distances = new TDoubleArrayList();
+        String queryId = tweet.queryid;
         List<CandidateTweet> tweets;
         double relativeDist;
         Vector sentVector;
-        if (qidTweetSent.containsKey(tweet.queryid)) {
-            tweets = qidTweetSent.get(tweet.queryid);
+        if (qidTweetSent.containsKey(queryId)) {
+            tweets = qidTweetSent.get(queryId);
             Vector features = tweet.vectorize();
+            // the average distance among centroids as the metrics for the relative distance between tweets
+            double avgCentroidDistance = queryResultTrackers.get(queryId).avgDistCentroids();
             for (CandidateTweet ct : tweets) {
                 sentVector = ct.getFeature();
                 relativeDist = distanceMeasure.distance(sentVector, features) / avgCentroidDistance;
-                if (relativeDist < 0.2) {
+                if (relativeDist < MYConstants.DECISION_MAKER_DIST_FILTER) {
                     return null;
                 }
                 distances.add(relativeDist);
@@ -108,7 +120,16 @@ public class PointwiseDecisionMaker implements Callable<Void> {
     }
 
     /**
-     * "send the tweet" and keep tracking in qidTweetSent
+     * "send the tweet" and keep tracking all the pop-up tweets in qidTweetSent
+     * meanwhile adjusting/maintaining the threshold for the gain to make
+     * decision. Intuitively, a tweet will be pop-up as long as it is highly
+     * relevant and divergent enough from previously notification. In this
+     * decision maker, the gain is computed as the sum-product of the absolute
+     * relevance and the relative distance. The absolute relevance is from the
+     * predictor, e.g., the output probability for the point belonging to class
+     * 1. And the relative distance is the distance between current tweets and
+     * notified tweets w.r.t. the average distance among current centroids. All
+     * other decision makers should override this method.
      *
      * @param tweet
      * @param relativeDist
@@ -116,27 +137,72 @@ public class PointwiseDecisionMaker implements Callable<Void> {
      */
     public CandidateTweet decisionMake(QueryTweetPair tweet, double[] relativeDist) {
         double absoluteScore = tweet.getAbsScore();
+        double relativeScore = tweet.getRelScore();
+        String queryId = tweet.queryid;
         double avggain = 0;
-        CandidateTweet resultTweet;
+        CandidateTweet resultTweet = new CandidateTweet(tweet.tweetid, absoluteScore, relativeScore, queryId, tweet.vectorize());
+        // the distances w.r.t. all popped up tweets
         if (relativeDist.length > 0) {
             for (double dist : relativeDist) {
                 avggain += dist * absoluteScore;
             }
             avggain /= (double) relativeDist.length;
-            if (avggain >= queryidThresholds.get(tweet.queryid)) {
-
+            // if the average gain of the current tweet were larger than
+            // the threshold, then pop-up the current tweet and lift the threshold
+            // otherwise decrease the threshold
+            if (adjustThreshold(queryId, avggain)) {
+                resultTweet.isSelected = true;
             }
         } else {
-            double relativeScore = tweet.getRelScore();
+            // if this is the first tweet to pop-up, we should make sure this is the 
+            // tweet that have nearly highest relevance score, meanwhile we store this
+            // relevance as threshold
             if (relativeScore > 0.995) {
                 avggain = absoluteScore;
-                qidTweetSent.put(tweet.queryid, new ArrayList<>());
-                resultTweet = new CandidateTweet(tweet.tweetid, tweet.getAbsScore(), relativeScore, true, tweet.queryid, tweet.vectorize());
-                qidTweetSent.get(tweet.queryid).add(new CandidateTweet(resultTweet));
-                queryidThresholds.put(tweet.queryid, avggain);
+                resultTweet.isSelected = true;
+                adjustThreshold(queryId, avggain);
             }
         }
-        return null;
+        // keep tracking all tweets being pop-up in the qidTweetSent
+        if (resultTweet.isSelected) {
+            if (!qidTweetSent.containsKey(queryId)) {
+                qidTweetSent.put(queryId, new ArrayList<>());
+            }
+            qidTweetSent.get(queryId).add(new CandidateTweet(resultTweet));
+        }
+        return resultTweet;
     }
 
+    /**
+     * return true or false according to the comparison between current gain and
+     * the existing threshold. If currentGain >= threshold, return true and lift
+     * the threshold; if currentGain < threshold, return false and decrease the
+     * threshold; it this is the first tweet for this query, i.e., the
+     * queryidThresholds doesnt contain threshold, then return true and store
+     * currentGain as threshold
+     *
+     * @param queryId
+     * @param currentGain
+     * @return
+     */
+    protected boolean adjustThreshold(String queryId, double currentGain) {
+        boolean result;
+        double threshold;
+        if (queryidThresholds.containsKey(queryId)) {
+            threshold = queryidThresholds.get(queryId);
+            if (currentGain >= threshold) {
+                result = true;
+                threshold *= (1 + MYConstants.DECISION_MAKER_THRESHOLD_ALPHA);
+            } else {
+                result = false;
+                threshold *= (1 - MYConstants.DECISION_MAKER_THRESHOLD_ALPHA);
+            }
+        } else {
+            result = true;
+            threshold = currentGain;
+        }
+        queryidThresholds.put(queryId, threshold);
+        return result;
+    }
+    
 }

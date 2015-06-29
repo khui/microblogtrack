@@ -55,7 +55,16 @@ public class MYConstants {
     public final static int STREAMKMEAN_CLUSTERNUM = 400;
     // the clustering distance measure for the clustering algorithm
     // SquaredEuclideanDistanceMeasure, CosineDistanceMeasure, EuclideanDistanceMeasure etc..
-    public final static String DISTANT_MEASURE_CLUSTER = "CosineDistanceMeasure";
+    public final static String DISTANT_MEASURE_CLUSTER = "org.apache.mahout.common.distance.CosineDistanceMeasure";
+
+    public final static double DECISION_MAKER_THRESHOLD_ALPHA = 0.05;
+
+    public final static double DECISION_MAKER_SCORE_FILTER = 0.95;
+
+    public final static double DECISION_MAKER_DIST_FILTER = 0.2;
+
+    public final static double TRACKER_CUMULATIVE_TOPPERC = 0.2;
+
     /**
      * pointwise predictor outcome: confidence, score, etc..
      */

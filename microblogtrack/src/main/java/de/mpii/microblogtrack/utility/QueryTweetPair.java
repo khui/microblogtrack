@@ -116,6 +116,7 @@ public class QueryTweetPair {
         for (String featurename : MYConstants.irModels) {
             sb.append(featurename).append(":").append(featureValues.get(featurename)).append(" ");
         }
+        sb.append("absoluteScore").append(predictorResults.get(MYConstants.PRED_ABSOLUTESCORE));
         return sb.toString();
     }
 

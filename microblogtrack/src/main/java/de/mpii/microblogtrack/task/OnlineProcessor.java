@@ -10,13 +10,14 @@ import com.twitter.hbc.httpclient.auth.Authentication;
 import com.twitter.hbc.httpclient.auth.OAuth1;
 import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
 import de.mpii.microblogtrack.component.LuceneScorer;
+import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
-import de.mpii.microblogtrack.component.predictor.PointwiseScorerSVM;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.MYConstants;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
+import hbc.twitter4j.HbcT4jListener;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -46,52 +48,49 @@ import twitter4j.StatusListener;
  * @author khui
  */
 public class OnlineProcessor {
-
+    
     static Logger logger = Logger.getLogger(OnlineProcessor.class.getName());
-
+    
     private BasicClient client;
 
-    private final String queryfile;
-
-    private final LuceneScorer lscorer;
-
-    private final Map<String, ResultTweetsTracker> queryTweetList = new HashMap<>(250);
-
-    private final StatusListener listener = new StatusListener() {
-
-        @Override
-        public void onStatus(Status status) {
-            try {
-                lscorer.write2Index(status);
-            } catch (IOException ex) {
-                logger.error(ex.getMessage());
+    /**
+     * for notification task: 1) search the results and retain top-k per minute
+     * per query 2) the tracker keep track all the search results for each
+     * query: the centroids, as reference for distance between tweets, and the
+     * score distribution to generate relative score 3) the pointwise prediction
+     * scores are computed by pointwise scorer 4) the search results are passed
+     * to the decision maker through blocking queue 5) the decision maker will
+     * re-called each day
+     *
+     * @param apikeydir
+     * @param indexdir
+     * @param queryfile
+     * @throws java.io.IOException
+     * @throws java.lang.InterruptedException
+     * @throws java.util.concurrent.ExecutionException
+     * @throws org.apache.lucene.queryparser.classic.ParseException
+     * @throws java.lang.ClassNotFoundException
+     * @throws java.lang.InstantiationException
+     * @throws java.lang.IllegalAccessException
+     */
+    public void notificationTask(String apikeydir, String indexdir, String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+        // communication between lucene search results and pointwise decision maker
+        BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
+        Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
+        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer());
+        receiveStatus(lscorer, apikeydir, 1);
+        lscorer.multiQuerySearch(queryfile, querytweetpairs);
+        logger.info("get into while");
+        while (true) {
+            QueryTweetPair qtp = querytweetpairs.poll();
+            if (qtp != null) {
+                logger.info(qtp.toString());
             }
         }
 
-        @Override
-        public void onDeletionNotice(StatusDeletionNotice sdn) {
-        }
-
-        @Override
-        public void onTrackLimitationNotice(int limit) {
-        }
-
-        @Override
-        public void onScrubGeo(long user, long upToStatus) {
-        }
-
-        @Override
-        public void onStallWarning(StallWarning warning) {
-        }
-
-        @Override
-        public void onException(Exception e) {
-        }
-    };
-
-    public OnlineProcessor(String indexdir, String queryfile, PointwiseScorer pwScorer) throws IOException {
-        this.lscorer = new LuceneScorer(indexdir, queryTweetList, pwScorer);
-        this.queryfile = queryfile;
+        //PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs);
+        //ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        //scheduler.scheduleAtFixedRate(decisionMaker, 3, 3, TimeUnit.MINUTES);
     }
 
     /**
@@ -153,9 +152,10 @@ public class OnlineProcessor {
         }
         return new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret};
     }
-
-    public void listen2Process(String keydir, int numProcessingThreads, int queuesize, BlockingQueue<QueryTweetPair> qtweetpairs) throws InterruptedException, IOException, ExecutionException, ParseException {
-        BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>(queuesize);
+    
+    private void receiveStatus(LuceneScorer lscorer, String keydir, int numProcessingThreads) throws InterruptedException, IOException, ExecutionException, ParseException {
+        BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>();
+        StatusListener listener = new HbcT4jListener(lscorer);
         String[] apikey = readAPIKey(keydir);
         String consumerKey = apikey[0];
         String consumerSecret = apikey[1];
@@ -187,37 +187,36 @@ public class OnlineProcessor {
         for (int threads = 0; threads < numProcessingThreads; threads++) {
             t4jClient.process();
         }
-        lscorer.multiQuerySearch(queryfile);
+        
     }
-
+    
     public void close() {
         client.stop();
     }
-
-    public static void main(String[] args) throws InterruptedException, IOException, ParseException, ExecutionException {
-        org.apache.log4j.PropertyConfigurator.configure("/home/khui/workspace/javaworkspace/log4j.xml");
+    
+    public static void main(String[] args) {
+        org.apache.log4j.PropertyConfigurator.configure("src/main/java/log4j.xml");
+        //("/home/khui/workspace/javaworkspace/log4j.xml");
         //("src/main/java/log4j.xml");
         LogManager.getRootLogger().setLevel(Level.INFO);
-        String dir = "/scratch/GW/pool0/khui/result/microblogtrack";
+        String dir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        //"/scratch/GW/pool0/khui/result/microblogtrack";
         //"/home/khui/workspace/javaworkspace/twitter-localdebug";
-        String queryfile = "/GW/D5data-2/khui/microblogtrack/queries/14";
+        String queryfile = "/home/khui/workspace/result/data/query/microblog/14";
+        //"/GW/D5data-2/khui/microblogtrack/queries/14";
         //"/home/khui/workspace/result/data/query/microblog/14";
-        String keydir = "/GW/D5data-2/khui/microblogtrack/apikeys/batchkeys/apikey4-local";
+        String keydir = dir + "/twitterkeys";
+        //"/GW/D5data-2/khui/microblogtrack/apikeys/batchkeys/apikey4-local";
         //dir + "/twitterkeys"
         String indexdir = dir + "/index";
         logger.info("Start To Process");
-        //LangFilterLD.loadprofile(dir + "/lang-dect-profile");
-        BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
-        OnlineProcessor op = new OnlineProcessor(indexdir, queryfile, new PointwiseScorer());
-        op.listen2Process(keydir, MYConstants.LISTENER_THREADNUM, 10000, querytweetpairs);
-        int resultcount = 1;
-        while (true) {
-            QueryTweetPair qtp = querytweetpairs.poll(5000, TimeUnit.MILLISECONDS);
-            if (qtp == null) {
-                // logger.error("we fail to get query tweet pairs in last period");
-            } else {
-                logger.info(LuceneScorer.printQueryTweet(qtp, resultcount++));
-            }
+        OnlineProcessor op = new OnlineProcessor();
+        try {
+            op.notificationTask(keydir, indexdir, queryfile);
+        } catch (IOException | InterruptedException | ExecutionException | ParseException | ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
+            logger.error("entrance:", ex);
+            op.close();
+            logger.info("client is closed");
         }
     }
 }

@@ -1,7 +1,5 @@
 package de.mpii.microblogtrack.utility;
 
-import org.apache.mahout.math.Vector;
-
 /**
  *
  * @author khui
@@ -35,5 +33,7 @@ public interface ResultTweetsTracker {
      * @return
      */
     public double relativeScore(double absoluteScore);
+
+    public void setCentroidNum(int centroidnum);
 
 }
