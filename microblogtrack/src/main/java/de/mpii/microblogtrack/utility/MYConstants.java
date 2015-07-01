@@ -45,7 +45,7 @@ public class MYConstants {
 
     public final static int LISTENER_THREADNUM = 2;
 
-    public final static int TOP_N_FROM_LUCENE = 3;
+    public final static int TOP_N_FROM_LUCENE = 100;
 
     public final static int MAX_ITERATE_BALLKMEAN = 3;
     // compute how many latest tweets we want to retain for each query: TOP_N_FROM_LUCENE * RECORD_MINIUTES
@@ -61,9 +61,18 @@ public class MYConstants {
 
     public final static double DECISION_MAKER_SCORE_FILTER = 0.95;
 
-    public final static double DECISION_MAKER_DIST_FILTER = 0.2;
+    public final static double DECISION_MAKER_FIRSTPOPUP_SCORETHRESD = 0.99;
 
-    public final static double TRACKER_CUMULATIVE_TOPPERC = 0.2;
+    public final static double DECISION_MAKER_DIST_FILTER = 0.2;
+    // every x minutes, we update the average distance among centroids, by re-clustering the existing centroids
+    // from streaming k-mean
+    public final static double TRACKER_AVGDIST_UPDATE_MINUTES = 2;
+    // when we convert the absolute pointwise predict score to relative score,
+    // we only convert the top-p% for effiency reason
+    public final static double TRACKER_CUMULATIVE_TOPPERC = 0.5;
+    // how accurate we compute the cumulative probability in converting the absolute score
+    // govern how many digits we retain in maping the absolute value to the bin
+    public final static int TRACKER_CUMULATIVE_GRANULARITY = 100;
 
     /**
      * pointwise predictor outcome: confidence, score, etc..

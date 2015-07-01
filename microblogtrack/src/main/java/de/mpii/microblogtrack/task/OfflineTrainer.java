@@ -22,7 +22,7 @@ public class OfflineTrainer {
     private final Map<String, ResultTweetsTracker> queryTweetList = new HashMap<>(250);
 
     public void process(String indexdir, String queryfile, BlockingQueue<Status> intbq, BlockingQueue<QueryTweetPair> outbq) throws IOException, InterruptedException, ParseException, ExecutionException {
-        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTweetList);
+        LuceneScorer lscorer = new LuceneScorer(indexdir, null, null);
         TrecQuery tq = new TrecQuery();
         //Map<String, Query> queries = tq.readInQueries(queryfile);
         //lscorer.multiQuerySearch(outbq, queries);

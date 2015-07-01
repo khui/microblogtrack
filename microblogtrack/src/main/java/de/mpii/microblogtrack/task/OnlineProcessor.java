@@ -13,7 +13,6 @@ import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
-import de.mpii.microblogtrack.utility.MYConstants;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
@@ -37,9 +36,6 @@ import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.lucene.queryparser.classic.ParseException;
-import twitter4j.StallWarning;
-import twitter4j.Status;
-import twitter4j.StatusDeletionNotice;
 import twitter4j.StatusListener;
 
 /**
@@ -48,9 +44,9 @@ import twitter4j.StatusListener;
  * @author khui
  */
 public class OnlineProcessor {
-    
+
     static Logger logger = Logger.getLogger(OnlineProcessor.class.getName());
-    
+
     private BasicClient client;
 
     /**
@@ -80,17 +76,15 @@ public class OnlineProcessor {
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer());
         receiveStatus(lscorer, apikeydir, 1);
         lscorer.multiQuerySearch(queryfile, querytweetpairs);
-        logger.info("get into while");
         while (true) {
             QueryTweetPair qtp = querytweetpairs.poll();
             if (qtp != null) {
-                logger.info(qtp.toString());
+                //logger.info(qtp.toString());
             }
         }
-
-        //PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs);
-        //ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        //scheduler.scheduleAtFixedRate(decisionMaker, 3, 3, TimeUnit.MINUTES);
+        // PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs);
+        // ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        //  scheduler.scheduleAtFixedRate(decisionMaker, 5, 300, TimeUnit.MINUTES);
     }
 
     /**
@@ -152,7 +146,7 @@ public class OnlineProcessor {
         }
         return new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret};
     }
-    
+
     private void receiveStatus(LuceneScorer lscorer, String keydir, int numProcessingThreads) throws InterruptedException, IOException, ExecutionException, ParseException {
         BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>();
         StatusListener listener = new HbcT4jListener(lscorer);
@@ -187,13 +181,13 @@ public class OnlineProcessor {
         for (int threads = 0; threads < numProcessingThreads; threads++) {
             t4jClient.process();
         }
-        
+
     }
-    
+
     public void close() {
         client.stop();
     }
-    
+
     public static void main(String[] args) {
         org.apache.log4j.PropertyConfigurator.configure("src/main/java/log4j.xml");
         //("/home/khui/workspace/javaworkspace/log4j.xml");
@@ -208,7 +202,7 @@ public class OnlineProcessor {
         String keydir = dir + "/twitterkeys";
         //"/GW/D5data-2/khui/microblogtrack/apikeys/batchkeys/apikey4-local";
         //dir + "/twitterkeys"
-        String indexdir = dir + "/index";
+        String indexdir = dir + "/index_1";
         logger.info("Start To Process");
         OnlineProcessor op = new OnlineProcessor();
         try {

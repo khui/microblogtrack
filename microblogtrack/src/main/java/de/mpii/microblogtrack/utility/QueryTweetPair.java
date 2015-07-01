@@ -3,6 +3,7 @@ package de.mpii.microblogtrack.utility;
 import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
 import java.util.Arrays;
+import org.apache.log4j.Logger;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
 import twitter4j.Status;
@@ -12,6 +13,8 @@ import twitter4j.Status;
  * @author khui
  */
 public class QueryTweetPair {
+
+    static Logger logger = Logger.getLogger(QueryTweetPair.class.getName());
 
     private final TObjectDoubleMap<String> featureValues = new TObjectDoubleHashMap<>();
 
@@ -44,6 +47,7 @@ public class QueryTweetPair {
         this.predictorResults.clear();
         this.featureValues.putAll(qtp.getFeatures());
         this.predictorResults.putAll(qtp.getPredictRes());
+        this.featureVector = qtp.vectorize();
     }
 
     public void updateFeatures(String name, double score) {
@@ -113,10 +117,11 @@ public class QueryTweetPair {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(queryid).append(":").append(tweetid).append(" ");
-        for (String featurename : MYConstants.irModels) {
-            sb.append(featurename).append(":").append(featureValues.get(featurename)).append(" ");
-        }
-        sb.append("absoluteScore").append(predictorResults.get(MYConstants.PRED_ABSOLUTESCORE));
+//        for (String featurename : MYConstants.irModels) {
+//            sb.append(featurename).append(":").append(featureValues.get(featurename)).append(" ");
+//        }
+        sb.append(getAbsScore()).append(" ");
+        sb.append(getRelScore());
         return sb.toString();
     }
 

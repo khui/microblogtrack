@@ -1,5 +1,7 @@
 package de.mpii.microblogtrack.utility;
 
+import java.util.Collection;
+
 /**
  *
  * @author khui
@@ -15,9 +17,9 @@ public interface ResultTweetsTracker {
      * centroids
      *
      *
-     * @param qtp
+     * @param qtps
      */
-    public void addTweet(QueryTweetPair qtp);
+    public void addTweets(Collection<QueryTweetPair> qtps);
 
     /**
      * return the average distance among different centroids at this moment

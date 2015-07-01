@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -106,10 +107,10 @@ public class LuceneScorer {
         Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, MYConstants.TWEETSTR);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, tweetqueue), 60, 60, TimeUnit.SECONDS);
-        // the task will be canceled after running 30 days automatically
+        // the task will be canceled after running certain days automatically
         scheduler.schedule(() -> {
             sercherHandler.cancel(true);
-        }, 30, TimeUnit.DAYS);
+        }, 12, TimeUnit.DAYS);
     }
 
     /**
@@ -215,7 +216,7 @@ public class LuceneScorer {
         public void run() {
             BooleanQuery combinedQuery;
             Executor excutor = Executors.newFixedThreadPool(threadnum);
-            CompletionService<Collection<QueryTweetPair>> completeservice = new ExecutorCompletionService<>(excutor);
+            CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(excutor);
             long[] minmax = indexTracker.getAcurateTweetCount();
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(MYConstants.TWEETNUM, minmax[0], minmax[1], true, false);
             DirectoryReader reopenedReader = null;
@@ -233,17 +234,17 @@ public class LuceneScorer {
                 directoryReader = reopenedReader;
                 //////////////////////////////////////
                 // for test
-                NumericRangeQuery boundaryTest = NumericRangeQuery.newLongRange(MYConstants.TWEETNUM, minmax[1] - 1, minmax[1] - 1, true, true);
-                BooleanQuery bq = new BooleanQuery();
-                bq.add(boundaryTest, BooleanClause.Occur.MUST);
-                try {
-                    ScoreDoc[] docs = new IndexSearcher(directoryReader).search(bq, 1).scoreDocs;
-                    if (docs.length == 0) {
-                        logger.error("!! the boundary is not visible for the searcher:" + (minmax[1] - 1));
-                    }
-                } catch (IOException ex) {
-                    logger.error(ex.getMessage());
-                }
+//                NumericRangeQuery boundaryTest = NumericRangeQuery.newLongRange(MYConstants.TWEETNUM, minmax[1] - 1, minmax[1] - 1, true, true);
+//                BooleanQuery bq = new BooleanQuery();
+//                bq.add(boundaryTest, BooleanClause.Occur.MUST);
+//                try {
+//                    ScoreDoc[] docs = new IndexSearcher(directoryReader).search(bq, 1).scoreDocs;
+//                    if (docs.length == 0) {
+//                        logger.error("!! the boundary is not visible for the searcher:" + (minmax[1] - 1));
+//                    }
+//                } catch (IOException ex) {
+//                    logger.error(ex.getMessage());
+//                }
                 // end test
                 ///////////////////////////////////////
                 for (String queryid : queries.keySet()) {
@@ -260,25 +261,19 @@ public class LuceneScorer {
                     completeservice.submit(new UniqQuerySearcher(combinedQuery, queryid, directoryReader));
                 }
                 int resultnum = queries.size();
-                logger.info(resultnum);
-                Collection<QueryTweetPair> queryranking;
+                UniqQuerySearchResult queryranking;
                 for (int i = 0; i < resultnum; ++i) {
                     try {
-                        queryranking = completeservice.take().get();
+                        final Future<UniqQuerySearchResult> futureQtpCollection = completeservice.take();
+                        queryranking = futureQtpCollection.get();
                         if (queryranking != null) {
-                            for (QueryTweetPair qtp : queryranking) {
-                                // update the result tracker
-                                queryResultTrackers.get(qtp.queryid).addTweet(qtp);
-                                // offer to the blocking queue for the decision maker
-                                boolean isSucceed = tweetqueue.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
-                                logger.info(qtp.toString());
-                                if (!isSucceed) {
-                                    logger.error("offer to queue failed.");
-                                }
-                            }
+                            // update the result tracker
+                            queryResultTrackers.get(queryranking.queryid).addTweets(queryranking.results);
+                            queryranking.poll2queue(tweetqueue);
                         } else {
                             logger.error("queryranking is null.");
                         }
+
                     } catch (ExecutionException | InterruptedException ex) {
                         logger.error("pass qtp", ex);
                     }
@@ -287,9 +282,10 @@ public class LuceneScorer {
                 logger.warn("Nothing added to the index since last open of reader.");
             }
         }
+
     }
 
-    private class UniqQuerySearcher implements Callable<Collection<QueryTweetPair>> {
+    private class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
 
         private int topN = MYConstants.TOP_N_FROM_LUCENE;
 
@@ -309,7 +305,7 @@ public class LuceneScorer {
             this.topN = topN;
         }
 
-        private Collection<QueryTweetPair> mutliScorers(IndexReader reader, Query query, String queryId, int topN) throws IOException {
+        private UniqQuerySearchResult mutliScorers(IndexReader reader, Query query, String queryId, int topN) throws IOException {
             TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
             IndexSearcher searcherInUse;
             ScoreDoc[] hits;
@@ -343,15 +339,37 @@ public class LuceneScorer {
             for (QueryTweetPair qtp : searchresults.valueCollection()) {
                 pwScorer.predictor(qtp);
             }
-
-            return searchresults.valueCollection();
+            return new UniqQuerySearchResult(queryid, searchresults.valueCollection());
         }
 
         @Override
-        public Collection<QueryTweetPair> call() throws Exception {
-            Collection<QueryTweetPair> qtpairs = mutliScorers(this.reader, this.query, this.queryid, this.topN);
+        public UniqQuerySearchResult call() throws Exception {
+            UniqQuerySearchResult qtpairs = mutliScorers(this.reader, this.query, this.queryid, this.topN);
             return qtpairs;
         }
+
+    }
+
+    private class UniqQuerySearchResult {
+
+        public final String queryid;
+        public final Collection<QueryTweetPair> results;
+
+        private UniqQuerySearchResult(String queryid, Collection<QueryTweetPair> results) {
+            this.queryid = queryid;
+            this.results = results;
+        }
+
+        private void poll2queue(BlockingQueue<QueryTweetPair> queue) throws InterruptedException {
+            for (QueryTweetPair qtp : results) {
+                // offer to the blocking queue for the decision maker
+                boolean isSucceed = queue.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
+                if (!isSucceed) {
+                    logger.error("offer to queue failed.");
+                }
+            }
+        }
+
     }
 
 }
