@@ -106,7 +106,7 @@ public class LuceneScorer {
         TrecQuery tq = new TrecQuery();
         Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, MYConstants.TWEETSTR);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, tweetqueue), 60, 60, TimeUnit.SECONDS);
+        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, tweetqueue), MYConstants.LUCENE_SEARCH_FREQUENCY, MYConstants.LUCENE_SEARCH_FREQUENCY, TimeUnit.SECONDS);
         // the task will be canceled after running certain days automatically
         scheduler.schedule(() -> {
             sercherHandler.cancel(true);
@@ -234,17 +234,17 @@ public class LuceneScorer {
                 directoryReader = reopenedReader;
                 //////////////////////////////////////
                 // for test
-//                NumericRangeQuery boundaryTest = NumericRangeQuery.newLongRange(MYConstants.TWEETNUM, minmax[1] - 1, minmax[1] - 1, true, true);
-//                BooleanQuery bq = new BooleanQuery();
-//                bq.add(boundaryTest, BooleanClause.Occur.MUST);
-//                try {
-//                    ScoreDoc[] docs = new IndexSearcher(directoryReader).search(bq, 1).scoreDocs;
-//                    if (docs.length == 0) {
-//                        logger.error("!! the boundary is not visible for the searcher:" + (minmax[1] - 1));
-//                    }
-//                } catch (IOException ex) {
-//                    logger.error(ex.getMessage());
-//                }
+                NumericRangeQuery boundaryTest = NumericRangeQuery.newLongRange(MYConstants.TWEETNUM, minmax[1] - 1, minmax[1] - 1, true, true);
+                BooleanQuery bq = new BooleanQuery();
+                bq.add(boundaryTest, BooleanClause.Occur.MUST);
+                try {
+                    ScoreDoc[] docs = new IndexSearcher(directoryReader).search(bq, 1).scoreDocs;
+                    if (docs.length == 0) {
+                        logger.error("!! the boundary is not visible for the searcher:" + (minmax[1] - 1));
+                    }
+                } catch (IOException ex) {
+                    logger.error(ex.getMessage());
+                }
                 // end test
                 ///////////////////////////////////////
                 for (String queryid : queries.keySet()) {
@@ -269,7 +269,9 @@ public class LuceneScorer {
                         if (queryranking != null) {
                             // update the result tracker
                             queryResultTrackers.get(queryranking.queryid).addTweets(queryranking.results);
-                            queryranking.poll2queue(tweetqueue);
+                            if (queryResultTrackers.get(queryranking.queryid).isStarted()) {
+                                queryranking.poll2queue(tweetqueue);
+                            }
                         } else {
                             logger.error("queryranking is null.");
                         }
@@ -363,7 +365,7 @@ public class LuceneScorer {
         private void poll2queue(BlockingQueue<QueryTweetPair> queue) throws InterruptedException {
             for (QueryTweetPair qtp : results) {
                 // offer to the blocking queue for the decision maker
-                boolean isSucceed = queue.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
+                boolean isSucceed = queue.add(new QueryTweetPair(qtp));
                 if (!isSucceed) {
                     logger.error("offer to queue failed.");
                 }

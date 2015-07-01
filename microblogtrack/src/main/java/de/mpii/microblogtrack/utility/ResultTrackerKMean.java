@@ -1,6 +1,5 @@
 package de.mpii.microblogtrack.utility;
 
-import com.google.common.collect.Lists;
 import gnu.trove.TCollections;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
@@ -12,9 +11,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.log4j.Logger;
-//import org.apache.mahout.clustering.streaming.cluster.BallKMeans;
+import org.apache.mahout.clustering.streaming.cluster.BallKMeans;
 import org.apache.mahout.clustering.streaming.cluster.StreamingKMeans;
-
 import org.apache.mahout.common.distance.DistanceMeasure;
 import org.apache.mahout.math.Centroid;
 import org.apache.mahout.math.Vector;
@@ -41,7 +39,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     // centroid number, default value is 10, governing how many classes we may have after clustering
     private int centroidnum = 10;
     // average distance among centroids, as reference in computing distance between two tweets
-    private double avgCentroidDistance = 1.0;
+    private double avgCentroidDistance = 0.01;
     // identification for each tweet
     private int tweetcount = 0;
 
@@ -57,6 +55,8 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     private final int numProjections = 20;
 
     private final int searchSize = 10;
+
+    private boolean isStarted = false;
 
     public ResultTrackerKMean(String queryid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryid = queryid;
@@ -101,6 +101,16 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         updateCentroid(datapoints2add);
     }
 
+    @Override
+    public synchronized boolean isStarted() {
+        return isStarted;
+    }
+
+    @Override
+    public synchronized void informStart2Record() {
+        isStarted = true;
+    }
+
     private synchronized void updateCentroid(Iterable<Centroid> centroid2add) {
         clusterer.cluster(centroid2add);
     }
@@ -123,20 +133,16 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     private void updateAvgCentroidDist(int centroidnum) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         double distance = 0;
         double count = 1;
-        logger.info(tweetcount + "  " + avgCentroidDistance);
-        List<Vector> centroidsList = getCentroids(centroidnum);
-        logger.info("centroids number  " + centroidsList.size());
+        List<? extends Vector> centroidsList = getCentroids(centroidnum);
         for (int i = 0; i < centroidsList.size(); i++) {
             for (int j = i + 1; j < centroidsList.size(); j++) {
                 Vector c_x = centroidsList.get(i);
                 Vector c_y = centroidsList.get(j);
                 distance += distanceMeasure.distance(c_x, c_y);
-                logger.info(distance);
                 count++;
             }
         }
-        avgCentroidDistance = distance / count;
-        logger.info("updated avgCentroidDistance: " + avgCentroidDistance);
+        avgCentroidDistance = (distance / count > 0 ? distance / count : 0.01);
     }
 
     /**
@@ -151,31 +157,28 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
      * @param centroidnum
      * @return
      */
-    private List<Vector> getCentroids(int centroidnum) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    private List<? extends Vector> getCentroids(int centroidnum) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         int maxNumIterations = MYConstants.MAX_ITERATE_BALLKMEAN;
         UpdatableSearcher emptySercher = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
-        BallKMeans exactCentroids = new BallKMeans(emptySercher, centroidnum, maxNumIterations);
         List<Centroid> centroidList = new ArrayList<>();
-        logger.info("start sync");
         synchronized (clusterer) {
-            logger.info("inside sync");
             clusterer.reindexCentroids();
             Iterator<Centroid> it = clusterer.iterator();
             while (it.hasNext()) {
                 centroidList.add(it.next().clone());
             }
-            logger.info("finished sync");
         }
-        logger.info("outside sync");
+        // if we have less than centroidnum centroids
+        if (centroidList.size() <= centroidnum) {
+            return centroidList;
+        }
+        BallKMeans exactCentroids = new BallKMeans(emptySercher, centroidnum, maxNumIterations);
         UpdatableSearcher resultSearch = exactCentroids.cluster(centroidList);
-        logger.info("cluster finished");
         Iterator<Vector> clusteredCentroids = resultSearch.iterator();
-        logger.info("obtained cluster iterable");
         List<Vector> vectorList = new ArrayList<>();
         while (clusteredCentroids.hasNext()) {
             vectorList.add(clusteredCentroids.next().clone());
         }
-        logger.info("finish to convert to list");
         return vectorList;
     }
 
@@ -186,7 +189,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
      * @param score
      * @return
      */
-    private double getCumulativeProb(double score) {
+    public double getCumulativeProb(double score) {
         // default value
         double prob = 1 - MYConstants.TRACKER_CUMULATIVE_TOPPERC;
         int cumulativeCount = 0;

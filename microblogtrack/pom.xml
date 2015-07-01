@@ -181,13 +181,13 @@
                                      trust="true" 
                                      todir="khui@contact.mpi-inf.mpg.de:/home/khui/workspace/javaworkspace" 
                                      keyfile="${user.home}/.ssh/id_rsa" />
-                                <scp trust="true" 
+                                <!--                                <scp trust="true" 
                                      todir="khui@contact.mpi-inf.mpg.de:/home/khui/workspace/script/crawltweet/test" 
                                      keyfile="${user.home}/.ssh/id_rsa">
                                     <fileset dir="${basedir}/target/test-classes/">
                                         <include name="**/*.class"/>
                                     </fileset>
-                                </scp>>
+                                </scp>>-->
                             </target>
                         </configuration>
                     </execution>

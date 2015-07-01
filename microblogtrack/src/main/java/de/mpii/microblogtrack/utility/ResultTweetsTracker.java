@@ -38,4 +38,15 @@ public interface ResultTweetsTracker {
 
     public void setCentroidNum(int centroidnum);
 
+    /**
+     * return whether the decision maker has started, since we are only
+     * interested in latest tweets this it to inform the lucenescore component
+     * whether to record the tweet in queue
+     *
+     * @return
+     */
+    public boolean isStarted();
+
+    public void informStart2Record();
+
 }

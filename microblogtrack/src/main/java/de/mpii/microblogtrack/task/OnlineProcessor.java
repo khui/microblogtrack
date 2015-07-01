@@ -76,15 +76,15 @@ public class OnlineProcessor {
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer());
         receiveStatus(lscorer, apikeydir, 1);
         lscorer.multiQuerySearch(queryfile, querytweetpairs);
-        while (true) {
-            QueryTweetPair qtp = querytweetpairs.poll();
-            if (qtp != null) {
-                //logger.info(qtp.toString());
-            }
-        }
-        // PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs);
-        // ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        //  scheduler.scheduleAtFixedRate(decisionMaker, 5, 300, TimeUnit.MINUTES);
+//        while (true) {
+//            QueryTweetPair qtp = querytweetpairs.poll();
+//            if (qtp != null) {
+//                //logger.info(qtp.toString());
+//            }
+//        }
+        PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs);
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(decisionMaker, 5, 300, TimeUnit.MINUTES);
     }
 
     /**

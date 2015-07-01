@@ -23,7 +23,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:1.2.1:exec</goal>
             </goals>
             <properties>
-                <exec.args>-Xmx1024m -classpath %classpath ${packageClassName}</exec.args>
+                <exec.args>-Xmx1024m -classpath %classpath de.mpii.microblogtrack.task.OfflineProcessor -q /home/khui/workspace/result/data/query/microblog/11 -i /home/khui/workspace/javaworkspace/twitter-localdebug/index_1 -d /home/khui/workspace/javaworkspace/twitter-localdebug/tweetzip -l src/main/java/log4j.xml</exec.args>
                 <exec.executable>java</exec.executable>
             </properties>
         </action>
@@ -37,7 +37,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:1.2.1:exec</goal>
             </goals>
             <properties>
-                <exec.args>-Xdebug -Xrunjdwp:transport=dt_socket,server=n,address=${jpda.address} -Xmx1024m -classpath %classpath ${packageClassName}</exec.args>
+                <exec.args>-Xdebug -Xrunjdwp:transport=dt_socket,server=n,address=${jpda.address} -Xmx1024m -classpath %classpath de.mpii.microblogtrack.task.OfflineProcessor -q /home/khui/workspace/result/data/query/microblog/11 -i /home/khui/workspace/javaworkspace/twitter-localdebug/index_1 -d /home/khui/workspace/javaworkspace/twitter-localdebug/tweetzip -l src/main/java/log4j.xml</exec.args>
                 <exec.executable>java</exec.executable>
                 <jpda.listen>true</jpda.listen>
             </properties>
@@ -52,7 +52,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:1.2.1:exec</goal>
             </goals>
             <properties>
-                <exec.args>-Xmx1024m -classpath %classpath ${packageClassName}</exec.args>
+                <exec.args>-Xmx1024m -classpath %classpath de.mpii.microblogtrack.task.OfflineProcessor -q /home/khui/workspace/result/data/query/microblog/11 -i /home/khui/workspace/javaworkspace/twitter-localdebug/index_1 -d /home/khui/workspace/javaworkspace/twitter-localdebug/tweetzip -l src/main/java/log4j.xml</exec.args>
                 <exec.executable>java</exec.executable>
             </properties>
         </action>

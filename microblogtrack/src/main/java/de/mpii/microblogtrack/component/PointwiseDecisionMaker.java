@@ -34,6 +34,8 @@ public class PointwiseDecisionMaker implements Runnable {
     private final Map<String, ResultTweetsTracker> queryResultTrackers;
 
     private final TObjectDoubleMap<String> queryidThresholds = new TObjectDoubleHashMap<>();
+    // dynamic threshold for the initial tweet, avoiding the most relevant tweets never come
+    private final TObjectDoubleMap<String> queryidInitThresholds = new TObjectDoubleHashMap<>();
 
     private final BlockingQueue<QueryTweetPair> tweetqueue;
 
@@ -55,12 +57,13 @@ public class PointwiseDecisionMaker implements Runnable {
         for (String qid : tracker.keySet()) {
             queryNumberCount.put(qid, 1);
         }
-        logger.info("initialize new decision maker");
     }
 
     @Override
     public void run() {
-        int receiveCount = 0;
+        for (String qid : queryResultTrackers.keySet()) {
+            queryResultTrackers.get(qid).informStart2Record();
+        }
         QueryTweetPair tweet = null;
         String queryid;
         while (!Thread.interrupted()) {
@@ -70,12 +73,13 @@ public class PointwiseDecisionMaker implements Runnable {
                 logger.error(ex.getMessage());
             }
             if (tweet == null) {
-                //logger.error("we get no tweet with past time window");
-            } else if (centroidnum > queryNumberCount.get(tweet.queryid)) {
-                receiveCount++;
-                if (receiveCount % 10000 == 0) {
-                    logger.info("received " + receiveCount);
+                // logger.error("we get no tweet with past time window");
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException ex) {
+                    logger.error("", ex);
                 }
+            } else if (centroidnum > queryNumberCount.get(tweet.queryid)) {
                 queryid = tweet.queryid;
                 if (scoreFilter(tweet)) {
                     double[] distances = distFilter(tweet);
@@ -84,8 +88,12 @@ public class PointwiseDecisionMaker implements Runnable {
                         if (resultTweet.isSelected) {
                             queryNumberCount.adjustOrPutValue(queryid, 1, 1);
                             // write down the tweets that are notified
-                            logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString());
+                            logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweetqueue.size());
+                        } else {
+                            logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
                         }
+                    } else {
+                        logger.info("filter out the tweet by distance: " + qidTweetSent.get(tweet.queryid).size());
                     }
                 }
 
@@ -159,8 +167,6 @@ public class PointwiseDecisionMaker implements Runnable {
         double absoluteScore = tweet.getAbsScore();
         double relativeScore = tweet.getRelScore();
         String queryId = tweet.queryid;
-        double avgCentroidDistance = queryResultTrackers.get(queryId).avgDistCentroids();
-        //logger.info("avgCentroidDistance   " + avgCentroidDistance);
 
         double avggain = 0;
         CandidateTweet resultTweet = new CandidateTweet(tweet.tweetid, absoluteScore, relativeScore, queryId, tweet.vectorize());
@@ -170,7 +176,6 @@ public class PointwiseDecisionMaker implements Runnable {
                 avggain += dist * absoluteScore;
             }
             avggain /= (double) relativeDist.length;
-            logger.info("avggain   " + avggain);
             // if the average gain of the current tweet were larger than
             // the threshold, then pop-up the current tweet and lift the threshold
             // otherwise decrease the threshold
@@ -181,10 +186,17 @@ public class PointwiseDecisionMaker implements Runnable {
             // if this is the first tweet to pop-up, we should make sure this is the 
             // tweet that have nearly highest relevance score, meanwhile we store this
             // relevance as threshold
-            if (relativeScore > MYConstants.DECISION_MAKER_FIRSTPOPUP_SCORETHRESD) {
+            if (!queryidInitThresholds.containsKey(queryId)) {
+                queryidInitThresholds.put(queryId, MYConstants.DECISION_MAKER_FIRSTPOPUP_SCORETHRESD);
+            }
+            double currentThread = queryidInitThresholds.get(queryId);
+            if (relativeScore > currentThread) {
                 avggain = absoluteScore;
                 resultTweet.isSelected = true;
                 adjustThreshold(queryId, avggain);
+            } else {
+                currentThread *= (1 - MYConstants.DECISION_MAKER_THRESHOLD_ALPHA);
+                queryidInitThresholds.put(queryId, currentThread);
             }
         }
         // keep tracking all tweets being pop-up in the qidTweetSent
@@ -225,7 +237,6 @@ public class PointwiseDecisionMaker implements Runnable {
             result = true;
             threshold = currentGain;
         }
-        logger.info("adjustThreshold  " + threshold + "  " + currentGain);
         queryidThresholds.put(queryId, threshold);
         return result;
     }
