@@ -42,7 +42,7 @@ public class MYConstants {
      * default parameters settings
      */
     // number of threads we use to conduct multiquery search
-    public final static int MULTIQUERYSEARCH_THREADNUM = 12;
+    public final static int MULTIQUERYSEARCH_THREADNUM = 10;
     // number of thread we use to listen the api, 1 is enough
     public final static int LISTENER_THREADNUM = 1;
     // every time invertal, we retrieve top_n tweets for each query for further processin from lucene
@@ -50,24 +50,24 @@ public class MYConstants {
     // parameter required in ball kmean algorithm, the maximum times of iteration
     public final static int MAX_ITERATE_BALLKMEAN = 3;
     // lucene perform search per LUCENE_SEARCH_FREQUENCY seconds
-    public final static int LUCENE_SEARCH_FREQUENCY = 10;
+    public final static int LUCENE_SEARCH_FREQUENCY = 5;
     // the computation for the upper bound of cluster numbers is computed as #desired cluster * log(#data number)
     // we estimate the expected tweet number for 10 hours
-    public final static int STREAMKMEAN_CLUSTERNUM = 400;
+    public final static int STREAMKMEAN_CLUSTERNUM = 500;
     // the clustering distance measure for the clustering algorithm
     // SquaredEuclideanDistanceMeasure, CosineDistanceMeasure, EuclideanDistanceMeasure etc..
     public final static String DISTANT_MEASURE_CLUSTER = "org.apache.mahout.common.distance.CosineDistanceMeasure";
     // adjust the threshold for pop-up tweets dynamically, governing the adjusting step
-    public final static double DECISION_MAKER_THRESHOLD_ALPHA = 0.05;
+    public final static double DECISION_MAKER_THRESHOLD_ALPHA = 0.01;
     // filter out the tweet with less than threshold relative score
     public final static double DECISION_MAKER_SCORE_FILTER = 0.95;
     // if it is the first tweet to pop-up, we require a relative high threshold
-    public final static double DECISION_MAKER_FIRSTPOPUP_SCORETHRESD = 0.995;
+    public final static double DECISION_MAKER_FIRSTPOPUP_SCORETHRESD = 0.999;
     // filter out the tweets that are too similar with at least one of the pop-up tweet, the number is relative to 
     // average distance among centroids
     public final static double DECISION_MAKER_DIST_FILTER = 0.2;
     // start delay for the decision maker in minutes 
-    public final static int DECISION_MAKER_START_DELAY = 3;
+    public final static int DECISION_MAKER_START_DELAY = 60;
     // every x minutes, we update the average distance among centroids, by re-clustering the existing centroids
     // from streaming k-mean, which is relative expensive
     public final static double TRACKER_AVGDIST_UPDATE_MINUTES = 30;

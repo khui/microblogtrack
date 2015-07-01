@@ -365,7 +365,7 @@ public class LuceneScorer {
         private void poll2queue(BlockingQueue<QueryTweetPair> queue) throws InterruptedException {
             for (QueryTweetPair qtp : results) {
                 // offer to the blocking queue for the decision maker
-                boolean isSucceed = queue.add(new QueryTweetPair(qtp));
+                boolean isSucceed = queue.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
                 if (!isSucceed) {
                     logger.error("offer to queue failed.");
                 }

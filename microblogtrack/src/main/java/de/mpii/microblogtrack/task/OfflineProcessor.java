@@ -30,7 +30,6 @@ import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.lucene.queryparser.classic.ParseException;
-import twitter4j.Status;
 import twitter4j.TwitterException;
 import twitter4j.TwitterObjectFactory;
 
@@ -69,7 +68,6 @@ public class OfflineProcessor {
         @Override
         public void run() {
             ZipFile zipf;
-            Status tweet;
             String jsonstr;
             BufferedReader br;
             StringBuilder sb;
@@ -88,8 +86,8 @@ public class OfflineProcessor {
                                 sb.append(br.readLine());
                             }
                             jsonstr = sb.toString();
-                            tweet = TwitterObjectFactory.createStatus(jsonstr);
-                            lscorer.write2Index(tweet);
+                            lscorer.write2Index(TwitterObjectFactory.createStatus(jsonstr));
+                            br.close();
                         }
                         zipf.close();
                     } catch (IOException | TwitterException ex) {
@@ -126,7 +124,7 @@ public class OfflineProcessor {
      */
     public void notificationTask(String datadir, String indexdir, String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
         // communication between lucene search results and pointwise decision maker
-        BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>(100000);
+        BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>(10000);
         Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer());
         Executor excutor = Executors.newSingleThreadExecutor();

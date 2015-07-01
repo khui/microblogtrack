@@ -33,9 +33,9 @@ public class PointwiseDecisionMaker implements Runnable {
 
     private final Map<String, ResultTweetsTracker> queryResultTrackers;
 
-    private final TObjectDoubleMap<String> queryidThresholds = new TObjectDoubleHashMap<>();
+    private final TObjectDoubleMap<String> queryidThresholds = new TObjectDoubleHashMap<>(250);
     // dynamic threshold for the initial tweet, avoiding the most relevant tweets never come
-    private final TObjectDoubleMap<String> queryidInitThresholds = new TObjectDoubleHashMap<>();
+    private final TObjectDoubleMap<String> queryidInitThresholds = new TObjectDoubleHashMap<>(250);
 
     private final BlockingQueue<QueryTweetPair> tweetqueue;
 
@@ -88,12 +88,12 @@ public class PointwiseDecisionMaker implements Runnable {
                         if (resultTweet.isSelected) {
                             queryNumberCount.adjustOrPutValue(queryid, 1, 1);
                             // write down the tweets that are notified
-                            logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweetqueue.size());
+                            logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
                         } else {
-                            logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
+                            //logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
                         }
                     } else {
-                        logger.info("filter out the tweet by distance: " + qidTweetSent.get(tweet.queryid).size());
+                        //logger.info("filter out the tweet by distance: " + qidTweetSent.get(tweet.queryid).size());
                     }
                 }
 
