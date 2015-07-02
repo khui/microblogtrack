@@ -12,4 +12,6 @@ public interface ResultPrinter {
 
     public void close();
 
+    public void flush();
+
 }

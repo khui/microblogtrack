@@ -81,6 +81,11 @@ public class MYConstants {
     // how accurate we compute the cumulative probability in converting the absolute predicting score
     // by governing how many digits we want to retain, i.e., the number of bins we have
     public final static int TRACKER_CUMULATIVE_GRANULARITY = DECISION_MAKER_START_DELAY * TOP_N_FROM_LUCENE;
+    /**
+     * parameters for lucene systems
+     */
+    // the size of the in-memory index, determining how often the writer dump the index to the disk
+    public final static double LUCENE_MEM_SIZE = 1024.0 * 10;
 
     /**
      * pointwise predictor outcome: confidence, score, etc..

@@ -5,7 +5,6 @@ import de.mpii.microblogtrack.utility.MYConstants;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
-import de.mpii.microblogtrack.utility.io.printresult.WriteTrecSubmission;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.map.TObjectDoubleMap;
@@ -55,14 +54,14 @@ public class PointwiseDecisionMaker implements Runnable {
     // track the tweets being sent in the full duration
     private final static Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();
 
-    public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, String outputfile) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
+    public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
         this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.DISTANT_MEASURE_CLUSTER).newInstance();
         this.queryResultTrackers = tracker;
         this.tweetqueue = tweetqueue;
         for (String qid : tracker.keySet()) {
             queryNumberCount.put(qid, 1);
         }
-        this.resultprinter = new WriteTrecSubmission(outputfile);
+        this.resultprinter = resultprinter;
     }
 
     @Override
@@ -116,16 +115,20 @@ public class PointwiseDecisionMaker implements Runnable {
                     finishedQueryId.add(tweet.queryid);
                     if (finishedQueryId.size() >= queryNumberCount.size()) {
                         logger.info("Finished all! " + finishedQueryId.size());
-                        resultprinter.close();
+                        clear();
                         break;
                     }
                 }
             }
         } catch (InterruptedException ex) {
-            logger.error("get interrupted, we close the printer", ex);
-            resultprinter.close();
+            logger.warn("Get interrupted, we close the printer compulsively.");
+            clear();
         }
 
+    }
+
+    private void clear() {
+        resultprinter.flush();
     }
 
     /**

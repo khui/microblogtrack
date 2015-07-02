@@ -7,6 +7,8 @@ import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.utility.MYConstants;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
+import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
+import de.mpii.microblogtrack.utility.io.printresult.WriteTrecSubmission;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -137,7 +139,9 @@ public class OfflineProcessor {
         Executor excutor = Executors.newSingleThreadExecutor();
         excutor.execute(new ReadInTweets(lscorer, datadir));
         lscorer.multiQuerySearch(queryfile, querytweetpairs);
-        DecisionMakerTimer decisionMakerTimer = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, querytweetpairs, outfile));
+        // set up output writer to print out the notification task results
+        ResultPrinter resultprinter = new WriteTrecSubmission(outfile);
+        DecisionMakerTimer decisionMakerTimer = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, querytweetpairs, resultprinter));
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(decisionMakerTimer, MYConstants.DECISION_MAKER_START_DELAY, MYConstants.DECISION_MAKER_PERIOD, TimeUnit.MINUTES);
     }

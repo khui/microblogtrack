@@ -14,6 +14,8 @@ import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
+import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
+import de.mpii.microblogtrack.utility.io.printresult.WriteTrecSubmission;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import hbc.twitter4j.HbcT4jListener;
@@ -77,7 +79,9 @@ public class OnlineProcessor {
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer());
         receiveStatus(lscorer, apikeydir, 1);
         lscorer.multiQuerySearch(queryfile, querytweetpairs);
-        PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs, outfile);
+        // set up output writer to print out the notification task results
+        ResultPrinter resultprinter = new WriteTrecSubmission(outfile);
+        PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs, resultprinter);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(decisionMaker, 5, 300, TimeUnit.MINUTES);
     }

@@ -2,22 +2,25 @@ package de.mpii.microblogtrack.utility.io.printresult;
 
 import de.mpii.microblogtrack.utility.MYConstants;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.util.Map;
+import org.apache.log4j.Logger;
 
 /**
  *
  * @author khui
  */
 public class WriteTrecSubmission implements ResultPrinter {
-
+    
+    static Logger logger = Logger.getLogger(WriteTrecSubmission.class.getName());
+    
     private final PrintStream ps;
-
+    
     public WriteTrecSubmission(String outFile) throws FileNotFoundException {
-        this.ps = new PrintStream(new FileOutputStream(outFile, true));
+        this.ps = new PrintStream(outFile);
+        logger.info("The results will be printed to " + outFile);
     }
-
+    
     @Override
     public void println(Map<String, String> fieldContent) {
         String queryId = fieldContent.get(MYConstants.QUERYID);
@@ -33,12 +36,16 @@ public class WriteTrecSubmission implements ResultPrinter {
         sb.append(methodId).append("\t");
         sb.append(tweetstr);
         this.ps.println(sb.toString());
-        this.ps.flush();
     }
-
+    
     @Override
     public void close() {
         this.ps.close();
     }
-
+    
+    @Override
+    public void flush() {
+        this.ps.flush();
+    }
+    
 }

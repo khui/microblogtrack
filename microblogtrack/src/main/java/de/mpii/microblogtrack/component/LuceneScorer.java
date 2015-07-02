@@ -92,7 +92,7 @@ public class LuceneScorer {
         this.analyzer = new EnglishAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
         iwc.setOpenMode(OpenMode.CREATE);
-        iwc.setRAMBufferSizeMB(1024.0 * 5);
+        iwc.setRAMBufferSizeMB(MYConstants.LUCENE_MEM_SIZE);
         this.writer = new IndexWriter(dir, iwc);
         this.directoryReader = DirectoryReader.open(writer, false);
         this.textextractor = new ExtractTweetText();

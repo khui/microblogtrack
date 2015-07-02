@@ -14,13 +14,16 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
 import de.mpii.microblogtrack.utility.MYConstants;
-//import org.apache.lucene.benchmark.quality.trec.TrecTopicsReader;
+import org.apache.log4j.Logger;
+
 /**
  * based on org.apache.lucene.benchmark.quality.trec.TrecTopicsReader
  *
  * @author khui
  */
 public class TrecQuery {
+
+    static Logger logger = Logger.getLogger(TrecQuery.class.getName());
 
     public QualityQuery[] readTrecQuery(String queryfile) throws IOException {
         //TrecTopicsReader ttr = new TrecTopicsReader();
@@ -47,6 +50,7 @@ public class TrecQuery {
             querystr = qq.getValue(MYConstants.QUERYSTR);
             res.put(qq.getQueryID(), qb.createBooleanQuery(field, querystr));
         }
+        logger.info("In total, read in queries: " + res.size());
         return res;
     }
 }
