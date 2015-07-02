@@ -61,6 +61,7 @@ public class OnlineProcessor {
      * @param apikeydir
      * @param indexdir
      * @param queryfile
+     * @param outfile
      * @throws java.io.IOException
      * @throws java.lang.InterruptedException
      * @throws java.util.concurrent.ExecutionException
@@ -69,20 +70,14 @@ public class OnlineProcessor {
      * @throws java.lang.InstantiationException
      * @throws java.lang.IllegalAccessException
      */
-    public void notificationTask(String apikeydir, String indexdir, String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+    public void notificationTask(String apikeydir, String indexdir, String queryfile, String outfile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         // communication between lucene search results and pointwise decision maker
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
         Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer());
         receiveStatus(lscorer, apikeydir, 1);
         lscorer.multiQuerySearch(queryfile, querytweetpairs);
-//        while (true) {
-//            QueryTweetPair qtp = querytweetpairs.poll();
-//            if (qtp != null) {
-//                //logger.info(qtp.toString());
-//            }
-//        }
-        PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs);
+        PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs, outfile);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(decisionMaker, 5, 300, TimeUnit.MINUTES);
     }
@@ -206,7 +201,7 @@ public class OnlineProcessor {
         logger.info("Start To Process");
         OnlineProcessor op = new OnlineProcessor();
         try {
-            op.notificationTask(keydir, indexdir, queryfile);
+            op.notificationTask(keydir, indexdir, queryfile, "");
         } catch (IOException | InterruptedException | ExecutionException | ParseException | ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
             logger.error("entrance:", ex);
             op.close();

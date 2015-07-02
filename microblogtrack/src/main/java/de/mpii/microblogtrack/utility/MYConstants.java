@@ -6,6 +6,8 @@ package de.mpii.microblogtrack.utility;
  */
 public class MYConstants {
 
+    public final static String RUNSTRING = "myTest";
+
     /**
      * retrieval model used for feature
      */
@@ -50,7 +52,7 @@ public class MYConstants {
     // parameter required in ball kmean algorithm, the maximum times of iteration
     public final static int MAX_ITERATE_BALLKMEAN = 3;
     // lucene perform search per LUCENE_SEARCH_FREQUENCY seconds
-    public final static int LUCENE_SEARCH_FREQUENCY = 5;
+    public final static int LUCENE_SEARCH_FREQUENCY = 60;
     // the computation for the upper bound of cluster numbers is computed as #desired cluster * log(#data number)
     // we estimate the expected tweet number for 10 hours
     public final static int STREAMKMEAN_CLUSTERNUM = 500;
@@ -58,7 +60,7 @@ public class MYConstants {
     // SquaredEuclideanDistanceMeasure, CosineDistanceMeasure, EuclideanDistanceMeasure etc..
     public final static String DISTANT_MEASURE_CLUSTER = "org.apache.mahout.common.distance.CosineDistanceMeasure";
     // adjust the threshold for pop-up tweets dynamically, governing the adjusting step
-    public final static double DECISION_MAKER_THRESHOLD_ALPHA = 0.01;
+    public final static double DECISION_MAKER_THRESHOLD_ALPHA = 0.005;
     // filter out the tweet with less than threshold relative score
     public final static double DECISION_MAKER_SCORE_FILTER = 0.95;
     // if it is the first tweet to pop-up, we require a relative high threshold
@@ -67,7 +69,9 @@ public class MYConstants {
     // average distance among centroids
     public final static double DECISION_MAKER_DIST_FILTER = 0.2;
     // start delay for the decision maker in minutes 
-    public final static int DECISION_MAKER_START_DELAY = 60;
+    public final static int DECISION_MAKER_START_DELAY = 15;
+    // decision maker calling period in minutes, should be 1440 if one day is a period  
+    public final static int DECISION_MAKER_PERIOD = 30;
     // every x minutes, we update the average distance among centroids, by re-clustering the existing centroids
     // from streaming k-mean, which is relative expensive
     public final static double TRACKER_AVGDIST_UPDATE_MINUTES = 30;
@@ -84,5 +88,12 @@ public class MYConstants {
     public final static String PRED_ABSOLUTESCORE = "absolutePrimaryScore";
 
     public final static String PRED_RELATIVESCORE = "relativePrimaryScore";
+
+    /**
+     * additional field names for result printer
+     */
+    public final static String RES_RANK = "rank";
+
+    public final static String RES_RUNINFO = "runinfo";
 
 }

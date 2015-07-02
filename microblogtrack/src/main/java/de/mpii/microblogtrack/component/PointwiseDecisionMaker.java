@@ -4,12 +4,15 @@ import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.MYConstants;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
+import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
+import de.mpii.microblogtrack.utility.io.printresult.WriteTrecSubmission;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -47,64 +50,80 @@ public class PointwiseDecisionMaker implements Runnable {
 
     private final Set<String> finishedQueryId = new HashSet<>(250);
 
+    private final ResultPrinter resultprinter;
+
     // track the tweets being sent in the full duration
     private final static Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();
 
-    public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, String outputfile) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
         this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.DISTANT_MEASURE_CLUSTER).newInstance();
         this.queryResultTrackers = tracker;
         this.tweetqueue = tweetqueue;
         for (String qid : tracker.keySet()) {
             queryNumberCount.put(qid, 1);
         }
+        this.resultprinter = new WriteTrecSubmission(outputfile);
     }
 
     @Override
     public void run() {
+        Map<String, String> resultline;
         for (String qid : queryResultTrackers.keySet()) {
             queryResultTrackers.get(qid).informStart2Record();
         }
         QueryTweetPair tweet = null;
         String queryid;
-        while (!Thread.interrupted()) {
-            try {
+        /**
+         * catch the interrupted exception, since this is how we terminate the
+         * decision maker from the timer if after one day, there still exist
+         * query has less than 10 results.
+         */
+        try {
+            while (!Thread.interrupted()) {
+
                 tweet = tweetqueue.poll(100, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException ex) {
-                logger.error(ex.getMessage());
-            }
-            if (tweet == null) {
-                // logger.error("we get no tweet with past time window");
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException ex) {
-                    logger.error("", ex);
-                }
-            } else if (centroidnum > queryNumberCount.get(tweet.queryid)) {
-                queryid = tweet.queryid;
-                if (scoreFilter(tweet)) {
-                    double[] distances = distFilter(tweet);
-                    if (distances != null) {
-                        CandidateTweet resultTweet = decisionMake(tweet, distances);
-                        if (resultTweet.isSelected) {
-                            queryNumberCount.adjustOrPutValue(queryid, 1, 1);
-                            // write down the tweets that are notified
-                            logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
+
+                if (tweet == null) {
+                    // logger.error("we get no tweet with past time window");
+                    Thread.sleep(1000);
+                } else if (centroidnum > queryNumberCount.get(tweet.queryid)) {
+                    queryid = tweet.queryid;
+                    if (scoreFilter(tweet)) {
+                        double[] distances = distFilter(tweet);
+                        if (distances != null) {
+                            CandidateTweet resultTweet = decisionMake(tweet, distances);
+                            if (resultTweet.isSelected) {
+                                queryNumberCount.adjustOrPutValue(queryid, 1, 1);
+                                // write down the tweets that are notified
+                                resultline = new HashMap<>();
+                                resultline.put(MYConstants.QUERYID, queryid);
+                                resultline.put(MYConstants.TWEETID, String.valueOf(tweet.tweetid));
+                                resultline.put(MYConstants.RES_RANK, String.valueOf(queryNumberCount.get(queryid)));
+                                resultline.put(MYConstants.RES_RUNINFO, MYConstants.RUNSTRING);
+                                resultline.put(MYConstants.TWEETSTR, tweet.getStatus().getText());
+                                resultprinter.println(resultline);
+                                //logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
+                            } else {
+                                //logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
+                            }
                         } else {
-                            //logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
+                            //logger.info("filter out the tweet by distance: " + qidTweetSent.get(tweet.queryid).size());
                         }
-                    } else {
-                        //logger.info("filter out the tweet by distance: " + qidTweetSent.get(tweet.queryid).size());
+                    }
+
+                } else {
+                    logger.info("Finished: " + tweet.queryid + " " + queryNumberCount.get(tweet.queryid));
+                    finishedQueryId.add(tweet.queryid);
+                    if (finishedQueryId.size() >= queryNumberCount.size()) {
+                        logger.info("Finished all! " + finishedQueryId.size());
+                        resultprinter.close();
+                        break;
                     }
                 }
-
-            } else {
-                logger.info("Finished: " + tweet.queryid + " " + queryNumberCount.get(tweet.queryid));
-                finishedQueryId.add(tweet.queryid);
-                if (finishedQueryId.size() >= queryNumberCount.size()) {
-                    logger.info("Finished all! " + finishedQueryId.size());
-                    break;
-                }
             }
+        } catch (InterruptedException ex) {
+            logger.error("get interrupted, we close the printer", ex);
+            resultprinter.close();
         }
 
     }
@@ -163,7 +182,7 @@ public class PointwiseDecisionMaker implements Runnable {
      * @param relativeDist
      * @return
      */
-    public CandidateTweet decisionMake(QueryTweetPair tweet, double[] relativeDist) {
+    protected CandidateTweet decisionMake(QueryTweetPair tweet, double[] relativeDist) {
         double absoluteScore = tweet.getAbsScore();
         double relativeScore = tweet.getRelScore();
         String queryId = tweet.queryid;

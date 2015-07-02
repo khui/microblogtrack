@@ -5,10 +5,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.CharBuffer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import org.apache.log4j.Logger;
@@ -21,18 +19,18 @@ import twitter4j.TwitterObjectFactory;
  * @author khui
  */
 public class ReadStatus implements Callable<Void> {
-    
+
     static Logger logger = Logger.getLogger(ReadStatus.class.getName());
-    
+
     private final File directory;
-    
+
     private final BlockingQueue<Status> bq;
-    
+
     public ReadStatus(String gzipdir, BlockingQueue<Status> bq) {
         this.directory = new File(gzipdir);
         this.bq = bq;
     }
-    
+
     @Override
     public Void call() throws IOException, TwitterException, InterruptedException {
         BufferedReader br;
@@ -52,5 +50,5 @@ public class ReadStatus implements Callable<Void> {
         }
         return null;
     }
-    
+
 }

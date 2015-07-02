@@ -1,5 +1,6 @@
 package de.mpii.microblogtrack.task;
 
+import de.mpii.microblogtrack.component.DecisionMakerTimer;
 import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
@@ -19,6 +20,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -72,6 +74,7 @@ public class OfflineProcessor {
             BufferedReader br;
             StringBuilder sb;
             File datasetDir = new File(datadir);
+            int inputtweetcount = 0;
             for (File f : datasetDir.listFiles()) {
                 if (f.getName().endsWith("zip")) {
                     try {
@@ -88,9 +91,13 @@ public class OfflineProcessor {
                             jsonstr = sb.toString();
                             lscorer.write2Index(TwitterObjectFactory.createStatus(jsonstr));
                             br.close();
+                            inputtweetcount++;
+                            if (inputtweetcount % 6000 == 0) {
+                                Thread.sleep(1000 * 60);
+                            }
                         }
                         zipf.close();
-                    } catch (IOException | TwitterException ex) {
+                    } catch (IOException | TwitterException | InterruptedException ex) {
                         logger.error("readInTweets", ex);
                     }
                     logger.info("read in " + f.getName() + " finished");
@@ -113,6 +120,7 @@ public class OfflineProcessor {
      * @param datadir
      * @param indexdir
      * @param queryfile
+     * @param outfile
      * @throws java.io.IOException
      * @throws java.lang.InterruptedException
      * @throws java.util.concurrent.ExecutionException
@@ -122,7 +130,7 @@ public class OfflineProcessor {
      * @throws java.lang.IllegalAccessException
      * @throws twitter4j.TwitterException
      */
-    public void notificationTask(String datadir, String indexdir, String queryfile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
+    public void notificationTask(String datadir, String indexdir, String queryfile, String outfile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
         // communication between lucene search results and pointwise decision maker
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>(10000);
         Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
@@ -130,23 +138,23 @@ public class OfflineProcessor {
         Executor excutor = Executors.newSingleThreadExecutor();
         excutor.execute(new ReadInTweets(lscorer, datadir));
         lscorer.multiQuerySearch(queryfile, querytweetpairs);
-        PointwiseDecisionMaker decisionMaker = new PointwiseDecisionMaker(queryTrackers, querytweetpairs);
+        DecisionMakerTimer decisionMakerTimer = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, querytweetpairs, outfile));
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        scheduler.scheduleAtFixedRate(decisionMaker, MYConstants.DECISION_MAKER_START_DELAY, 300, TimeUnit.MINUTES);
+        scheduler.scheduleAtFixedRate(decisionMakerTimer, MYConstants.DECISION_MAKER_START_DELAY, MYConstants.DECISION_MAKER_PERIOD, TimeUnit.MINUTES);
     }
 
-    public static void main(String[] args) throws TwitterException, org.apache.commons.cli.ParseException {
+    public static void main(String[] args) throws TwitterException, org.apache.commons.cli.ParseException, InterruptedException {
         Options options = new Options();
-        options.addOption("o", "outdir", true, "output directory");
+        options.addOption("o", "outfile", true, "output file");
         options.addOption("d", "datadirectory", true, "data directory");
         options.addOption("i", "indexdirectory", true, "index directory");
         options.addOption("q", "queryfile", true, "query file");
         options.addOption("l", "log4jxml", true, "log4j conf file");
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
-        String outputdir = null, datadir = null, indexdir = null, queryfile = null, log4jconf = null;
+        String outputfile = null, datadir = null, indexdir = null, queryfile = null, log4jconf = null;
         if (cmd.hasOption("o")) {
-            outputdir = cmd.getOptionValue("o");
+            outputfile = cmd.getOptionValue("o");
         }
         if (cmd.hasOption("l")) {
             log4jconf = cmd.getOptionValue("l");
@@ -165,7 +173,7 @@ public class OfflineProcessor {
         logger.info("offline process test");
         OfflineProcessor op = new OfflineProcessor();
         try {
-            op.notificationTask(datadir, indexdir, queryfile);
+            op.notificationTask(datadir, indexdir, queryfile, outputfile);
         } catch (IOException | InterruptedException | ExecutionException | ParseException | ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
             logger.error("entrance:", ex);
             logger.info("client is closed");
