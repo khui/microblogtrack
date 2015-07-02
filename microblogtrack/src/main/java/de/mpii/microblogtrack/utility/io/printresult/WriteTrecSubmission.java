@@ -1,7 +1,6 @@
 package de.mpii.microblogtrack.utility.io.printresult;
 
 import de.mpii.microblogtrack.utility.MYConstants;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
