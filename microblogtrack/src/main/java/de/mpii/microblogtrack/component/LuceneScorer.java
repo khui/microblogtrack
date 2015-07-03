@@ -199,7 +199,7 @@ public class LuceneScorer {
 
         private final Map<String, Query> queries;
 
-        private int threadnum = MYConstants.MULTIQUERYSEARCH_THREADNUM;
+        private int threadnum = MYConstants.LUCENE_SEARCH_THREADNUM;
 
         private final BlockingQueue<QueryTweetPair> tweetqueue;
 
@@ -289,7 +289,7 @@ public class LuceneScorer {
 
     private class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
 
-        private int topN = MYConstants.TOP_N_FROM_LUCENE;
+        private int topN = MYConstants.LUCENE_TOP_N_SEARCH;
 
         private final String queryid;
 

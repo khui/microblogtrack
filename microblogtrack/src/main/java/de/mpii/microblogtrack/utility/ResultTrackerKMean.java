@@ -60,10 +60,10 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
 
     public ResultTrackerKMean(String queryid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryid = queryid;
-        this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.DISTANT_MEASURE_CLUSTER).newInstance();
+        this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.TRACKER_DISTANT_MEASURE).newInstance();
         // initialize an empty streamKMCentroids set
         this.streamKMCentroids = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
-        this.clusterer = new StreamingKMeans(streamKMCentroids, MYConstants.STREAMKMEAN_CLUSTERNUM);
+        this.clusterer = new StreamingKMeans(streamKMCentroids, MYConstants.TRACKER_SKMEAN_CLUSTERNUM_UPBOUND);
     }
 
     /**
@@ -90,7 +90,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
             qtp.setPredictScore(MYConstants.PRED_RELATIVESCORE, relativeScore);
             datapoints2add.add(new Centroid(tweetcount, v.clone(), relativeScore));
             // update the average distance among centroids every x miniutes
-            if (tweetcount % (MYConstants.TOP_N_FROM_LUCENE * MYConstants.TRACKER_AVGDIST_UPDATE_MINUTES) == 0) {
+            if (tweetcount % (MYConstants.LUCENE_TOP_N_SEARCH * MYConstants.TRACKER_AVGDIST_UPDATE_MINUTES) == 0) {
                 try {
                     updateAvgCentroidDist(this.centroidnum);
                 } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
@@ -158,7 +158,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
      * @return
      */
     private List<? extends Vector> getCentroids(int centroidnum) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-        int maxNumIterations = MYConstants.MAX_ITERATE_BALLKMEAN;
+        int maxNumIterations = MYConstants.TRACKER_BALLKMEAN_MAX_ITERATE;
         UpdatableSearcher emptySercher = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
         List<Centroid> centroidList = new ArrayList<>();
         synchronized (clusterer) {

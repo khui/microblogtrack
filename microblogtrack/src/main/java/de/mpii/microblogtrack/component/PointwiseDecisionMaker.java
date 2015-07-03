@@ -55,7 +55,7 @@ public class PointwiseDecisionMaker implements Runnable {
     private final static Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();
 
     public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
-        this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.DISTANT_MEASURE_CLUSTER).newInstance();
+        this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.TRACKER_DISTANT_MEASURE).newInstance();
         this.queryResultTrackers = tracker;
         this.tweetqueue = tweetqueue;
         for (String qid : tracker.keySet()) {
