@@ -1,6 +1,7 @@
 package de.mpii.microblogtrack.utility;
 
 import java.util.Collection;
+import java.util.Map;
 
 /**
  *
@@ -36,6 +37,12 @@ public interface ResultTweetsTracker {
      */
     public double relativeScore(double absoluteScore);
 
+    /**
+     * explicitly set the centroid numbers. the default value is 10, due to at
+     * most 10 tweets are requested per day for the notification task
+     *
+     * @param centroidnum
+     */
     public void setCentroidNum(int centroidnum);
 
     /**
@@ -47,6 +54,26 @@ public interface ResultTweetsTracker {
      */
     public boolean isStarted();
 
+    /**
+     * inform that we can start to make decision of the input tweet
+     */
     public void informStart2Record();
+
+    /**
+     * return the min/max value for each feature. note that this function is
+     * supposed to be concurrently called, thus thread-safe implementation is
+     * preferred
+     *
+     * @return
+     */
+    public Map<String, double[]> getMinMaxScaler();
+
+    /**
+     * for each query tweet pair, update the min/max tracker, this also prefers
+     * a high concurrency implementation
+     *
+     * @param qtp
+     */
+    public void updateFeatureMinMax(QueryTweetPair qtp);
 
 }

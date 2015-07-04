@@ -154,7 +154,7 @@ public class PointwiseDecisionMaker implements Runnable {
         Vector sentVector;
         if (qidTweetSent.containsKey(queryId)) {
             tweets = qidTweetSent.get(queryId);
-            Vector features = tweet.vectorize();
+            Vector features = tweet.vectorizeMahout();
             // the average distance among centroids as the metrics for the relative distance between tweets
             double avgCentroidDistance = queryResultTrackers.get(queryId).avgDistCentroids();
             for (CandidateTweet ct : tweets) {
@@ -191,7 +191,7 @@ public class PointwiseDecisionMaker implements Runnable {
         String queryId = tweet.queryid;
 
         double avggain = 0;
-        CandidateTweet resultTweet = new CandidateTweet(tweet.tweetid, absoluteScore, relativeScore, queryId, tweet.vectorize());
+        CandidateTweet resultTweet = new CandidateTweet(tweet.tweetid, absoluteScore, relativeScore, queryId, tweet.vectorizeMahout());
         // the distances w.r.t. all popped up tweets
         if (relativeDist.length > 0) {
             for (double dist : relativeDist) {

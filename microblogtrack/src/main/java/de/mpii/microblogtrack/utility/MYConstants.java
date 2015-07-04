@@ -9,16 +9,6 @@ public class MYConstants {
     public final static String RUNSTRING = "myTest";
 
     /**
-     * retrieval model used for feature
-     */
-    public final static String BM25 = "bm25";
-
-    public final static String TFIDF = "tfidf";
-
-    public final static String LMD = "lmDirichlet";
-
-    public final static String[] irModels = new String[]{TFIDF, BM25, LMD};
-    /**
      * fields name used for retrieval of tweets
      */
     public final static String TWEETID = "tweetid";
@@ -102,6 +92,31 @@ public class MYConstants {
     public final static String PRED_ABSOLUTESCORE = "absolutePrimaryScore";
 
     public final static String PRED_RELATIVESCORE = "relativePrimaryScore";
+    /**
+     * feature names
+     */
+    public final static String FEATURE_BM25 = "bm25";
+
+    public final static String FEATURE_TFIDF = "tfidf";
+
+    public final static String FEATURE_LMD = "lmDirichlet";
+
+    public final static String FEATURE_RETWEETNUM = "retweet_num";
+
+    public final static String FEATURE_LIKENUM = "like_num";
+
+    public final static String FEATURE_HASHTAG = "hashtag";
+
+    public final static String FEATURE_URL = "tweeturl";
+
+    public final static String[] FEATURES_SEMANTIC = new String[]{FEATURE_TFIDF, FEATURE_BM25, FEATURE_LMD};
+
+    public final static String[] FEATURES_EXPANSION = new String[]{};
+
+    public final static String[] FEATURES_TWEETQUALITY = new String[]{FEATURE_RETWEETNUM, FEATURE_LIKENUM, FEATURE_HASHTAG, FEATURE_URL};
+
+    public final static String[] FEATURES_USERAUTHORITY = new String[]{};
+
     /**
      * other parameters
      */

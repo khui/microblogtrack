@@ -8,8 +8,10 @@ import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TDoubleIntHashMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import org.apache.log4j.Logger;
 import org.apache.mahout.clustering.streaming.cluster.BallKMeans;
 import org.apache.mahout.clustering.streaming.cluster.StreamingKMeans;
@@ -32,6 +34,8 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     static Logger logger = Logger.getLogger(ResultTweetsTracker.class);
 
     public final String queryid;
+
+    private final Map<String, double[]> featureMinMax = new ConcurrentHashMap<>();
 
     // record the occrrence for each predict score, generating the approximating cumulative distribution
     private final TDoubleIntMap predictScoreTracker = TCollections.synchronizedMap(new TDoubleIntHashMap());
@@ -73,7 +77,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
      * the outcome of the svm prediction, normally including confidence, the
      * distance to the hyperplane etc..
      *
-     * @param qtp
+     * @param qtps
      */
     @Override
     public void addTweets(Collection<QueryTweetPair> qtps) {
@@ -82,11 +86,12 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         List<Centroid> datapoints2add = new ArrayList<>();
         for (QueryTweetPair qtp : qtps) {
             tweetcount++;
-            v = qtp.vectorize();
+            v = qtp.vectorizeMahout();
             // the unique predicting score for one tweet, and the corresponding cumulative prob is used as vector weight
             absoluteScore = trackPredictScore(qtp.getPredictRes());
             // add the tweet to the clustering, using the tweet count as the centroid key
             relativeScore = getCumulativeProb(absoluteScore);
+
             qtp.setPredictScore(MYConstants.PRED_RELATIVESCORE, relativeScore);
             datapoints2add.add(new Centroid(tweetcount, v.clone(), relativeScore));
             // update the average distance among centroids every x miniutes
@@ -102,6 +107,28 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     }
 
     @Override
+    public void updateFeatureMinMax(QueryTweetPair qtp) {
+        TObjectDoubleMap<String> featureValues = qtp.getFeatures();
+        double value, min, max;
+        for (String feature : featureValues.keySet()) {
+            value = featureValues.get(feature);
+            if (!featureMinMax.containsKey(feature)) {
+                featureMinMax.put(feature, new double[2]);
+                featureMinMax.get(feature)[0] = Double.MAX_VALUE;
+                featureMinMax.get(feature)[1] = Double.MIN_VALUE;
+            }
+            min = featureMinMax.get(feature)[0];
+            max = featureMinMax.get(feature)[1];
+            if (value < min) {
+                featureMinMax.get(feature)[0] = value;
+            } else if (value > max) {
+                featureMinMax.get(feature)[1] = value;
+            }
+
+        }
+    }
+
+    @Override
     public synchronized boolean isStarted() {
         return isStarted;
     }
@@ -111,8 +138,9 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         isStarted = true;
     }
 
-    private synchronized void updateCentroid(Iterable<Centroid> centroid2add) {
-        clusterer.cluster(centroid2add);
+    @Override
+    public Map<String, double[]> getMinMaxScaler() {
+        return featureMinMax;
     }
 
     @Override
@@ -128,6 +156,10 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     @Override
     public void setCentroidNum(int centroidnum) {
         this.centroidnum = centroidnum;
+    }
+
+    private synchronized void updateCentroid(Iterable<Centroid> centroid2add) {
+        clusterer.cluster(centroid2add);
     }
 
     private void updateAvgCentroidDist(int centroidnum) throws ClassNotFoundException, InstantiationException, IllegalAccessException {

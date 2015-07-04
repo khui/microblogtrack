@@ -15,7 +15,7 @@ public class PointwiseScorer {
     static Logger logger = Logger.getLogger(PointwiseScorer.class);
 
     public double predictor(QueryTweetPair qtr) {
-        String[] retrievalmodels = MYConstants.irModels;
+        String[] retrievalmodels = MYConstants.FEATURES_SEMANTIC;
         double scoresum = 0;
         for (String model : retrievalmodels) {
             scoresum += qtr.getFeature(model);
