@@ -66,7 +66,7 @@ public interface ResultTweetsTracker {
      *
      * @return
      */
-    public Map<String, double[]> getMinMaxScaler();
+    public Map<String, double[]> getMeanStdScaler();
 
     /**
      * for each query tweet pair, update the min/max tracker, this also prefers
@@ -74,6 +74,5 @@ public interface ResultTweetsTracker {
      *
      * @param qtp
      */
-    public void updateFeatureMinMax(QueryTweetPair qtp);
-
+    //public void updateFeatureMinMax(QueryTweetPair qtp);
 }

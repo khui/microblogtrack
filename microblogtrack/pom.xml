@@ -110,7 +110,11 @@
             <artifactId>mahout-core</artifactId>
             <version>0.9</version>
         </dependency>
-
+        <dependency>
+            <groupId>tw.edu.ntu.csie</groupId>
+            <artifactId>libsvm</artifactId>
+            <version>3.20</version>
+        </dependency>
 
 
     </dependencies>

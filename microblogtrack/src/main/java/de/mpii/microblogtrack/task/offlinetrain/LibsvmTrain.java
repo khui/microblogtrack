@@ -1,8 +1,11 @@
 package de.mpii.microblogtrack.task.offlinetrain;
 
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
+import de.mpii.microblogtrack.utility.LibsvmWrapper;
 import de.mpii.microblogtrack.utility.MYConstants;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
+import gnu.trove.list.TDoubleList;
+import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.map.TLongObjectMap;
 import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TLongObjectHashMap;
@@ -26,6 +29,7 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.math.stat.StatUtils;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -48,43 +52,41 @@ import twitter4j.TwitterObjectFactory;
  *
  * @author khui
  */
-public class ConstructFeatureScaler {
-
-    static Logger logger = Logger.getLogger(ConstructFeatureScaler.class.getName());
-
+public class LibsvmTrain {
+    
+    static Logger logger = Logger.getLogger(LibsvmTrain.class.getName());
+    
     private final TLongObjectMap<Status> tweetidStatus = new TLongObjectHashMap<>();
-
+    
     private final TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
-
-    private final Map<String, double[]> featureMinMax = new HashMap<>();
-
-    private class LabeledTweet extends QueryTweetPair {
-
+    
+    public class LabeledTweet extends QueryTweetPair {
+        
         private final int judge;
-
+        
         private BooleanQuery combinedQuery;
-
+        
         public LabeledTweet(String queryid, long tweetid, int judge, Status status) {
             super(tweetid, queryid, status);
             this.judge = judge;
         }
-
+        
         public LabeledTweet(LabeledTweet lt) {
             super(lt);
             this.judge = lt.judge;
         }
-
+        
         public void setQueryContent(Query query) {
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(MYConstants.TWEETID, tweetid, tweetid, true, true);
             combinedQuery = new BooleanQuery();
             combinedQuery.add(query, BooleanClause.Occur.SHOULD);
             combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
         }
-
+        
         public Query getQuery() {
             return combinedQuery;
         }
-
+        
         public void updateStatus(Status status) {
             this.status = status;
             updateFeatures();
@@ -143,7 +145,8 @@ public class ConstructFeatureScaler {
      * @throws java.lang.InstantiationException
      * @throws java.lang.IllegalAccessException
      */
-    public void preparedata(String indexdir, String qrelf, String queryfile, String[] zipfiles) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
+    public void generateScaler(String indexdir, String qrelf, String queryfile, String scalefile, String[] zipfiles) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
+        Map<String, double[]> featureMeanStd = new HashMap<>();
         // read in tweetidStatus
         readInStatus(zipfiles);
         List<LabeledTweet> labeledtweets = constructQuery(qrelf, queryfile);
@@ -185,10 +188,17 @@ public class ConstructFeatureScaler {
             }
         }
         // construct min-max scaler
-        computeScaler(searchresults.valueCollection());
+        computeScaler(searchresults.valueCollection(), featureMeanStd);
+        // output scaler
+        LibsvmWrapper.writeScaler(scalefile, featureMeanStd);
+    }
+    
+    private void scaleNTrain(String scalefile) throws IOException {
+        Map<String, double[]> featureMeanStd = LibsvmWrapper.readScaler(scalefile);
         // rescale the features
         for (long tid : searchresults.keys()) {
-            searchresults.get(tid).rescaleFeatures(featureMinMax);
+            searchresults.get(tid).updateMeanStdScaler(featureMeanStd);
+            searchresults.get(tid).rescaleFeatures();
         }
     }
 
@@ -229,38 +239,41 @@ public class ConstructFeatureScaler {
      * @param outfile
      * @param datapoints
      */
-    private void computeScaler(Collection<QueryTweetPair> datapoints) {
+    private void computeScaler(Collection<QueryTweetPair> datapoints, Map<String, double[]> featureMeanStd) {
+        Map<String, TDoubleList> featureValues = new HashMap<>();
         for (QueryTweetPair datapoint : datapoints) {
-            updateFeatureMinMax(datapoint);
+            accumulateFeatureValues(datapoint, featureValues, featureMeanStd);
+        }
+        double mean, std;
+        for (String feature : featureValues.keySet()) {
+            double[] featurevalues = featureValues.get(feature).toArray();
+            if (featurevalues.length > 0) {
+                mean = StatUtils.mean(featurevalues);
+                std = StatUtils.variance(featurevalues);
+                featureMeanStd.put(feature, new double[]{mean, std});
+            } else {
+                logger.error("feature length is zero for " + feature);
+            }
         }
     }
 
     /**
-     * directly copied from ResultTrackerKMean.updateFeatureMinMax
+     * directly copied from ResultTrackerKMean.accumulateFeatureValues
      *
      * @param qtp
      */
-    private void updateFeatureMinMax(QueryTweetPair qtp) {
+    private void accumulateFeatureValues(QueryTweetPair qtp, Map<String, TDoubleList> featureAllVs, Map<String, double[]> featureMeanStd) {
         TObjectDoubleMap<String> featureValues = qtp.getFeatures();
-        double value, min, max;
+        double value;
         for (String feature : featureValues.keySet()) {
             value = featureValues.get(feature);
-            if (!featureMinMax.containsKey(feature)) {
-                featureMinMax.put(feature, new double[2]);
-                featureMinMax.get(feature)[0] = Double.MAX_VALUE;
-                featureMinMax.get(feature)[1] = Double.MIN_VALUE;
+            if (!featureMeanStd.containsKey(feature)) {
+                featureAllVs.put(feature, new TDoubleArrayList());
             }
-            min = featureMinMax.get(feature)[0];
-            max = featureMinMax.get(feature)[1];
-            if (value < min) {
-                featureMinMax.get(feature)[0] = value;
-            } else if (value > max) {
-                featureMinMax.get(feature)[1] = value;
-            }
-
+            featureAllVs.get(feature).add(value);
         }
     }
-
+    
     public static void main(String[] args) throws ParseException, IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         Options options = new Options();
         options.addOption("d", "datadirectory", true, "data directory");
@@ -283,5 +296,5 @@ public class ConstructFeatureScaler {
         LogManager.getRootLogger().setLevel(Level.INFO);
         logger.info("offline process test");
     }
-
+    
 }

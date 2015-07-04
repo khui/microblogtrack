@@ -35,7 +35,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
 
     public final String queryid;
 
-    private final Map<String, double[]> featureMinMax = new ConcurrentHashMap<>();
+    private final Map<String, double[]> featureMeanStd;
 
     // record the occrrence for each predict score, generating the approximating cumulative distribution
     private final TDoubleIntMap predictScoreTracker = TCollections.synchronizedMap(new TDoubleIntHashMap());
@@ -68,6 +68,16 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         // initialize an empty streamKMCentroids set
         this.streamKMCentroids = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
         this.clusterer = new StreamingKMeans(streamKMCentroids, MYConstants.TRACKER_SKMEAN_CLUSTERNUM_UPBOUND);
+        this.featureMeanStd = new ConcurrentHashMap<>();
+    }
+
+    public ResultTrackerKMean(String queryid, Map<String, double[]> featureMeanStd) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+        this.queryid = queryid;
+        this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.TRACKER_DISTANT_MEASURE).newInstance();
+        // initialize an empty streamKMCentroids set
+        this.streamKMCentroids = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
+        this.clusterer = new StreamingKMeans(streamKMCentroids, MYConstants.TRACKER_SKMEAN_CLUSTERNUM_UPBOUND);
+        this.featureMeanStd = featureMeanStd;
     }
 
     /**
@@ -106,28 +116,27 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         updateCentroid(datapoints2add);
     }
 
-    @Override
-    public void updateFeatureMinMax(QueryTweetPair qtp) {
-        TObjectDoubleMap<String> featureValues = qtp.getFeatures();
-        double value, min, max;
-        for (String feature : featureValues.keySet()) {
-            value = featureValues.get(feature);
-            if (!featureMinMax.containsKey(feature)) {
-                featureMinMax.put(feature, new double[2]);
-                featureMinMax.get(feature)[0] = Double.MAX_VALUE;
-                featureMinMax.get(feature)[1] = Double.MIN_VALUE;
-            }
-            min = featureMinMax.get(feature)[0];
-            max = featureMinMax.get(feature)[1];
-            if (value < min) {
-                featureMinMax.get(feature)[0] = value;
-            } else if (value > max) {
-                featureMinMax.get(feature)[1] = value;
-            }
-
-        }
-    }
-
+//    @Override
+//    public void updateFeatureMinMax(QueryTweetPair qtp) {
+//        TObjectDoubleMap<String> featureValues = qtp.getFeatures();
+//        double value, min, max;
+//        for (String feature : featureValues.keySet()) {
+//            value = featureValues.get(feature);
+//            if (!featureMinMax.containsKey(feature)) {
+//                featureMinMax.put(feature, new double[2]);
+//                featureMinMax.get(feature)[0] = Double.MAX_VALUE;
+//                featureMinMax.get(feature)[1] = Double.MIN_VALUE;
+//            }
+//            min = featureMinMax.get(feature)[0];
+//            max = featureMinMax.get(feature)[1];
+//            if (value < min) {
+//                featureMinMax.get(feature)[0] = value;
+//            } else if (value > max) {
+//                featureMinMax.get(feature)[1] = value;
+//            }
+//
+//        }
+//    }
     @Override
     public synchronized boolean isStarted() {
         return isStarted;
@@ -139,10 +148,10 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     }
 
     @Override
-    public Map<String, double[]> getMinMaxScaler() {
-        return featureMinMax;
+    public Map<String, double[]> getMeanStdScaler() {
+        return featureMeanStd;
     }
-
+    
     @Override
     public double avgDistCentroids() {
         return avgCentroidDistance;

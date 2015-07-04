@@ -2,8 +2,12 @@ package de.mpii.microblogtrack.utility;
 
 import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import libsvm.svm_node;
 import org.apache.log4j.Logger;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
@@ -29,12 +33,25 @@ public class QueryTweetPair {
 
     protected Status status;
 
-    private Vector featureVector = null;
+    private Vector vectorMahout = null;
+
+    private svm_node[] vectorLibsvm = null;
+
+    private Map<String, double[]> featureMeanStd;
 
     public QueryTweetPair(long tweetid, String queryid, Status status) {
         this.tweetid = tweetid;
         this.queryid = queryid;
         this.status = status;
+        this.featureMeanStd = new HashMap<>();
+        updateFeatures();
+    }
+
+    public QueryTweetPair(long tweetid, String queryid, Status status, Map<String, double[]> featureMeanStd) {
+        this.tweetid = tweetid;
+        this.queryid = queryid;
+        this.status = status;
+        this.featureMeanStd = featureMeanStd;
         updateFeatures();
     }
 
@@ -50,7 +67,12 @@ public class QueryTweetPair {
         this.predictorResults.clear();
         this.featureValues.putAll(qtp.getFeatures());
         this.predictorResults.putAll(qtp.getPredictRes());
-        this.featureVector = qtp.vectorizeMahout();
+        this.vectorMahout = qtp.vectorizeMahout();
+        this.featureMeanStd = qtp.featureMeanStd;
+    }
+
+    public void updateMeanStdScaler(Map<String, double[]> featureMeanStd) {
+        this.featureMeanStd = featureMeanStd;
     }
 
     public void updateFeatures(String name, double score) {
@@ -99,8 +121,8 @@ public class QueryTweetPair {
     }
 
     public Vector vectorizeMahout() {
-        if (featureVector != null) {
-            return featureVector;
+        if (vectorMahout != null) {
+            return vectorMahout;
         }
         boolean regenerateFeatureNames = false;
         if (featureNames == null) {
@@ -116,8 +138,43 @@ public class QueryTweetPair {
         for (int i = 0; i < fvalues.length; i++) {
             fvalues[i] = featureValues.get(featureNames[i]);
         }
-        featureVector = new DenseVector(fvalues);
-        return featureVector;
+        vectorMahout = new DenseVector(fvalues);
+        return vectorMahout;
+    }
+
+    /**
+     * convert the feature map to the svm_node, the data format used in libsvm
+     * note that the libsvm supposes the feature index starts from 1
+     *
+     * @return
+     */
+    public svm_node[] vectorizeLibsvm() {
+        if (vectorLibsvm != null) {
+            return vectorLibsvm;
+        }
+        boolean regenerateFeatureNames = false;
+        if (featureNames == null) {
+            regenerateFeatureNames = true;
+        } else if (featureNames.length != featureValues.size()) {
+            regenerateFeatureNames = true;
+        }
+        if (regenerateFeatureNames) {
+            featureNames = featureValues.keys(new String[0]);
+            Arrays.sort(featureNames);
+        }
+
+        List<svm_node> nodes = new ArrayList<>();
+        for (int i = 1; i <= featureNames.length; i++) {
+            double fvalue = featureValues.get(featureNames[i]);
+            if (fvalue > 0) {
+                nodes.add(new svm_node());
+                nodes.get(nodes.size() - 1).index = i;
+                nodes.get(nodes.size() - 1).value = fvalue;
+
+            }
+        }
+        vectorLibsvm = nodes.toArray(new svm_node[0]);
+        return vectorLibsvm;
     }
 
     @Override
@@ -133,49 +190,36 @@ public class QueryTweetPair {
     }
 
     /**
-     * we use min/max scaling method, rescale each feature to [lower, upper]
-     * interval, afterward the vector representations are rebuilt. The min/max
-     * value for each feature can either come from off-line computation or
-     * online tracking
+     * we use mean/std scaling method, rescale each feature to Norm(0, 1),
+     * afterward the vector representations are rebuilt. The mean/std value for
+     * each feature can either come from off-line computation
      *
-     * @param featureMinMax
-     * @param lower
-     * @param upper
+     * @param featureMeanStd
      */
-    public void rescaleFeatures(Map<String, double[]> featureMinMax, double lower, double upper) {
-        double max, min, r_value, n_value;
+    public void rescaleFeatures() {
+        if (featureMeanStd.isEmpty()) {
+            return;
+        }
+        double std, mean, r_value, n_value;
         String[] features = featureValues.keySet().toArray(new String[0]);
         for (String feature : features) {
-            if (featureMinMax.containsKey(feature)) {
+            if (featureMeanStd.containsKey(feature)) {
                 r_value = featureValues.get(feature);
-                min = featureMinMax.get(feature)[0];
-                max = featureMinMax.get(feature)[1];
-                // due to the concurrency reason, the value might be outside 
-                // [min, max]
-                if (r_value <= min) {
-                    n_value = lower;
-                } else if (r_value >= max) {
-                    n_value = upper;
+                mean = featureMeanStd.get(feature)[0];
+                std = featureMeanStd.get(feature)[1];
+                // we need to confirm the std is larger than zero
+                if (std > 0) {
+                    n_value = (r_value - mean) / std;
+                    featureValues.put(feature, n_value);
                 } else {
-                    n_value = lower + (upper - lower)
-                            * (r_value - min) / (max - min);
+                    logger.error("std is zero for " + feature);
                 }
-                featureValues.put(feature, n_value);
             }
         }
-        if (featureVector != null) {
-            featureVector = null;
+        if (vectorMahout != null) {
+            vectorMahout = null;
             vectorizeMahout();
         }
-    }
-
-    /**
-     * rescale the feature to [0, 1]
-     *
-     * @param featureMinMax
-     */
-    public void rescaleFeatures(Map<String, double[]> featureMinMax) {
-        rescaleFeatures(featureMinMax, 0.0, 1.0);
     }
 
     protected final void updateFeatures() {
