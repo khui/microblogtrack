@@ -6,30 +6,30 @@ package de.mpii.microblogtrack.utility;
  */
 public class MYConstants {
 
-    public final static String RUNSTRING = "myTest";
+    public final static String RUN_ID = "myTest";
 
     /**
      * fields name used for retrieval of tweets
      */
-    public final static String TWEETID = "tweetid";
+    public final static String TWEET_ID = "tweetid";
     // count of tweets being downloaded
-    public final static String TWEETNUM = "tweetcountid";
+    public final static String TWEET_COUNT = "tweetcountid";
 
-    public final static String TWEETSTR = "tweetcontent";
+    public final static String TWEET_CONTENT = "tweetcontent";
 
-    public final static String URLSTR = "langdingpage";
+    public final static String TWEET_URLCONTENT = "langdingpage";
 
-    public final static String TWEETURL = "tweeturl";
+    public final static String TWEET_CONTENT_URLEXPEND = "tweeturl";
     /**
      * fields name for query
      */
-    public final static String QUERYID = "queryId";
+    public final static String QUERY_ID = "queryId";
 
-    public final static String QUERYSTR = "query";
+    public final static String QUERY_STR = "query";
 
-    public final static String DESCRIPTION = "description";
+    public final static String QUERY_DESC = "description";
 
-    public final static String NARRATIVE = "narrative";
+    public final static String QUERY_NARR = "narrative";
     /**
      * additional field names for result printer
      */

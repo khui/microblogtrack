@@ -95,11 +95,11 @@ public class PointwiseDecisionMaker implements Runnable {
                                 queryNumberCount.adjustOrPutValue(queryid, 1, 1);
                                 // write down the tweets that are notified
                                 resultline = new HashMap<>();
-                                resultline.put(MYConstants.QUERYID, queryid);
-                                resultline.put(MYConstants.TWEETID, String.valueOf(tweet.tweetid));
+                                resultline.put(MYConstants.QUERY_ID, queryid);
+                                resultline.put(MYConstants.TWEET_ID, String.valueOf(tweet.tweetid));
                                 resultline.put(MYConstants.RES_RANK, String.valueOf(queryNumberCount.get(queryid)));
-                                resultline.put(MYConstants.RES_RUNINFO, MYConstants.RUNSTRING);
-                                resultline.put(MYConstants.TWEETSTR, tweet.getStatus().getText());
+                                resultline.put(MYConstants.RES_RUNINFO, MYConstants.RUN_ID);
+                                resultline.put(MYConstants.TWEET_CONTENT, tweet.getStatus().getText());
                                 resultprinter.println(resultline);
                                 //logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
                             } else {

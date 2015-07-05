@@ -12,6 +12,7 @@ import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
 import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
+import de.mpii.microblogtrack.utility.LibsvmWrapper;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
@@ -64,6 +65,7 @@ public class OnlineProcessor {
      * @param indexdir
      * @param queryfile
      * @param outfile
+     * @param scalefile
      * @throws java.io.IOException
      * @throws java.lang.InterruptedException
      * @throws java.util.concurrent.ExecutionException
@@ -72,11 +74,11 @@ public class OnlineProcessor {
      * @throws java.lang.InstantiationException
      * @throws java.lang.IllegalAccessException
      */
-    public void notificationTask(String apikeydir, String indexdir, String queryfile, String outfile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+    public void notificationTask(String apikeydir, String indexdir, String queryfile, String outfile, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         // communication between lucene search results and pointwise decision maker
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>();
         Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
-        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer());
+        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer(), LibsvmWrapper.readScaler(scalefile));
         receiveStatus(lscorer, apikeydir, 1);
         lscorer.multiQuerySearch(queryfile, querytweetpairs);
         // set up output writer to print out the notification task results
@@ -205,7 +207,7 @@ public class OnlineProcessor {
         logger.info("Start To Process");
         OnlineProcessor op = new OnlineProcessor();
         try {
-            op.notificationTask(keydir, indexdir, queryfile, "");
+            op.notificationTask(keydir, indexdir, queryfile, "", "");
         } catch (IOException | InterruptedException | ExecutionException | ParseException | ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
             logger.error("entrance:", ex);
             op.close();

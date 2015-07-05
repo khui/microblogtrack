@@ -52,81 +52,77 @@ import twitter4j.TwitterObjectFactory;
  *
  * @author khui
  */
-public class LibsvmTrain {
-    
-    static Logger logger = Logger.getLogger(LibsvmTrain.class.getName());
-    
+public class PointwiseTrain {
+
+    static Logger logger = Logger.getLogger(PointwiseTrain.class.getName());
+
     private final TLongObjectMap<Status> tweetidStatus = new TLongObjectHashMap<>();
-    
-    private final TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
-    
+
+    private final TLongObjectMap<LabeledTweet> searchresults = new TLongObjectHashMap<>();
+
+    private Map<String, double[]> featureMeanStd = new HashMap<>();
+
+    private final String indexdir, qrelf, queryfile;
+
+    private final String[] qrelTweetZipFiles;
+
     public class LabeledTweet extends QueryTweetPair {
-        
-        private final int judge;
-        
+
+        public final int judge;
+
+        public final int binaryjudge;
+
+        public final int qidint;
+
         private BooleanQuery combinedQuery;
-        
+
         public LabeledTweet(String queryid, long tweetid, int judge, Status status) {
             super(tweetid, queryid, status);
             this.judge = judge;
+            this.binaryjudge = (judge > 0 ? 1 : 0);
+            this.qidint = Integer.parseInt(queryid.replace("MB", ""));
         }
-        
+
         public LabeledTweet(LabeledTweet lt) {
             super(lt);
             this.judge = lt.judge;
+            this.binaryjudge = lt.binaryjudge;
+            this.qidint = lt.qidint;
         }
-        
+
         public void setQueryContent(Query query) {
-            NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(MYConstants.TWEETID, tweetid, tweetid, true, true);
+            NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(MYConstants.TWEET_ID, tweetid, tweetid, true, true);
             combinedQuery = new BooleanQuery();
             combinedQuery.add(query, BooleanClause.Occur.SHOULD);
             combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
         }
-        
+
         public Query getQuery() {
             return combinedQuery;
         }
-        
+
         public void updateStatus(Status status) {
             this.status = status;
             updateFeatures();
         }
     }
 
-    /**
-     * read in tweetid - status and store in tweetidStatus
-     */
-    private void readInStatus(String[] zipfiles) {
-        ZipFile zipf;
-        String jsonstr;
-        BufferedReader br;
-        StringBuilder sb;
-        for (String f : zipfiles) {
-            if (f.endsWith("zip")) {
-                try {
-                    zipf = new ZipFile(f);
-                    Enumeration<? extends ZipEntry> entries = zipf.entries();
-                    while (entries.hasMoreElements()) {
-                        ZipEntry ze = (ZipEntry) entries.nextElement();
-                        br = new BufferedReader(
-                                new InputStreamReader(zipf.getInputStream(ze)));
-                        sb = new StringBuilder();
-                        while (br.ready()) {
-                            sb.append(br.readLine());
-                        }
-                        jsonstr = sb.toString();
-                        Status status = TwitterObjectFactory.createStatus(jsonstr);
-                        tweetidStatus.put(status.getId(), TwitterObjectFactory.createStatus(jsonstr));
-                        br.close();
-                    }
-                    zipf.close();
-                } catch (IOException | TwitterException ex) {
-                    logger.error("readInTweets", ex);
-                }
-                logger.info("read in " + f + " finished");
-            }
-        }
-        logger.info("In total, we read in " + tweetidStatus.size() + " status.");
+    public PointwiseTrain(String indexdir, String qrelf, String queryfile, String[] zipfiles) {
+        this.indexdir = indexdir;
+        this.qrelf = qrelf;
+        this.queryfile = queryfile;
+        this.qrelTweetZipFiles = zipfiles;
+    }
+
+    public void search(String model_file, int predict_probability, String scale_file, int[] train_qid_range) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
+        // collect tweets for train/test, and compute scaler based on the training data
+        collectTweets(indexdir, qrelf, queryfile, qrelTweetZipFiles);
+        // construct min-max scaler
+        computeScaler(searchresults.valueCollection(), featureMeanStd, train_qid_range);
+        // output scaler
+        LibsvmWrapper.writeScaler(scale_file, featureMeanStd);
+        // scale the feature value and train/test by reading in the scale_file
+        scaleNTrain(scale_file, model_file, predict_probability, train_qid_range);
     }
 
     /**
@@ -138,16 +134,17 @@ public class LibsvmTrain {
      * @param indexdir
      * @param qrelf
      * @param queryfile
+     * @param scalefile
      * @param zipfiles
+     * @param out_model_file
+     * @param predict_probability
      * @throws java.io.FileNotFoundException
      * @throws org.apache.lucene.queryparser.classic.ParseException
      * @throws java.lang.ClassNotFoundException
      * @throws java.lang.InstantiationException
      * @throws java.lang.IllegalAccessException
      */
-    public void generateScaler(String indexdir, String qrelf, String queryfile, String scalefile, String[] zipfiles) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
-        Map<String, double[]> featureMeanStd = new HashMap<>();
-        // read in tweetidStatus
+    private void collectTweets(String indexdir, String qrelf, String queryfile, String[] zipfiles) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
         readInStatus(zipfiles);
         List<LabeledTweet> labeledtweets = constructQuery(qrelf, queryfile);
         String[] searchModels = MYConstants.FEATURES_SEMANTIC;
@@ -187,19 +184,56 @@ public class LibsvmTrain {
                 }
             }
         }
-        // construct min-max scaler
-        computeScaler(searchresults.valueCollection(), featureMeanStd);
-        // output scaler
-        LibsvmWrapper.writeScaler(scalefile, featureMeanStd);
+
     }
-    
-    private void scaleNTrain(String scalefile) throws IOException {
-        Map<String, double[]> featureMeanStd = LibsvmWrapper.readScaler(scalefile);
-        // rescale the features
-        for (long tid : searchresults.keys()) {
-            searchresults.get(tid).updateMeanStdScaler(featureMeanStd);
-            searchresults.get(tid).rescaleFeatures();
+
+    /**
+     * read in tweetid - status and store in tweetidStatus
+     */
+    private void readInStatus(String[] zipfiles) {
+        ZipFile zipf;
+        String jsonstr;
+        BufferedReader br;
+        StringBuilder sb;
+        for (String f : zipfiles) {
+            if (f.endsWith("zip")) {
+                try {
+                    zipf = new ZipFile(f);
+                    Enumeration<? extends ZipEntry> entries = zipf.entries();
+                    while (entries.hasMoreElements()) {
+                        ZipEntry ze = (ZipEntry) entries.nextElement();
+                        br = new BufferedReader(
+                                new InputStreamReader(zipf.getInputStream(ze)));
+                        sb = new StringBuilder();
+                        while (br.ready()) {
+                            sb.append(br.readLine());
+                        }
+                        jsonstr = sb.toString();
+                        Status status = TwitterObjectFactory.createStatus(jsonstr);
+                        tweetidStatus.put(status.getId(), TwitterObjectFactory.createStatus(jsonstr));
+                        br.close();
+                    }
+                    zipf.close();
+                } catch (IOException | TwitterException ex) {
+                    logger.error("readInTweets", ex);
+                }
+                logger.info("read in " + f + " finished");
+            }
         }
+        logger.info("In total, we read in " + tweetidStatus.size() + " status.");
+    }
+
+    private void scaleNTrain(String scale_file, String out_model_file, int predict_probability, int[] train_qid_range) throws IOException {
+        featureMeanStd = LibsvmWrapper.readScaler(scale_file);
+        // rescale the features
+        for (long tweet : searchresults.keys()) {
+            searchresults.get(tweet).rescaleFeatures(featureMeanStd);
+        }
+        // split train/test data
+        LibsvmWrapper svmwrapper = new LibsvmWrapper();
+        LibsvmWrapper.LocalTrainTest traintest = svmwrapper.splitTrainTestData(searchresults.valueCollection(), train_qid_range);
+        svmwrapper.train_libsvm(traintest, 1, out_model_file, predict_probability);
+        svmwrapper.predict_libsvm(traintest, out_model_file, predict_probability);
     }
 
     /**
@@ -223,7 +257,7 @@ public class LibsvmTrain {
         logger.info("Finished: read qrel and generate labeled tweets " + labeledtweets.size());
         TrecQuery tq = new TrecQuery();
         Map<String, Query> queries = new HashMap<>();
-        queries.putAll(tq.readInQueries(queryfile, analyzer, MYConstants.TWEETSTR));
+        queries.putAll(tq.readInQueries(queryfile, analyzer, MYConstants.TWEET_CONTENT));
         logger.info("Finished: read query " + queries.size());
         for (LabeledTweet ltweet : labeledtweets) {
             ltweet.setQueryContent(queries.get(ltweet.queryid));
@@ -239,10 +273,12 @@ public class LibsvmTrain {
      * @param outfile
      * @param datapoints
      */
-    private void computeScaler(Collection<QueryTweetPair> datapoints, Map<String, double[]> featureMeanStd) {
+    private void computeScaler(Collection<LabeledTweet> datapoints, Map<String, double[]> featureMeanStd, int[] train_qid_range) {
         Map<String, TDoubleList> featureValues = new HashMap<>();
-        for (QueryTweetPair datapoint : datapoints) {
-            accumulateFeatureValues(datapoint, featureValues, featureMeanStd);
+        for (LabeledTweet datapoint : datapoints) {
+            if (datapoint.qidint >= train_qid_range[0] && datapoint.qidint <= train_qid_range[1]) {
+                accumulateFeatureValues(datapoint, featureValues, featureMeanStd);
+            }
         }
         double mean, std;
         for (String feature : featureValues.keySet()) {
@@ -273,28 +309,58 @@ public class LibsvmTrain {
             featureAllVs.get(feature).add(value);
         }
     }
-    
-    public static void main(String[] args) throws ParseException, IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+
+    public static void main(String[] args) throws ParseException, IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException, org.apache.lucene.queryparser.classic.ParseException {
         Options options = new Options();
-        options.addOption("d", "datadirectory", true, "data directory");
-        options.addOption("i", "indexdirectory", true, "index directory");
         options.addOption("q", "queryfile", true, "query file");
+        options.addOption("j", "labelfile", true, "qrel");
+        options.addOption("z", "zipfiles", true, "zipfiles for qrel tweets");
+        options.addOption("i", "indexdirectory", true, "index directory");
+        options.addOption("m", "modelfile", true, "model file");
+        options.addOption("s", "scalefile", true, "scale file");
         options.addOption("l", "log4jxml", true, "log4j conf file");
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
-        String outputfile = null, datadirsBYCommas = null, indexdir = null, queryfile = null, log4jconf = null;
+        String qrelf = null, indexdir = null, log4jconf = null, queryfile = null, zipfiles = null, modelfile = null, scalefile = null;
         if (cmd.hasOption("i")) {
             indexdir = cmd.getOptionValue("i");
         }
-        if (cmd.hasOption("d")) {
-            datadirsBYCommas = cmd.getOptionValue("d");
+        if (cmd.hasOption("q")) {
+            queryfile = cmd.getOptionValue("q");
+        }
+        if (cmd.hasOption("j")) {
+            qrelf = cmd.getOptionValue("j");
+        }
+        if (cmd.hasOption("z")) {
+            zipfiles = cmd.getOptionValue("z");
+        }
+        if (cmd.hasOption("m")) {
+            modelfile = cmd.getOptionValue("m");
+        }
+        if (cmd.hasOption("s")) {
+            scalefile = cmd.getOptionValue("s");
         }
         if (cmd.hasOption("l")) {
             log4jconf = cmd.getOptionValue("l");
         }
+        /**
+         * for local test
+         */
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        indexdir = rootdir + "/index";
+        queryfile = rootdir + "/queries/fusion";
+        zipfiles = rootdir + "/tweetzip/tweet11-1.zip";
+        //+ "," + rootdir + "/tweetzip/tweet13-1.zip";
+        modelfile = rootdir + "/model_file/libsvm_model";
+        scalefile = rootdir + "/scale_file/scale_meanstd";
+        qrelf = rootdir + "/qrels/fusion";
+        log4jconf = "src/main/java/log4j.xml";
+
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
-        logger.info("offline process test");
+        logger.info("off-line training: train and test locally:  " + MYConstants.RUN_ID);
+        PointwiseTrain ptrain = new PointwiseTrain(indexdir, qrelf, queryfile, zipfiles.split(","));
+        ptrain.search(modelfile, 0, scalefile, new int[]{1, 50});
     }
-    
+
 }

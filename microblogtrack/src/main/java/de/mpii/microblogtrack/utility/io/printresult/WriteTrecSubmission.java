@@ -23,11 +23,11 @@ public class WriteTrecSubmission implements ResultPrinter {
     
     @Override
     public void println(Map<String, String> fieldContent) {
-        String queryId = fieldContent.get(MYConstants.QUERYID);
-        String tweetId = fieldContent.get(MYConstants.TWEETID);
+        String queryId = fieldContent.get(MYConstants.QUERY_ID);
+        String tweetId = fieldContent.get(MYConstants.TWEET_ID);
         String rank = fieldContent.get(MYConstants.RES_RANK);
         String methodId = fieldContent.get(MYConstants.RES_RUNINFO);
-        String tweetstr = fieldContent.get(MYConstants.TWEETSTR);
+        String tweetstr = fieldContent.get(MYConstants.TWEET_CONTENT);
         StringBuilder sb = new StringBuilder();
         sb.append(queryId).append(" ");
         sb.append("Q0").append(" ");

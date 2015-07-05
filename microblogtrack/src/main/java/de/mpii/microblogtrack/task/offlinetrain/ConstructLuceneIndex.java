@@ -40,22 +40,22 @@ import twitter4j.TwitterObjectFactory;
  * @author khui
  */
 public class ConstructLuceneIndex {
-    
+
     static Logger logger = Logger.getLogger(ConstructLuceneIndex.class.getName());
-    
+
     private void write2Index(Status status, IndexWriter writer) throws IOException {
         ExtractTweetText textextractor = new ExtractTweetText();
         HashMap<String, String> fieldnameStr = new HashMap<>();
         String tweetstr = textextractor.getTweet(status);
-        fieldnameStr.put(MYConstants.TWEETSTR, tweetstr);
+        fieldnameStr.put(MYConstants.TWEET_CONTENT, tweetstr);
         Document doc = new Document();
-        doc.add(new LongField(MYConstants.TWEETID, status.getId(), Field.Store.YES));
+        doc.add(new LongField(MYConstants.TWEET_ID, status.getId(), Field.Store.YES));
         for (String fieldname : fieldnameStr.keySet()) {
             doc.add(new TextField(fieldname, fieldnameStr.get(fieldname), Field.Store.YES));
         }
         writer.addDocument(doc);
     }
-    
+
     private void ReadInTweets(String datadir, IndexWriter writer) {
         ZipFile zipf;
         String jsonstr;
@@ -114,7 +114,7 @@ public class ConstructLuceneIndex {
             writer.close();
         }
     }
-    
+
     public static void main(String[] args) throws ParseException, IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         Options options = new Options();
         options.addOption("d", "datadirectory", true, "data directory");
@@ -132,11 +132,19 @@ public class ConstructLuceneIndex {
         if (cmd.hasOption("l")) {
             log4jconf = cmd.getOptionValue("l");
         }
+        /**
+         * for local test
+         */
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        indexdir = rootdir + "/index";
+        datadirsBYCommas = rootdir + "/tweetzip";
+        log4jconf = "src/main/java/log4j.xml";
+
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         logger.info("off-line training: construct index for off-line data");
         ConstructLuceneIndex trainer = new ConstructLuceneIndex();
         trainer.ConstructIndex(datadirsBYCommas.split(","), indexdir);
     }
-    
+
 }

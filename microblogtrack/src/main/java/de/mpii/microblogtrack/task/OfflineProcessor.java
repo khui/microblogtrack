@@ -4,6 +4,7 @@ import de.mpii.microblogtrack.component.DecisionMakerTimer;
 import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
+import de.mpii.microblogtrack.utility.LibsvmWrapper;
 import de.mpii.microblogtrack.utility.MYConstants;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
@@ -122,6 +123,7 @@ public class OfflineProcessor {
      * @param indexdir
      * @param queryfile
      * @param outfile
+     * @param scalefile
      * @throws java.io.IOException
      * @throws java.lang.InterruptedException
      * @throws java.util.concurrent.ExecutionException
@@ -131,11 +133,11 @@ public class OfflineProcessor {
      * @throws java.lang.IllegalAccessException
      * @throws twitter4j.TwitterException
      */
-    public void notificationTask(String datadir, String indexdir, String queryfile, String outfile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
+    public void notificationTask(String datadir, String indexdir, String queryfile, String outfile, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
         // communication between lucene search results and pointwise decision maker
         BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>(10000);
         Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
-        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer());
+        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer(), LibsvmWrapper.readScaler(scalefile));
         Executor excutor = Executors.newSingleThreadExecutor();
         excutor.execute(new ReadInTweets(lscorer, datadir));
         lscorer.multiQuerySearch(queryfile, querytweetpairs);
@@ -152,10 +154,11 @@ public class OfflineProcessor {
         options.addOption("d", "datadirectory", true, "data directory");
         options.addOption("i", "indexdirectory", true, "index directory");
         options.addOption("q", "queryfile", true, "query file");
+        options.addOption("s", "meanstdscalefile", true, "scale parameters for feature normalization");
         options.addOption("l", "log4jxml", true, "log4j conf file");
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
-        String outputfile = null, datadir = null, indexdir = null, queryfile = null, log4jconf = null;
+        String outputfile = null, datadir = null, indexdir = null, queryfile = null, scalefile = null, log4jconf = null;
         if (cmd.hasOption("o")) {
             outputfile = cmd.getOptionValue("o");
         }
@@ -171,12 +174,15 @@ public class OfflineProcessor {
         if (cmd.hasOption("q")) {
             queryfile = cmd.getOptionValue("q");
         }
+        if (cmd.hasOption("s")) {
+            scalefile = cmd.getOptionValue("s");
+        }
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         logger.info("offline process test");
         OfflineProcessor op = new OfflineProcessor();
         try {
-            op.notificationTask(datadir, indexdir, queryfile, outputfile);
+            op.notificationTask(datadir, indexdir, queryfile, outputfile, scalefile);
         } catch (IOException | InterruptedException | ExecutionException | ParseException | ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
             logger.error("entrance:", ex);
             logger.info("client is closed");

@@ -194,9 +194,35 @@ public class QueryTweetPair {
      * afterward the vector representations are rebuilt. The mean/std value for
      * each feature can either come from off-line computation
      *
-     * @param featureMeanStd
      */
     public void rescaleFeatures() {
+        if (featureMeanStd.isEmpty()) {
+            return;
+        }
+        double std, mean, r_value, n_value;
+        String[] features = featureValues.keySet().toArray(new String[0]);
+        for (String feature : features) {
+            if (featureMeanStd.containsKey(feature)) {
+                r_value = featureValues.get(feature);
+                mean = featureMeanStd.get(feature)[0];
+                std = featureMeanStd.get(feature)[1];
+                // we need to confirm the std is larger than zero
+                if (std > 0) {
+                    n_value = (r_value - mean) / std;
+                    featureValues.put(feature, n_value);
+                } else {
+                    logger.error("std is zero for " + feature);
+                }
+            }
+        }
+        if (vectorMahout != null) {
+            vectorMahout = null;
+            vectorizeMahout();
+        }
+    }
+
+    public void rescaleFeatures(Map<String, double[]> featureMeanStd) {
+        updateMeanStdScaler(featureMeanStd);
         if (featureMeanStd.isEmpty()) {
             return;
         }

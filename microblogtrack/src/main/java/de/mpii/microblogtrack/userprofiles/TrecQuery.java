@@ -47,7 +47,7 @@ public class TrecQuery {
         String querystr;
         Map<String, Query> res = new HashMap<>();
         for (QualityQuery qq : qqs) {
-            querystr = qq.getValue(MYConstants.QUERYSTR);
+            querystr = qq.getValue(MYConstants.QUERY_STR);
             res.put(qq.getQueryID(), qb.createBooleanQuery(field, querystr));
         }
         logger.info("In total, read in queries: " + res.size());
