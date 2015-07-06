@@ -3,6 +3,8 @@ package de.mpii.microblogtrack.utility;
 import de.mpii.microblogtrack.task.offlinetrain.PointwiseTrain.LabeledTweet;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.map.TLongObjectMap;
+import gnu.trove.map.TObjectDoubleMap;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -21,6 +23,7 @@ import libsvm.svm_node;
 import libsvm.svm_parameter;
 import libsvm.svm_print_interface;
 import libsvm.svm_problem;
+import org.apache.commons.math.stat.StatUtils;
 import org.apache.log4j.Logger;
 
 /**
@@ -167,6 +170,56 @@ public class LibsvmWrapper {
     }
 
     /**
+     * compute scaler for each feature, and output to the given file. This
+     * scaler will be used in both off-line training and online prediction to
+     * normalize the features
+     *
+     * @param qid_range
+     * @param searchresults
+     * @param featureMeanStd
+     */
+    public static void computeScaler(int[] qid_range, TLongObjectMap<LabeledTweet> searchresults, Map<String, double[]> featureMeanStd) {
+        Collection<LabeledTweet> datapoints = searchresults.valueCollection();
+        Map<String, TDoubleList> featureValues = new HashMap<>();
+        for (LabeledTweet datapoint : datapoints) {
+            if (datapoint.qidint >= qid_range[0] && datapoint.qidint <= qid_range[1]) {
+                accumulateFeatureValues(datapoint, featureValues);
+            }
+        }
+        double mean, std;
+        for (String feature : featureValues.keySet()) {
+            if (Configuration.FEATURES_NO_SCALE.contains(feature)) {
+                continue;
+            }
+            double[] featurevalues = featureValues.get(feature).toArray();
+            if (featurevalues.length > 0) {
+                mean = StatUtils.mean(featurevalues);
+                std = Math.sqrt(StatUtils.variance(featurevalues));
+                featureMeanStd.put(feature, new double[]{mean, std});
+            } else {
+                logger.error("feature length is zero for " + feature);
+            }
+        }
+    }
+
+    /**
+     * directly copied from ResultTrackerKMean.accumulateFeatureValues
+     *
+     * @param qtp
+     */
+    private static void accumulateFeatureValues(QueryTweetPair qtp, Map<String, TDoubleList> featureAllVs) {
+        TObjectDoubleMap<String> featureValues = qtp.getFeatures();
+        double value;
+        for (String feature : featureValues.keySet()) {
+            value = featureValues.get(feature);
+            if (!featureAllVs.containsKey(feature)) {
+                featureAllVs.put(feature, new TDoubleArrayList());
+            }
+            featureAllVs.get(feature).add(value);
+        }
+    }
+
+    /**
      * convert a list of data points to libsvm format input data, according to
      * the input query id range
      *
@@ -180,18 +233,45 @@ public class LibsvmWrapper {
         TDoubleList trainlabel = new TDoubleArrayList();
         List<svm_node[]> testdata = new ArrayList<>();
         TDoubleList testlabel = new TDoubleArrayList();
-
+        svm_node[] features;
         for (LabeledTweet lt : datapoints) {
             if (lt.qidint >= qidrange2Train[0] && lt.qidint <= qidrange2Train[1]) {
-                traindata.add(lt.vectorizeLibsvm());
-                trainlabel.add(lt.binaryjudge);
+                features = lt.vectorizeLibsvm();
+                if (features.length > 0) {
+                    traindata.add(lt.vectorizeLibsvm());
+                    trainlabel.add(lt.binaryjudge);
+                }
             } else if (lt.qidint >= qidrange2Test[0] && lt.qidint <= qidrange2Test[1]) {
-                testdata.add(lt.vectorizeLibsvm());
-                testlabel.add(lt.binaryjudge);
+                features = lt.vectorizeLibsvm();
+                if (features.length > 0) {
+                    testdata.add(lt.vectorizeLibsvm());
+                    testlabel.add(lt.binaryjudge);
+                }
             }
         }
         logger.info("training data points: " + traindata.size() + "  test data points: " + testdata.size());
         return new LocalTrainTest(traindata, trainlabel.toArray(), testdata, testlabel.toArray());
+    }
+
+    public void printFeatures(Collection<LabeledTweet> datapoints, int[] qidrange, String outfile) throws FileNotFoundException {
+        PrintStream ps = new PrintStream(outfile);
+        StringBuilder sb;
+        for (LabeledTweet lt : datapoints) {
+            if (lt.qidint >= qidrange[0] && lt.qidint <= qidrange[1]) {
+                svm_node[] featureV = lt.vectorizeLibsvm();
+                if (featureV.length > 0) {
+                    int label = lt.binaryjudge;
+                    sb = new StringBuilder();
+                    sb.append(label).append(" ");
+                    for (svm_node feature : featureV) {
+                        sb.append(feature.index).append(":").append(String.format("%.4f", feature.value)).append(" ");
+                    }
+                    ps.println(sb.toString());
+                }
+            }
+        }
+        ps.close();
+        logger.info("Print out finished for: " + qidrange[0] + " to " + qidrange[1]);
     }
 
     private svm_parameter setupParameters() {

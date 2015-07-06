@@ -13,7 +13,7 @@ import org.apache.lucene.benchmark.quality.trec.Trec1MQReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
-import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.Configuration;
 import org.apache.log4j.Logger;
 
 /**
@@ -47,7 +47,7 @@ public class TrecQuery {
         String querystr;
         Map<String, Query> res = new HashMap<>();
         for (QualityQuery qq : qqs) {
-            querystr = qq.getValue(MYConstants.QUERY_STR);
+            querystr = qq.getValue(Configuration.QUERY_STR);
             res.put(qq.getQueryID(), qb.createBooleanQuery(field, querystr));
         }
         logger.info("In total, read in queries: " + res.size());

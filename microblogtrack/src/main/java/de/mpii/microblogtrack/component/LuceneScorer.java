@@ -6,7 +6,7 @@ import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.map.TLongObjectMap;
-import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import de.mpii.microblogtrack.utility.ResultTrackerKMean;
 import gnu.trove.map.hash.TLongObjectHashMap;
@@ -49,6 +49,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import twitter4j.Status;
@@ -83,7 +84,7 @@ public class LuceneScorer {
 
     private final Map<String, ResultTweetsTracker> queryResultTrackers;
 
-    private static final String[] searchModels = MYConstants.FEATURES_SEMANTIC;
+    private static final String[] searchModels = Configuration.FEATURES_SEMANTIC;
 
     private final PointwiseScorer pwScorer;
 
@@ -94,7 +95,7 @@ public class LuceneScorer {
         this.analyzer = new EnglishAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
         iwc.setOpenMode(OpenMode.CREATE);
-        iwc.setRAMBufferSizeMB(MYConstants.LUCENE_MEM_SIZE);
+        iwc.setRAMBufferSizeMB(Configuration.LUCENE_MEM_SIZE);
         this.writer = new IndexWriter(dir, iwc);
         this.directoryReader = DirectoryReader.open(writer, false);
         this.textextractor = new ExtractTweetText();
@@ -107,9 +108,9 @@ public class LuceneScorer {
 
     public void multiQuerySearch(String queryfile, BlockingQueue<QueryTweetPair> tweetqueue) throws IOException, InterruptedException, ExecutionException, ParseException {
         TrecQuery tq = new TrecQuery();
-        Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, MYConstants.TWEET_CONTENT);
+        Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, Configuration.TWEET_CONTENT);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, tweetqueue), MYConstants.LUCENE_SEARCH_FREQUENCY, MYConstants.LUCENE_SEARCH_FREQUENCY, TimeUnit.SECONDS);
+        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, tweetqueue), Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.LUCENE_SEARCH_FREQUENCY, TimeUnit.SECONDS);
         // the task will be canceled after running certain days automatically
         scheduler.schedule(() -> {
             sercherHandler.cancel(true);
@@ -127,10 +128,10 @@ public class LuceneScorer {
         Collection<QueryTweetPair> qtpairs;
         directoryReader = DirectoryReader.openIfChanged(directoryReader);
         QueryBuilder qb = new QueryBuilder(this.analyzer);
-        Query termquery = qb.createBooleanQuery(MYConstants.TWEET_CONTENT, "RT");
-        Query phrasequery = qb.createPhraseQuery(MYConstants.TWEET_CONTENT, "thanks for");
+        Query termquery = qb.createBooleanQuery(Configuration.TWEET_CONTENT, "RT");
+        Query phrasequery = qb.createPhraseQuery(Configuration.TWEET_CONTENT, "thanks for");
         long[] minmax = indexTracker.getAcurateTweetCount();
-        rangeQuery = NumericRangeQuery.newLongRange(MYConstants.TWEET_COUNT, minmax[0], minmax[1], true, false);
+        rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
         BooleanQuery combinedQuery = new BooleanQuery();
         combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
         combinedQuery.add(termquery, BooleanClause.Occur.SHOULD);
@@ -140,7 +141,7 @@ public class LuceneScorer {
         logger.info("indexed documents: " + minmax[0] + " -------- " + (minmax[1] - 1));
         if (directoryReader != null) {
             qtpairs = null;
-            //mutliScorers(directoryReader, combinedQuery, MYConstants.QUERY_ID, 10);
+            //mutliScorers(directoryReader, combinedQuery, Configuration.QUERY_ID, 10);
             for (QueryTweetPair qtp : qtpairs) {
                 resultcount++;
                 logger.info(printQueryTweet(qtp, resultcount));
@@ -160,7 +161,7 @@ public class LuceneScorer {
         StringBuilder sb = new StringBuilder();
         sb.append("#").append(resultcount).append(" ");
         sb.append(qtp.queryid).append("--").append(qtp.tweetid).append(" ");
-        for (String name : MYConstants.FEATURES_SEMANTIC) {
+        for (String name : Configuration.FEATURES_SEMANTIC) {
             sb.append(name).append(":").append(df.format(qtp.getFeature(name))).append(",");
         }
         sb.append(" ").append(qtp.getStatus().getText());
@@ -178,8 +179,8 @@ public class LuceneScorer {
             if (tweetcountId > 0) {
                 HashMap<String, String> fieldContent = status2Fields(tweet);
                 Document doc = new Document();
-                doc.add(new LongField(MYConstants.TWEET_COUNT, tweetcountId, Field.Store.YES));
-                doc.add(new LongField(MYConstants.TWEET_ID, tweet.getId(), Field.Store.YES));
+                doc.add(new LongField(Configuration.TWEET_COUNT, tweetcountId, Field.Store.YES));
+                doc.add(new LongField(Configuration.TWEET_ID, tweet.getId(), Field.Store.YES));
                 for (String fieldname : fieldContent.keySet()) {
                     doc.add(new TextField(fieldname, fieldContent.get(fieldname), Field.Store.YES));
                 }
@@ -193,7 +194,7 @@ public class LuceneScorer {
     private HashMap<String, String> status2Fields(Status status) {
         HashMap<String, String> fieldnameStr = new HashMap<>();
         String str = textextractor.getTweet(status);
-        fieldnameStr.put(MYConstants.TWEET_CONTENT, str);
+        fieldnameStr.put(Configuration.TWEET_CONTENT, str);
         return fieldnameStr;
 
     }
@@ -202,7 +203,7 @@ public class LuceneScorer {
 
         private final Map<String, Query> queries;
 
-        private int threadnum = MYConstants.LUCENE_SEARCH_THREADNUM;
+        private int threadnum = Configuration.LUCENE_SEARCH_THREADNUM;
 
         private final BlockingQueue<QueryTweetPair> tweetqueue;
 
@@ -221,7 +222,7 @@ public class LuceneScorer {
             Executor excutor = Executors.newFixedThreadPool(threadnum);
             CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(excutor);
             long[] minmax = indexTracker.getAcurateTweetCount();
-            NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(MYConstants.TWEET_COUNT, minmax[0], minmax[1], true, false);
+            NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
             DirectoryReader reopenedReader = null;
             try {
                 reopenedReader = DirectoryReader.openIfChanged(directoryReader);
@@ -237,7 +238,7 @@ public class LuceneScorer {
                 directoryReader = reopenedReader;
                 //////////////////////////////////////
                 // for test
-                NumericRangeQuery boundaryTest = NumericRangeQuery.newLongRange(MYConstants.TWEET_COUNT, minmax[1] - 1, minmax[1] - 1, true, true);
+                NumericRangeQuery boundaryTest = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[1] - 1, minmax[1] - 1, true, true);
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(boundaryTest, BooleanClause.Occur.MUST);
                 try {
@@ -292,7 +293,7 @@ public class LuceneScorer {
 
     private class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
 
-        private int topN = MYConstants.LUCENE_TOP_N_SEARCH;
+        private int topN = Configuration.LUCENE_TOP_N_SEARCH;
 
         private final String queryid;
 
@@ -319,19 +320,22 @@ public class LuceneScorer {
             for (String name : searchModels) {
                 searcherInUse = new IndexSearcher(reader);
                 switch (name) {
-                    case MYConstants.FEATURE_TFIDF:
+                    case Configuration.FEATURE_S_TFIDF:
                         break;
-                    case MYConstants.FEATURE_BM25:
+                    case Configuration.FEATURE_S_BM25:
                         searcherInUse.setSimilarity(new BM25Similarity());
                         break;
-                    case MYConstants.FEATURE_LMD:
+                    case Configuration.FEATURE_S_LMD:
                         searcherInUse.setSimilarity(new LMDirichletSimilarity());
+                        break;
+                    case Configuration.FEATURE_S_LMJM:
+                        searcherInUse.setSimilarity(new LMJelinekMercerSimilarity(Configuration.FEATURE_S_LMJM_Lambda));
                         break;
                 }
                 hits = searcherInUse.search(query, topN).scoreDocs;
                 for (ScoreDoc hit : hits) {
                     tweet = searcherInUse.doc(hit.doc);
-                    tweetid = Long.parseLong(tweet.get(MYConstants.TWEET_ID));
+                    tweetid = Long.parseLong(tweet.get(Configuration.TWEET_ID));
                     if (!searchresults.containsKey(tweetid)) {
                         searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
                     }

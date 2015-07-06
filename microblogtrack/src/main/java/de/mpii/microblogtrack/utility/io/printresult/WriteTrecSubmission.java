@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.utility.io.printresult;
 
-import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.Configuration;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
 import java.util.Map;
@@ -23,11 +23,11 @@ public class WriteTrecSubmission implements ResultPrinter {
     
     @Override
     public void println(Map<String, String> fieldContent) {
-        String queryId = fieldContent.get(MYConstants.QUERY_ID);
-        String tweetId = fieldContent.get(MYConstants.TWEET_ID);
-        String rank = fieldContent.get(MYConstants.RES_RANK);
-        String methodId = fieldContent.get(MYConstants.RES_RUNINFO);
-        String tweetstr = fieldContent.get(MYConstants.TWEET_CONTENT);
+        String queryId = fieldContent.get(Configuration.QUERY_ID);
+        String tweetId = fieldContent.get(Configuration.TWEET_ID);
+        String rank = fieldContent.get(Configuration.RES_RANK);
+        String methodId = fieldContent.get(Configuration.RES_RUNINFO);
+        String tweetstr = fieldContent.get(Configuration.TWEET_CONTENT);
         StringBuilder sb = new StringBuilder();
         sb.append(queryId).append(" ");
         sb.append("Q0").append(" ");

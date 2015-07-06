@@ -64,19 +64,19 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
 
     public ResultTrackerKMean(String queryid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryid = queryid;
-        this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.TRACKER_DISTANT_MEASURE).newInstance();
+        this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
         // initialize an empty streamKMCentroids set
         this.streamKMCentroids = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
-        this.clusterer = new StreamingKMeans(streamKMCentroids, MYConstants.TRACKER_SKMEAN_CLUSTERNUM_UPBOUND);
+        this.clusterer = new StreamingKMeans(streamKMCentroids, Configuration.TRACKER_SKMEAN_CLUSTERNUM_UPBOUND);
         this.featureMeanStd = new ConcurrentHashMap<>();
     }
 
     public ResultTrackerKMean(String queryid, Map<String, double[]> featureMeanStd) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryid = queryid;
-        this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.TRACKER_DISTANT_MEASURE).newInstance();
+        this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
         // initialize an empty streamKMCentroids set
         this.streamKMCentroids = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
-        this.clusterer = new StreamingKMeans(streamKMCentroids, MYConstants.TRACKER_SKMEAN_CLUSTERNUM_UPBOUND);
+        this.clusterer = new StreamingKMeans(streamKMCentroids, Configuration.TRACKER_SKMEAN_CLUSTERNUM_UPBOUND);
         this.featureMeanStd = featureMeanStd;
     }
 
@@ -102,10 +102,10 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
             // add the tweet to the clustering, using the tweet count as the centroid key
             relativeScore = getCumulativeProb(absoluteScore);
 
-            qtp.setPredictScore(MYConstants.PRED_RELATIVESCORE, relativeScore);
+            qtp.setPredictScore(Configuration.PRED_RELATIVESCORE, relativeScore);
             datapoints2add.add(new Centroid(tweetcount, v.clone(), relativeScore));
             // update the average distance among centroids every x miniutes
-            if (tweetcount % (MYConstants.LUCENE_TOP_N_SEARCH * MYConstants.TRACKER_AVGDIST_UPDATE_MINUTES) == 0) {
+            if (tweetcount % (Configuration.LUCENE_TOP_N_SEARCH * Configuration.TRACKER_AVGDIST_UPDATE_MINUTES) == 0) {
                 try {
                     updateAvgCentroidDist(this.centroidnum);
                 } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
@@ -199,7 +199,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
      * @return
      */
     private List<? extends Vector> getCentroids(int centroidnum) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-        int maxNumIterations = MYConstants.TRACKER_BALLKMEAN_MAX_ITERATE;
+        int maxNumIterations = Configuration.TRACKER_BALLKMEAN_MAX_ITERATE;
         UpdatableSearcher emptySercher = new ProjectionSearch(distanceMeasure, numProjections, searchSize);
         List<Centroid> centroidList = new ArrayList<>();
         synchronized (clusterer) {
@@ -225,23 +225,23 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
 
     /**
      * return the cumulative probability for the top
-     * MYConstants.TRACKER_CUMULATIVE_TOPPERC tweets
+ Configuration.TRACKER_CUMULATIVE_TOPPERC tweets
      *
      * @param score
      * @return
      */
     public double getCumulativeProb(double score) {
         // default value
-        double prob = 1 - MYConstants.TRACKER_CUMULATIVE_TOPPERC;
+        double prob = 1 - Configuration.TRACKER_CUMULATIVE_TOPPERC;
         int cumulativeCount = 0;
 
         int currentTweetCount = this.tweetcount;
         // when we dont have enough tweets, we return the default directly as relative score
-        if (currentTweetCount < MYConstants.TRACKER_CUMULATIVE_GRANULARITY) {
+        if (currentTweetCount < Configuration.TRACKER_CUMULATIVE_GRANULARITY) {
             return prob;
         }
-        // we only compute the top MYConstants.TRACKER_CUMULATIVE_TOPPERC percent for efficiency reason 
-        double topNumber = currentTweetCount * MYConstants.TRACKER_CUMULATIVE_TOPPERC;
+        // we only compute the top Configuration.TRACKER_CUMULATIVE_TOPPERC percent for efficiency reason 
+        double topNumber = currentTweetCount * Configuration.TRACKER_CUMULATIVE_TOPPERC;
         TDoubleIntMap copyOfScoreTracker;
         synchronized (predictScoreTracker) {
             copyOfScoreTracker = new TDoubleIntHashMap(predictScoreTracker);
@@ -263,14 +263,14 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     }
 
     private double trackPredictScore(TObjectDoubleMap<String> predictScores) {
-        String[] scorenames = new String[]{MYConstants.PRED_ABSOLUTESCORE};
+        String[] scorenames = new String[]{Configuration.PRED_ABSOLUTESCORE};
         double[] scores = new double[scorenames.length];
         double absoluteScore = 0;
         for (int i = 0; i < scorenames.length; i++) {
             if (predictScores.containsKey(scorenames[i])) {
                 scores[i] = predictScores.get(scorenames[i]);
-                if (scorenames[i].equals(MYConstants.PRED_ABSOLUTESCORE)) {
-                    absoluteScore = (double) Math.round(scores[i] * MYConstants.TRACKER_CUMULATIVE_GRANULARITY) / MYConstants.TRACKER_CUMULATIVE_GRANULARITY;
+                if (scorenames[i].equals(Configuration.PRED_ABSOLUTESCORE)) {
+                    absoluteScore = (double) Math.round(scores[i] * Configuration.TRACKER_CUMULATIVE_GRANULARITY) / Configuration.TRACKER_CUMULATIVE_GRANULARITY;
                     synchronized (predictScoreTracker) {
                         predictScoreTracker.adjustOrPutValue(absoluteScore, 1, 1);
                     }

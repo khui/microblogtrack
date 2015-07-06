@@ -5,7 +5,7 @@ import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.utility.LibsvmWrapper;
-import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
@@ -145,7 +145,7 @@ public class OfflineProcessor {
         ResultPrinter resultprinter = new WriteTrecSubmission(outfile);
         DecisionMakerTimer decisionMakerTimer = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, querytweetpairs, resultprinter));
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        scheduler.scheduleAtFixedRate(decisionMakerTimer, MYConstants.DECISION_MAKER_START_DELAY, MYConstants.DECISION_MAKER_PERIOD, TimeUnit.MINUTES);
+        scheduler.scheduleAtFixedRate(decisionMakerTimer, Configuration.DECISION_MAKER_START_DELAY, Configuration.DECISION_MAKER_PERIOD, TimeUnit.MINUTES);
     }
 
     public static void main(String[] args) throws TwitterException, org.apache.commons.cli.ParseException, InterruptedException {

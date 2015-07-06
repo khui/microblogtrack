@@ -2,12 +2,14 @@ package de.mpii.microblogtrack.task.offlinetrain;
 
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.LibsvmWrapper;
-import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.map.TIntObjectMap;
 import gnu.trove.map.TLongObjectMap;
 import gnu.trove.map.TObjectDoubleMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.BufferedReader;
 import java.io.File;
@@ -43,6 +45,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.store.FSDirectory;
 import twitter4j.Status;
 import twitter4j.TwitterException;
@@ -91,7 +94,7 @@ public class PointwiseTrain {
         }
 
         public void setQueryContent(Query query) {
-            NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(MYConstants.TWEET_ID, tweetid, tweetid, true, true);
+            NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_ID, tweetid, tweetid, true, true);
             combinedQuery = new BooleanQuery();
             combinedQuery.add(query, BooleanClause.Occur.SHOULD);
             combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
@@ -116,13 +119,24 @@ public class PointwiseTrain {
 
     public void search(String model_file, int predict_probability, String scale_file, int[] train_qid_range) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
         // collect tweets for train/test, and compute scaler based on the training data
-        collectTweets(indexdir, qrelf, queryfile, qrelTweetZipFiles);
+        collectTweets(indexdir, qrelf, queryfile, qrelTweetZipFiles, train_qid_range);
         // construct min-max scaler
-        computeScaler(train_qid_range);
+        LibsvmWrapper.computeScaler(train_qid_range, searchresults, featureMeanStd);
         // output scaler
         LibsvmWrapper.writeScaler(scale_file, featureMeanStd);
         // scale the feature value and train/test by reading in the scale_file
-        scaleNTrain(scale_file, model_file, predict_probability, train_qid_range);
+        trainNTest(scale_file, model_file, predict_probability, train_qid_range);
+    }
+
+    public void printoutFeatures(String scale_file, String out_file, int[] qid_range) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
+        // collect tweets for train/test, and compute scaler based on the training data
+        collectTweets(indexdir, qrelf, queryfile, qrelTweetZipFiles, qid_range);
+        // construct min-max scaler
+        LibsvmWrapper.computeScaler(qid_range, searchresults, featureMeanStd);
+        // output scaler
+        LibsvmWrapper.writeScaler(scale_file, featureMeanStd);
+        // print out features
+        featurePrinter(scale_file, qid_range, out_file);
     }
 
     /**
@@ -144,11 +158,11 @@ public class PointwiseTrain {
      * @throws java.lang.InstantiationException
      * @throws java.lang.IllegalAccessException
      */
-    private void collectTweets(String indexdir, String qrelf, String queryfile, String[] zipfiles) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
+    private void collectTweets(String indexdir, String qrelf, String queryfile, String[] zipfiles, int[] qid_range) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
         readInStatus(zipfiles);
         int countNoStatus = 0;
         List<LabeledTweet> labeledtweets = readinQueryQrel(qrelf, queryfile);
-        String[] searchModels = MYConstants.FEATURES_SEMANTIC;
+        String[] searchModels = Configuration.FEATURES_SEMANTIC;
         DirectoryReader indexReader = DirectoryReader.open(FSDirectory.open(Paths.get(indexdir)));
         IndexSearcher searcherInUse;
         ScoreDoc[] hits;
@@ -159,16 +173,22 @@ public class PointwiseTrain {
                 countNoStatus++;
                 continue;
             }
+            if (ltweet.qidint > qid_range[1] || ltweet.qidint < qid_range[0]) {
+                continue;
+            }
             for (String name : searchModels) {
                 searcherInUse = new IndexSearcher(indexReader);
                 switch (name) {
-                    case MYConstants.FEATURE_TFIDF:
+                    case Configuration.FEATURE_S_TFIDF:
                         break;
-                    case MYConstants.FEATURE_BM25:
+                    case Configuration.FEATURE_S_BM25:
                         searcherInUse.setSimilarity(new BM25Similarity());
                         break;
-                    case MYConstants.FEATURE_LMD:
+                    case Configuration.FEATURE_S_LMD:
                         searcherInUse.setSimilarity(new LMDirichletSimilarity());
+                        break;
+                    case Configuration.FEATURE_S_LMJM:
+                        searcherInUse.setSimilarity(new LMJelinekMercerSimilarity(Configuration.FEATURE_S_LMJM_Lambda));
                         break;
                 }
                 hits = searcherInUse.search(ltweet.getQuery(), 1).scoreDocs;
@@ -182,16 +202,11 @@ public class PointwiseTrain {
                         searchresults.get(tweetid).updateFeatures(name, hit.score);
                     }
                 } else {
-                    logger.error("we get zero results for " + ltweet.queryid + " " + ltweet.tweetid);
+                    logger.error(ltweet.queryid + " " + ltweet.tweetid + " " + ltweet.judge + " no hit in lucene index");
                 }
             }
         }
         logger.info("Successfully load tweets for training in total: " + searchresults.size() + ", judged tweets without status: " + countNoStatus);
-//        int count = 0;
-//        for (QueryTweetPair qp : searchresults.valueCollection()) {
-//            System.out.println(LuceneScorer.printQueryTweet(qp, ++count));
-//        }
-//        System.exit(0);
     }
 
     /**
@@ -230,7 +245,7 @@ public class PointwiseTrain {
         logger.info("In total, we read in " + tweetidStatus.size() + " status.");
     }
 
-    private void scaleNTrain(String scale_file, String out_model_file, int predict_probability, int[] train_qid_range) throws IOException {
+    private void trainNTest(String scale_file, String out_model_file, int predict_probability, int[] train_qid_range) throws IOException {
         featureMeanStd = LibsvmWrapper.readScaler(scale_file);
         // rescale the features
         for (long tweet : searchresults.keys()) {
@@ -243,12 +258,23 @@ public class PointwiseTrain {
         svmwrapper.predict_libsvm(traintest, out_model_file, predict_probability);
     }
 
+    private void featurePrinter(String scale_file, int[] qid_range, String outfile) throws IOException {
+        featureMeanStd = LibsvmWrapper.readScaler(scale_file);
+        // rescale the features
+        for (long tweet : searchresults.keys()) {
+            searchresults.get(tweet).rescaleFeatures(featureMeanStd);
+        }
+        // split train/test data
+        LibsvmWrapper svmwrapper = new LibsvmWrapper();
+        svmwrapper.printFeatures(searchresults.valueCollection(), qid_range, outfile);
+    }
+
     /**
      * read in qrel, query file as <query, label, tweetid> triple, thereafter
      * generate queries for lucene
      */
     private List<LabeledTweet> readinQueryQrel(String qrelf, String queryfile) throws FileNotFoundException, IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
-        Analyzer analyzer = (Analyzer) Class.forName(MYConstants.LUCENE_TOKENIZER).newInstance();
+        Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_TOKENIZER).newInstance();
         List<LabeledTweet> labeledtweets = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(qrelf))))) {
             while (br.ready()) {
@@ -264,57 +290,11 @@ public class PointwiseTrain {
         logger.info("Finished: read qrel and generate labeled tweets " + labeledtweets.size());
         TrecQuery tq = new TrecQuery();
         Map<String, Query> queries = new HashMap<>();
-        queries.putAll(tq.readInQueries(queryfile, analyzer, MYConstants.TWEET_CONTENT));
+        queries.putAll(tq.readInQueries(queryfile, analyzer, Configuration.TWEET_CONTENT));
         for (LabeledTweet ltweet : labeledtweets) {
             ltweet.setQueryContent(queries.get(ltweet.queryid));
         }
         return labeledtweets;
-    }
-
-    /**
-     * compute scaler for each feature, and output to the given file. This
-     * scaler will be used in both off-line training and online prediction to
-     * normalize the features
-     *
-     * @param outfile
-     * @param datapoints
-     */
-    private void computeScaler(int[] train_qid_range) {
-        Collection<LabeledTweet> datapoints = searchresults.valueCollection();
-        Map<String, TDoubleList> featureValues = new HashMap<>();
-        for (LabeledTweet datapoint : datapoints) {
-            if (datapoint.qidint >= train_qid_range[0] && datapoint.qidint <= train_qid_range[1]) {
-                accumulateFeatureValues(datapoint, featureValues);
-            }
-        }
-        double mean, std;
-        for (String feature : featureValues.keySet()) {
-            double[] featurevalues = featureValues.get(feature).toArray();
-            if (featurevalues.length > 0) {
-                mean = StatUtils.mean(featurevalues);
-                std = Math.sqrt(StatUtils.variance(featurevalues));
-                featureMeanStd.put(feature, new double[]{mean, std});
-            } else {
-                logger.error("feature length is zero for " + feature);
-            }
-        }
-    }
-
-    /**
-     * directly copied from ResultTrackerKMean.accumulateFeatureValues
-     *
-     * @param qtp
-     */
-    private void accumulateFeatureValues(QueryTweetPair qtp, Map<String, TDoubleList> featureAllVs) {
-        TObjectDoubleMap<String> featureValues = qtp.getFeatures();
-        double value;
-        for (String feature : featureValues.keySet()) {
-            value = featureValues.get(feature);
-            if (!featureAllVs.containsKey(feature)) {
-                featureAllVs.put(feature, new TDoubleArrayList());
-            }
-            featureAllVs.get(feature).add(value);
-        }
     }
 
     public static void main(String[] args) throws ParseException, IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException, org.apache.lucene.queryparser.classic.ParseException {
@@ -323,14 +303,18 @@ public class PointwiseTrain {
         options.addOption("j", "labelfile", true, "qrel");
         options.addOption("z", "zipfiles", true, "zipfiles for qrel tweets");
         options.addOption("i", "indexdirectory", true, "index directory");
+        options.addOption("o", "outputdirectory", true, "output directory");
         options.addOption("m", "modelfile", true, "model file");
         options.addOption("s", "scalefile", true, "scale file");
         options.addOption("l", "log4jxml", true, "log4j conf file");
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
-        String qrelf = null, indexdir = null, log4jconf = null, queryfile = null, zipfiles = null, modelfile = null, scalefile = null;
+        String qrelf = null, indexdir = null, outputdir = null, log4jconf = null, queryfile = null, zipfiles = null, modelfile = null, scalefile = null;
         if (cmd.hasOption("i")) {
             indexdir = cmd.getOptionValue("i");
+        }
+        if (cmd.hasOption("o")) {
+            outputdir = cmd.getOptionValue("o");
         }
         if (cmd.hasOption("q")) {
             queryfile = cmd.getOptionValue("q");
@@ -353,20 +337,28 @@ public class PointwiseTrain {
         /**
          * for local test
          */
-        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        indexdir = rootdir + "/index";
-        queryfile = rootdir + "/queries/fusion";
-        zipfiles = rootdir + "/tweetzip/tweet11-1.zip" + "," + rootdir + "/tweetzip/tweet13-1.zip";
-        modelfile = rootdir + "/model_file/libsvm_model";
-        scalefile = rootdir + "/scale_file/scale_meanstd";
-        qrelf = rootdir + "/qrels/fusion";
-        log4jconf = "src/main/java/log4j.xml";
+//        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+//        indexdir = rootdir + "/index";
+//        queryfile = rootdir + "/queries/fusion";
+//        zipfiles = rootdir + "/tweetzip/tweet11-1.zip" + "," + rootdir + "/tweetzip/tweet13-1.zip";
+//        modelfile = rootdir + "/model_file/libsvm_model";
+//        scalefile = rootdir + "/scale_file/scale_meanstd";
+//        qrelf = rootdir + "/qrels/fusion";
+//        log4jconf = "src/main/java/log4j.xml";
 
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
-        logger.info("off-line training: train and test locally:  " + MYConstants.RUN_ID);
+        logger.info("off-line training: train and test locally:  " + Configuration.RUN_ID);
         PointwiseTrain ptrain = new PointwiseTrain(indexdir, qrelf, queryfile, zipfiles.split(","));
-        ptrain.search(modelfile, 0, scalefile, new int[]{111, 170});
+        //ptrain.search(modelfile, 0, scalefile, new int[]{1, 50});
+        TIntObjectMap<int[]> yearQidrange = new TIntObjectHashMap<>();
+        yearQidrange.put(11, new int[]{1, 50});
+        yearQidrange.put(12, new int[]{51, 110});
+        yearQidrange.put(13, new int[]{111, 170});
+        yearQidrange.put(14, new int[]{171, 225});
+        for (int year : yearQidrange.keys()) {
+            ptrain.printoutFeatures(scalefile, outputdir + "/" + year + ".svmfeature", yearQidrange.get(year));
+            logger.info("Finished: " + year);
+        }
     }
-
 }

@@ -5,13 +5,16 @@ import gnu.trove.map.hash.TObjectDoubleHashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import libsvm.svm_node;
 import org.apache.log4j.Logger;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
 import twitter4j.Status;
+import twitter4j.User;
 
 /**
  *
@@ -97,16 +100,16 @@ public class QueryTweetPair {
 
     public double getAbsScore() {
         double score = -1;
-        if (predictorResults.containsKey(MYConstants.PRED_ABSOLUTESCORE)) {
-            score = predictorResults.get(MYConstants.PRED_ABSOLUTESCORE);
+        if (predictorResults.containsKey(Configuration.PRED_ABSOLUTESCORE)) {
+            score = predictorResults.get(Configuration.PRED_ABSOLUTESCORE);
         }
         return score;
     }
 
     public double getRelScore() {
         double score = -1;
-        if (predictorResults.containsKey(MYConstants.PRED_RELATIVESCORE)) {
-            score = predictorResults.get(MYConstants.PRED_RELATIVESCORE);
+        if (predictorResults.containsKey(Configuration.PRED_RELATIVESCORE)) {
+            score = predictorResults.get(Configuration.PRED_RELATIVESCORE);
         }
         return score;
     }
@@ -181,7 +184,7 @@ public class QueryTweetPair {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(queryid).append(":").append(tweetid).append(" ");
-//        for (String featurename : MYConstants.FEATURES_SEMANTIC) {
+//        for (String featurename : Configuration.FEATURES_SEMANTIC) {
 //            sb.append(featurename).append(":").append(featureValues.get(featurename)).append(" ");
 //        }
         sb.append(getAbsScore()).append(" ");
@@ -202,6 +205,9 @@ public class QueryTweetPair {
         double std, mean, r_value, n_value;
         String[] features = featureValues.keySet().toArray(new String[0]);
         for (String feature : features) {
+            if (Configuration.FEATURES_NO_SCALE.contains(feature)) {
+                continue;
+            }
             if (featureMeanStd.containsKey(feature)) {
                 r_value = featureValues.get(feature);
                 mean = featureMeanStd.get(feature)[0];
@@ -244,7 +250,7 @@ public class QueryTweetPair {
      * semantic matching features
      */
     private void semanticFeatures() {
-        for (String featurename : MYConstants.FEATURES_SEMANTIC) {
+        for (String featurename : Configuration.FEATURES_SEMANTIC) {
             if (!featureValues.containsKey(featurename)) {
                 featureValues.put(featurename, 0);
             }
@@ -252,7 +258,7 @@ public class QueryTweetPair {
     }
 
     private void expansionFeatures() {
-        for (String featurename : MYConstants.FEATURES_EXPANSION) {
+        for (String featurename : Configuration.FEATURES_EXPANSION) {
             if (!featureValues.containsKey(featurename)) {
                 featureValues.put(featurename, 0);
             }
@@ -264,7 +270,32 @@ public class QueryTweetPair {
      */
     private void tweetFeatures() {
         if (status != null) {
-
+            double featureV = -1;
+            for (String feature : Configuration.FEATURES_TWEETQUALITY) {
+                switch (feature) {
+                    case Configuration.FEATURE_T_FAVORITENUM:
+                        featureV = status.getFavoriteCount();
+                        break;
+                    case Configuration.FEATURE_T_HASHTAGNUM:
+                        featureV = status.getHashtagEntities().length;
+                        break;
+                    case Configuration.FEATURE_T_MEDIANUM:
+                        featureV = status.getMediaEntities().length;
+                        break;
+                    case Configuration.FEATURE_T_RETWEETNUM:
+                        featureV = status.getRetweetCount();
+                        break;
+                    case Configuration.FEATURE_T_URLNUM:
+                        featureV = status.getURLEntities().length;
+                        break;
+                    case Configuration.FEATURE_T_USERMENTIONNUM:
+                        featureV = status.getUserMentionEntities().length;
+                        break;
+                }
+                if (featureV > 0) {
+                    featureValues.put(feature, featureV);
+                }
+            }
         }
     }
 
@@ -273,7 +304,42 @@ public class QueryTweetPair {
      */
     private void userFeatures() {
         if (status != null) {
-
+            User user = status.getUser();
+            double featureV = -1;
+            for (String feature : Configuration.FEATURES_USERAUTHORITY) {
+                switch (feature) {
+                    case Configuration.FEATURE_U_DESC_LEN:
+                        featureV = user.getDescription().length();
+                        break;
+                    case Configuration.FEATURE_U_DESC_URLNUM:
+                        featureV = user.getDescriptionURLEntities().length;
+                        break;
+                    case Configuration.FEATURE_U_FAVORITENUM:
+                        featureV = user.getFavouritesCount();
+                        break;
+                    case Configuration.FEATURE_U_FOLLOWERNUM:
+                        featureV = user.getFollowersCount();
+                        break;
+                    case Configuration.FEATURE_U_FRIENDNUM:
+                        featureV = user.getFriendsCount();
+                        break;
+                    case Configuration.FEATURE_U_ISCELEBRITY:
+                        featureV = (user.isVerified() ? 1 : 0);
+                        break;
+                    case Configuration.FEATURE_U_ISDEFAULT_ICON:
+                        featureV = (user.isDefaultProfileImage() ? 0 : 1);
+                        break;
+                    case Configuration.FEATURE_U_LISTNUM:
+                        featureV = (user.getListedCount() > 0 ? user.getListedCount() : 0);
+                        break;
+                    case Configuration.FEATURE_U_STATUSNUM:
+                        featureV = user.getStatusesCount();
+                        break;
+                }
+                if (featureV > 0) {
+                    featureValues.put(feature, featureV);
+                }
+            }
         }
     }
 

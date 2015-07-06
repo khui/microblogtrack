@@ -1,7 +1,7 @@
 package de.mpii.microblogtrack.task.offlinetrain;
 
 import de.mpii.microblogtrack.component.ExtractTweetText;
-import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.Configuration;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -47,9 +47,9 @@ public class ConstructLuceneIndex {
         ExtractTweetText textextractor = new ExtractTweetText();
         HashMap<String, String> fieldnameStr = new HashMap<>();
         String tweetstr = textextractor.getTweet(status);
-        fieldnameStr.put(MYConstants.TWEET_CONTENT, tweetstr);
+        fieldnameStr.put(Configuration.TWEET_CONTENT, tweetstr);
         Document doc = new Document();
-        doc.add(new LongField(MYConstants.TWEET_ID, status.getId(), Field.Store.YES));
+        doc.add(new LongField(Configuration.TWEET_ID, status.getId(), Field.Store.YES));
         for (String fieldname : fieldnameStr.keySet()) {
             doc.add(new TextField(fieldname, fieldnameStr.get(fieldname), Field.Store.YES));
         }
@@ -102,10 +102,10 @@ public class ConstructLuceneIndex {
      */
     public void ConstructIndex(String[] datadirs, String indexdir) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
-        Analyzer analyzer = (Analyzer) Class.forName(MYConstants.LUCENE_TOKENIZER).newInstance();
+        Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_TOKENIZER).newInstance();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-        iwc.setRAMBufferSizeMB(MYConstants.LUCENE_MEM_SIZE);
+        iwc.setRAMBufferSizeMB(Configuration.LUCENE_MEM_SIZE);
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (String datadir : datadirs) {
                 ReadInTweets(datadir, writer);

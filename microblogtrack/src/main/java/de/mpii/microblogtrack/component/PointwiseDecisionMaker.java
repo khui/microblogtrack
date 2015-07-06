@@ -1,7 +1,7 @@
 package de.mpii.microblogtrack.component;
 
 import de.mpii.microblogtrack.utility.CandidateTweet;
-import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.ResultTweetsTracker;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
@@ -55,7 +55,7 @@ public class PointwiseDecisionMaker implements Runnable {
     private final static Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();
 
     public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
-        this.distanceMeasure = (DistanceMeasure) Class.forName(MYConstants.TRACKER_DISTANT_MEASURE).newInstance();
+        this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
         this.queryResultTrackers = tracker;
         this.tweetqueue = tweetqueue;
         for (String qid : tracker.keySet()) {
@@ -95,11 +95,11 @@ public class PointwiseDecisionMaker implements Runnable {
                                 queryNumberCount.adjustOrPutValue(queryid, 1, 1);
                                 // write down the tweets that are notified
                                 resultline = new HashMap<>();
-                                resultline.put(MYConstants.QUERY_ID, queryid);
-                                resultline.put(MYConstants.TWEET_ID, String.valueOf(tweet.tweetid));
-                                resultline.put(MYConstants.RES_RANK, String.valueOf(queryNumberCount.get(queryid)));
-                                resultline.put(MYConstants.RES_RUNINFO, MYConstants.RUN_ID);
-                                resultline.put(MYConstants.TWEET_CONTENT, tweet.getStatus().getText());
+                                resultline.put(Configuration.QUERY_ID, queryid);
+                                resultline.put(Configuration.TWEET_ID, String.valueOf(tweet.tweetid));
+                                resultline.put(Configuration.RES_RANK, String.valueOf(queryNumberCount.get(queryid)));
+                                resultline.put(Configuration.RES_RUNINFO, Configuration.RUN_ID);
+                                resultline.put(Configuration.TWEET_CONTENT, tweet.getStatus().getText());
                                 resultprinter.println(resultline);
                                 //logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
                             } else {
@@ -140,7 +140,7 @@ public class PointwiseDecisionMaker implements Runnable {
     private boolean scoreFilter(QueryTweetPair tweet) {
         boolean isRetain = false;
         double relativeScore = tweet.getRelScore();
-        if (relativeScore > MYConstants.DECISION_MAKER_SCORE_FILTER) {
+        if (relativeScore > Configuration.DECISION_MAKER_SCORE_FILTER) {
             isRetain = true;
         }
         return isRetain;
@@ -160,7 +160,7 @@ public class PointwiseDecisionMaker implements Runnable {
             for (CandidateTweet ct : tweets) {
                 sentVector = ct.getFeature();
                 relativeDist = distanceMeasure.distance(sentVector, features) / avgCentroidDistance;
-                if (relativeDist < MYConstants.DECISION_MAKER_DIST_FILTER) {
+                if (relativeDist < Configuration.DECISION_MAKER_DIST_FILTER) {
                     return null;
                 }
                 distances.add(relativeDist);
@@ -209,7 +209,7 @@ public class PointwiseDecisionMaker implements Runnable {
             // tweet that have nearly highest relevance score, meanwhile we store this
             // relevance as threshold
             if (!queryidInitThresholds.containsKey(queryId)) {
-                queryidInitThresholds.put(queryId, MYConstants.DECISION_MAKER_FIRSTPOPUP_SCORETHRESD);
+                queryidInitThresholds.put(queryId, Configuration.DECISION_MAKER_FIRSTPOPUP_SCORETHRESD);
             }
             double currentThread = queryidInitThresholds.get(queryId);
             if (relativeScore > currentThread) {
@@ -217,7 +217,7 @@ public class PointwiseDecisionMaker implements Runnable {
                 resultTweet.isSelected = true;
                 adjustThreshold(queryId, avggain);
             } else {
-                currentThread *= (1 - MYConstants.DECISION_MAKER_THRESHOLD_ALPHA);
+                currentThread *= (1 - Configuration.DECISION_MAKER_THRESHOLD_ALPHA);
                 queryidInitThresholds.put(queryId, currentThread);
             }
         }
@@ -250,10 +250,10 @@ public class PointwiseDecisionMaker implements Runnable {
             threshold = queryidThresholds.get(queryId);
             if (currentGain >= threshold) {
                 result = true;
-                threshold *= (1 + MYConstants.DECISION_MAKER_THRESHOLD_ALPHA);
+                threshold *= (1 + Configuration.DECISION_MAKER_THRESHOLD_ALPHA);
             } else {
                 result = false;
-                threshold *= (1 - MYConstants.DECISION_MAKER_THRESHOLD_ALPHA);
+                threshold *= (1 - Configuration.DECISION_MAKER_THRESHOLD_ALPHA);
             }
         } else {
             result = true;

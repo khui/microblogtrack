@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.component.predictor;
 
-import de.mpii.microblogtrack.utility.MYConstants;
+import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import org.apache.log4j.Logger;
 
@@ -15,12 +15,12 @@ public class PointwiseScorer {
     static Logger logger = Logger.getLogger(PointwiseScorer.class);
 
     public double predictor(QueryTweetPair qtr) {
-        String[] retrievalmodels = MYConstants.FEATURES_SEMANTIC;
+        String[] retrievalmodels = Configuration.FEATURES_SEMANTIC;
         double scoresum = 0;
         for (String model : retrievalmodels) {
             scoresum += qtr.getFeature(model);
         }
-        qtr.setPredictScore(MYConstants.PRED_ABSOLUTESCORE, scoresum);
+        qtr.setPredictScore(Configuration.PRED_ABSOLUTESCORE, scoresum);
         return scoresum;
     }
 
