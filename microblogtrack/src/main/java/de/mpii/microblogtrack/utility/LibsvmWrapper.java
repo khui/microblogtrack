@@ -45,6 +45,8 @@ public class LibsvmWrapper {
         // each item corrsponds to each test data point in testdata
         private final double[] test_pred_labels;
 
+        private int TP, TN, FP, FN;
+
         public LocalTrainTest(List<svm_node[]> traindata, double[] trainlabel, List<svm_node[]> testdata, double[] testlabel) {
             this.train_prob = new svm_problem();
             this.train_prob.l = trainlabel.length;
@@ -59,6 +61,64 @@ public class LibsvmWrapper {
         public void addPredictResult(int index, double[] pred_prob) {
             this.test_pred_prob[index] = pred_prob;
             this.test_pred_labels[index] = pred_prob[0];
+        }
+
+        // use the inverse of the label occurences as the class weight
+        public double[] classweight() {
+            int positivenum = 0;
+            double ppercent, npercent;
+            double total = test_true_labels.length;
+            for (double label : test_true_labels) {
+                if (label > 0) {
+                    positivenum++;
+                }
+            }
+            int negativenum = test_true_labels.length - positivenum;
+            ppercent = positivenum / total;
+            npercent = negativenum / total;
+            return new double[]{1d / ppercent, 1d / npercent};
+        }
+
+        public double getPrecision() {
+            return this.TP / (double) (this.TP + this.FP);
+        }
+
+        public double getRecall() {
+            return this.TP / (double) (this.TP + this.FN);
+        }
+
+        public double getAccuracy() {
+            return (this.TP + this.TN) / (double) this.test_true_labels.length;
+        }
+
+        public double getFScore(double beta) {
+            return ((beta * beta + 1) * this.getPrecision() * this.getRecall())
+                    / (beta * beta * this.getPrecision() + this.getRecall());
+        }
+
+        public double getF1() {
+            return this.getFScore(1);
+        }
+
+        public void computeTPTNFPFN() {
+            for (int i = 0; i < test_true_labels.length; i++) {
+                if (test_pred_labels[i] == 1 && test_true_labels[i] == 1) {
+                    TP++;
+                } else if (test_pred_labels[i] == -1 && test_true_labels[i] == -1) {
+                    TN++;
+                } else if (test_pred_labels[i] == 1 && test_true_labels[i] == -1) {
+                    FP++;
+                } else if (test_pred_labels[i] == -1 && test_true_labels[i] == 1) {
+                    FN++;
+                }
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("Total: ").append(test_true_labels.length);
+            sb.append(", TP: ").append(TP);
+            sb.append(", TN: ").append(TN);
+            sb.append(", FP: ").append(FP);
+            sb.append(", FN: ").append(FN);
+            logger.info(sb.toString());
         }
 
     }
@@ -188,6 +248,7 @@ public class LibsvmWrapper {
         svm_parameter param = setupParameters();
         param.C = bestC;
         param.probability = predict_probability;
+        param.weight = traintestdata.classweight();
         String error_msg = svm.svm_check_parameter(traindatapoints, param);
         if (error_msg != null) {
             System.err.print("ERROR: " + error_msg + "\n");
@@ -195,6 +256,7 @@ public class LibsvmWrapper {
         }
         svm_model model = svm.svm_train(traindatapoints, param);
         svm.svm_save_model(model_file, model);
+        logger.info("training finished.");
     }
 
     /**
@@ -207,8 +269,7 @@ public class LibsvmWrapper {
      * @throws java.io.IOException
      */
     public void predict_libsvm(LocalTrainTest traintestdata, String model_file, int predict_probability) throws IOException {
-        int correct = 0;
-        int total = 0;
+        logger.info("start test.");
         double[] prob_estimates = null;
         double[] pred_prob;
 
@@ -250,12 +311,8 @@ public class LibsvmWrapper {
                 pred_prob[0] = v;
             }
             traintestdata.addPredictResult(i, pred_prob);
-            if (v == true_labels[i]) {
-                ++correct;
-            }
-            ++total;
         }
-        logger.info("Accuracy = " + (double) correct / total * 100
-                + "% (" + correct + "/" + total + ") (classification)\n");
+        traintestdata.computeTPTNFPFN();
+        logger.info("F1 = " + traintestdata.getF1() + "  Accuracy = " + traintestdata.getAccuracy());
     }
 }

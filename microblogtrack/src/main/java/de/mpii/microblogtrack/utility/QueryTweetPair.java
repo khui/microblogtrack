@@ -165,7 +165,7 @@ public class QueryTweetPair {
 
         List<svm_node> nodes = new ArrayList<>();
         for (int i = 1; i <= featureNames.length; i++) {
-            double fvalue = featureValues.get(featureNames[i]);
+            double fvalue = featureValues.get(featureNames[i - 1]);
             if (fvalue > 0) {
                 nodes.add(new svm_node());
                 nodes.get(nodes.size() - 1).index = i;
@@ -219,6 +219,10 @@ public class QueryTweetPair {
             vectorMahout = null;
             vectorizeMahout();
         }
+        if (vectorLibsvm != null) {
+            vectorLibsvm = null;
+            vectorizeLibsvm();
+        }
     }
 
     public void rescaleFeatures(Map<String, double[]> featureMeanStd) {
@@ -226,26 +230,7 @@ public class QueryTweetPair {
         if (featureMeanStd.isEmpty()) {
             return;
         }
-        double std, mean, r_value, n_value;
-        String[] features = featureValues.keySet().toArray(new String[0]);
-        for (String feature : features) {
-            if (featureMeanStd.containsKey(feature)) {
-                r_value = featureValues.get(feature);
-                mean = featureMeanStd.get(feature)[0];
-                std = featureMeanStd.get(feature)[1];
-                // we need to confirm the std is larger than zero
-                if (std > 0) {
-                    n_value = (r_value - mean) / std;
-                    featureValues.put(feature, n_value);
-                } else {
-                    logger.error("std is zero for " + feature);
-                }
-            }
-        }
-        if (vectorMahout != null) {
-            vectorMahout = null;
-            vectorizeMahout();
-        }
+        rescaleFeatures();
     }
 
     protected final void updateFeatures() {

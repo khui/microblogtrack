@@ -160,7 +160,7 @@ public class LuceneScorer {
         StringBuilder sb = new StringBuilder();
         sb.append("#").append(resultcount).append(" ");
         sb.append(qtp.queryid).append("--").append(qtp.tweetid).append(" ");
-        for (String name : searchModels) {
+        for (String name : MYConstants.FEATURES_SEMANTIC) {
             sb.append(name).append(":").append(df.format(qtp.getFeature(name))).append(",");
         }
         sb.append(" ").append(qtp.getStatus().getText());
