@@ -7,8 +7,6 @@ import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.map.TLongObjectMap;
 import de.mpii.microblogtrack.utility.Configuration;
-import de.mpii.microblogtrack.utility.ResultTweetsTracker;
-import de.mpii.microblogtrack.utility.ResultTrackerKMean;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.IOException;
 import java.nio.file.Paths;

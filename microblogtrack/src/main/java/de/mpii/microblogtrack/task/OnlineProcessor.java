@@ -14,7 +14,7 @@ import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.utility.LibsvmWrapper;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
-import de.mpii.microblogtrack.utility.ResultTweetsTracker;
+import de.mpii.microblogtrack.component.ResultTweetsTracker;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
 import de.mpii.microblogtrack.utility.io.printresult.WriteTrecSubmission;
 import gnu.trove.map.hash.TLongObjectHashMap;

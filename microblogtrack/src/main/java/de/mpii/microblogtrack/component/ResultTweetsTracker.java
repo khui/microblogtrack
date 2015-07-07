@@ -1,5 +1,6 @@
-package de.mpii.microblogtrack.utility;
+package de.mpii.microblogtrack.component;
 
+import de.mpii.microblogtrack.utility.QueryTweetPair;
 import java.util.Collection;
 import java.util.Map;
 

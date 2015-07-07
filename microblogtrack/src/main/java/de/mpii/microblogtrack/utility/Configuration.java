@@ -53,21 +53,37 @@ public class Configuration {
     // number of threads we use to conduct multiquery search
     public final static int LUCENE_SEARCH_THREADNUM = 10;
     /**
-     * decision maker parameters
+     * pointwise decision maker parameters for mobile notification task
      */
     // adjust the threshold for pop-up tweets dynamically, governing the adjusting step
-    public final static double DECISION_MAKER_THRESHOLD_ALPHA = 0.005;
+    public final static double PW_DM_THRESHOLD_ALPHA = 0.005;
     // filter out the tweet with less than threshold relative score
-    public final static double DECISION_MAKER_SCORE_FILTER = 0.95;
+    public final static double PW_DM_SCORE_FILTER = 0.95;
     // if it is the first tweet to pop-up, we require a relative high threshold
-    public final static double DECISION_MAKER_FIRSTPOPUP_SCORETHRESD = 0.999;
+    public final static double PW_DM_FIRSTPOPUP_SCORETHRESD = 0.999;
     // filter out the tweets that are too similar with at least one of the pop-up tweet, the number is relative to 
     // average distance among centroids
-    public final static double DECISION_MAKER_DIST_FILTER = 0.2;
+    public final static double PW_DM_DIST_FILTER = 0.2;
     // start delay for the decision maker in minutes 
-    public final static int DECISION_MAKER_START_DELAY = 15;
+    public final static int PW_DM_START_DELAY = 15;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public final static int DECISION_MAKER_PERIOD = 30;
+    public final static int PW_DM_PERIOD = 30;
+    /**
+     * listwise decision maker for e-mail digest task
+     */
+    // start delay for the listwise decision maker
+    public final static int LW_DM_START_DELAY = 15;
+    // the length of the priority queue: tracking at most n tweets with highest pointwise prediction score
+    public final static int LW_DM_QUEUE_LEN = 2000;
+
+    public final static int LW_DM_SELECTNUM = 100;
+
+    /**
+     * parameter for maxrep
+     */
+    public final static double MAXREP_SIMI_THRESHOLD = 0.8;
+
+    public final static String MAXREP_DISTANT_MEASURE = "org.apache.mahout.common.distance.CosineDistanceMeasure";
     /**
      * tweet tracker parameters: track both relative score and tweet clustering
      * centroids
@@ -88,7 +104,7 @@ public class Configuration {
     public final static double TRACKER_CUMULATIVE_TOPPERC = 0.5;
     // how accurate we compute the cumulative probability in converting the absolute predicting score
     // by governing how many digits we want to retain, i.e., the number of bins we have
-    public final static int TRACKER_CUMULATIVE_GRANULARITY = DECISION_MAKER_START_DELAY * LUCENE_TOP_N_SEARCH;
+    public final static int TRACKER_CUMULATIVE_GRANULARITY = PW_DM_START_DELAY * LUCENE_TOP_N_SEARCH;
     /**
      * pointwise predictor outcome: confidence, score, etc..
      */

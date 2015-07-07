@@ -3,8 +3,10 @@ package de.mpii.microblogtrack.utility;
 import de.mpii.microblogtrack.task.offlinetrain.PointwiseTrain.LabeledTweet;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.map.TIntDoubleMap;
 import gnu.trove.map.TLongObjectMap;
 import gnu.trove.map.TObjectDoubleMap;
+import gnu.trove.map.hash.TIntDoubleHashMap;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -67,7 +69,7 @@ public class LibsvmWrapper {
         }
 
         // use the inverse of the label occurences as the class weight
-        public double[] classweight() {
+        public TIntDoubleMap classweight() {
             int positivenum = 0;
             double ppercent, npercent;
             double total = test_true_labels.length;
@@ -79,7 +81,10 @@ public class LibsvmWrapper {
             int negativenum = test_true_labels.length - positivenum;
             ppercent = positivenum / total;
             npercent = negativenum / total;
-            return new double[]{1d / ppercent, 1d / npercent};
+            TIntDoubleMap labelWeight = new TIntDoubleHashMap();
+            labelWeight.put(1, 1d / ppercent);
+            labelWeight.put(-1, 1d / npercent);
+            return labelWeight;
         }
 
         public double getPrecision() {
@@ -328,7 +333,9 @@ public class LibsvmWrapper {
         svm_parameter param = setupParameters();
         param.C = bestC;
         param.probability = predict_probability;
-        param.weight = traintestdata.classweight();
+        TIntDoubleMap label_weight = traintestdata.classweight();
+        param.weight_label = label_weight.keys();
+        param.weight = new double[]{label_weight.get(param.weight_label[0]), label_weight.get(param.weight_label[1])};
         String error_msg = svm.svm_check_parameter(traindatapoints, param);
         if (error_msg != null) {
             System.err.print("ERROR: " + error_msg + "\n");

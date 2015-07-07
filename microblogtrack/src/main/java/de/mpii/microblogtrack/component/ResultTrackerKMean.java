@@ -1,5 +1,7 @@
-package de.mpii.microblogtrack.utility;
+package de.mpii.microblogtrack.component;
 
+import de.mpii.microblogtrack.utility.Configuration;
+import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.TCollections;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
