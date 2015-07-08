@@ -4,8 +4,6 @@ import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
-import gnu.trove.list.TDoubleList;
-import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
@@ -14,54 +12,43 @@ import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import org.apache.log4j.Logger;
-import org.apache.mahout.common.distance.DistanceMeasure;
-import org.apache.mahout.math.Vector;
 
 /**
  * periodically run to pick up tweet for notification
  *
  * @author khui
  */
-public class PointwiseDecisionMaker implements Runnable {
-    
+public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable {
+
     static Logger logger = Logger.getLogger(PointwiseDecisionMaker.class);
-    
-    private final Map<String, ResultTweetsTracker> queryResultTrackers;
-    
+
     private final TObjectDoubleMap<String> queryidThresholds = new TObjectDoubleHashMap<>(250);
     // dynamic threshold for the initial tweet, avoiding the most relevant tweets never come
     private final TObjectDoubleMap<String> queryidInitThresholds = new TObjectDoubleHashMap<>(250);
-    
+
     private final BlockingQueue<QueryTweetPair> tweetqueue;
-    
-    private final DistanceMeasure distanceMeasure;
-    
+
     private final TObjectIntMap<String> queryNumberCount = new TObjectIntHashMap<>(250);
-    
+
     private final int centroidnum = 10;
-    
+
     private final Set<String> finishedQueryId = new HashSet<>(250);
-    
+
     private final ResultPrinter resultprinter;
 
-    // track the tweets being sent in the full duration
-    private final static Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();
-    
     public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
-        this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
-        this.queryResultTrackers = tracker;
+        super(tracker);
         this.tweetqueue = tweetqueue;
+        this.resultprinter = resultprinter;
         for (String qid : tracker.keySet()) {
             queryNumberCount.put(qid, 1);
         }
-        this.resultprinter = resultprinter;
     }
-    
+
     @Override
     public void run() {
         Map<String, String> resultline;
@@ -91,8 +78,8 @@ public class PointwiseDecisionMaker implements Runnable {
                     double[] distances = distFilter(tweet);
                     if (distances != null) {
                         CandidateTweet resultTweet = decisionMake(tweet, distances);
-                        if (resultTweet.isSelected) {
-                            queryNumberCount.adjustOrPutValue(queryid, 1, 1);
+                        if (resultTweet.rank > 0) {
+                            queryNumberCount.adjustValue(queryid, 1);
                             // write down the tweets that are notified
                             resultline = new HashMap<>();
                             resultline.put(Configuration.QUERY_ID, queryid);
@@ -119,9 +106,9 @@ public class PointwiseDecisionMaker implements Runnable {
                 }
             }
         }
-        
+
     }
-    
+
     private void clear() {
         resultprinter.flush();
     }
@@ -139,29 +126,6 @@ public class PointwiseDecisionMaker implements Runnable {
             isRetain = true;
         }
         return isRetain;
-    }
-    
-    private double[] distFilter(QueryTweetPair tweet) {
-        TDoubleList distances = new TDoubleArrayList();
-        String queryId = tweet.queryid;
-        List<CandidateTweet> tweets;
-        double relativeDist;
-        Vector sentVector;
-        if (qidTweetSent.containsKey(queryId)) {
-            tweets = qidTweetSent.get(queryId);
-            Vector features = tweet.vectorizeMahout();
-            // the average distance among centroids as the metrics for the relative distance between tweets
-            double avgCentroidDistance = queryResultTrackers.get(queryId).avgDistCentroids();
-            for (CandidateTweet ct : tweets) {
-                sentVector = ct.getFeature();
-                relativeDist = distanceMeasure.distance(sentVector, features) / avgCentroidDistance;
-                if (relativeDist < Configuration.PW_DM_DIST_FILTER) {
-                    return null;
-                }
-                distances.add(relativeDist);
-            }
-        }
-        return distances.toArray();
     }
 
     /**
@@ -184,7 +148,7 @@ public class PointwiseDecisionMaker implements Runnable {
         double absoluteScore = tweet.getAbsScore();
         double relativeScore = tweet.getRelScore();
         String queryId = tweet.queryid;
-        
+
         double avggain = 0;
         CandidateTweet resultTweet = new CandidateTweet(tweet.tweetid, absoluteScore, relativeScore, queryId, tweet.vectorizeMahout());
         // the distances w.r.t. all popped up tweets
@@ -197,7 +161,7 @@ public class PointwiseDecisionMaker implements Runnable {
             // the threshold, then pop-up the current tweet and lift the threshold
             // otherwise decrease the threshold
             if (adjustThreshold(queryId, avggain)) {
-                resultTweet.isSelected = true;
+                resultTweet.rank = queryNumberCount.get(queryId);
             }
         } else {
             // if this is the first tweet to pop-up, we should make sure this is the 
@@ -209,7 +173,7 @@ public class PointwiseDecisionMaker implements Runnable {
             double currentThread = queryidInitThresholds.get(queryId);
             if (relativeScore > currentThread) {
                 avggain = absoluteScore;
-                resultTweet.isSelected = true;
+                resultTweet.rank = queryNumberCount.get(queryId);
                 adjustThreshold(queryId, avggain);
             } else {
                 currentThread *= (1 - Configuration.PW_DM_THRESHOLD_ALPHA);
@@ -217,7 +181,7 @@ public class PointwiseDecisionMaker implements Runnable {
             }
         }
         // keep tracking all tweets being pop-up in the qidTweetSent
-        if (resultTweet.isSelected) {
+        if (resultTweet.rank > 0) {
             if (!qidTweetSent.containsKey(queryId)) {
                 qidTweetSent.put(queryId, new ArrayList<>());
             }
@@ -257,5 +221,5 @@ public class PointwiseDecisionMaker implements Runnable {
         queryidThresholds.put(queryId, threshold);
         return result;
     }
-    
+
 }

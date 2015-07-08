@@ -63,7 +63,7 @@ public class Configuration {
     public final static double PW_DM_FIRSTPOPUP_SCORETHRESD = 0.999;
     // filter out the tweets that are too similar with at least one of the pop-up tweet, the number is relative to 
     // average distance among centroids
-    public final static double PW_DM_DIST_FILTER = 0.2;
+    public final static double DM_DIST_FILTER = 0.2;
     // start delay for the decision maker in minutes 
     public final static int PW_DM_START_DELAY = 15;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
@@ -77,6 +77,8 @@ public class Configuration {
     public final static int LW_DM_QUEUE_LEN = 2000;
 
     public final static int LW_DM_SELECTNUM = 100;
+    // filter out the tweet with less than threshold relative score
+    public final static double LW_DM_SCORE_FILTER = 0.7;
 
     /**
      * parameter for maxrep

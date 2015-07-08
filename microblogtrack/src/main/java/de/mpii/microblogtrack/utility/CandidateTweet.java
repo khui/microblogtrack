@@ -11,28 +11,28 @@ import org.apache.mahout.math.Vector;
 public class CandidateTweet {
 
     public final String queryId;
-    public final long tweetid;
+    public final long tweetId;
     // relative score
     public final double relativeScore;
     // absolute score
     public final double absoluteScore;
     public double distance = -1;
 
-    public boolean isSelected = false;
+    public int rank = -1;
 
     private final Vector featureVector;
 
-    public CandidateTweet(long tweetid, double absoluteS, double prob, boolean selected, String queryId, Vector featureVector) {
-        this.tweetid = tweetid;
+    public CandidateTweet(long tweetid, double absoluteS, double prob, int rank, String queryId, Vector featureVector) {
+        this.tweetId = tweetid;
         this.featureVector = featureVector;
         this.relativeScore = prob;
         this.queryId = queryId;
         this.absoluteScore = absoluteS;
-        this.isSelected = selected;
+        this.rank = rank;
     }
 
     public CandidateTweet(long tweetid, double absoluteS, double prob, String queryId, Vector featureVector) {
-        this.tweetid = tweetid;
+        this.tweetId = tweetid;
         this.featureVector = featureVector;
         this.relativeScore = prob;
         this.queryId = queryId;
@@ -40,13 +40,13 @@ public class CandidateTweet {
     }
 
     public CandidateTweet(CandidateTweet candidatetweet) {
-        this.tweetid = candidatetweet.tweetid;
+        this.tweetId = candidatetweet.tweetId;
         this.featureVector = candidatetweet.getFeature();
         this.relativeScore = candidatetweet.relativeScore;
         this.queryId = candidatetweet.queryId;
         this.distance = candidatetweet.distance;
         this.absoluteScore = candidatetweet.absoluteScore;
-        this.isSelected = candidatetweet.isSelected;
+        this.rank = candidatetweet.rank;
     }
 
     public void setDist(double dist) {
@@ -57,14 +57,26 @@ public class CandidateTweet {
         return this.featureVector;
     }
 
-    @Override
-    public String toString() {
+    public String toTrecFormat() {
         StringBuilder sb = new StringBuilder();
-        sb.append(queryId).append("\t");
-        sb.append(tweetid).append("\t");
-        sb.append(absoluteScore).append("\t");
-        sb.append(relativeScore).append("\t");
-        sb.append(isSelected);
+        sb.append(queryId).append(" ");
+        sb.append("Q0").append(" ");
+        sb.append(tweetId).append(" ");
+        sb.append(rank).append(" ");
+        sb.append(Configuration.RES_RUNINFO).append("\n");
+        //sb.append(tweetstr);
         return sb.toString();
     }
+
+    public String forDebugToString(String tweetstr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(queryId).append(" ");
+        sb.append("Q0").append(" ");
+        sb.append(tweetId).append(" ");
+        sb.append(rank).append(" ");
+        sb.append(Configuration.RES_RUNINFO).append("\t");
+        sb.append(tweetstr).append("\n");
+        return sb.toString();
+    }
+
 }

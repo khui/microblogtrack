@@ -1,13 +1,16 @@
 package de.mpii.microblogtrack.component;
 
 import de.mpii.maxrep.MaxRep;
+import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.logging.Level;
 import org.apache.log4j.Logger;
 import org.apache.mahout.math.Centroid;
 
@@ -19,13 +22,16 @@ import org.apache.mahout.math.Centroid;
  *
  * @author khui
  */
-public class ListwiseDecisionMaker implements Runnable {
+public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable {
 
     static Logger logger = Logger.getLogger(ListwiseDecisionMaker.class.getName());
 
-    private final PriorityBlockingQueue<QueryTweetPair> tweetqueue;
+    private final BlockingQueue<QueryTweetPair> tweetqueue;
 
-    public ListwiseDecisionMaker(PriorityBlockingQueue<QueryTweetPair> tweetqueue) {
+    private final Map<String, PriorityBlockingQueue<QueryTweetPair>> qidQueue = new HashMap<>(250);
+
+    public ListwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+        super(tracker);
         this.tweetqueue = tweetqueue;
     }
 
@@ -39,38 +45,66 @@ public class ListwiseDecisionMaker implements Runnable {
         while (true) {
             if (Thread.interrupted()) {
                 try {
-                    printListWise(decisionMakeMaxRep());
+                    for (String qid : qidQueue.keySet()) {
+                        decisionMakeMaxRep(qidQueue.get(qid), qid);
+                    }
                 } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
                     logger.error("", ex);
                 }
                 break;
             }
-            // we simply collect top-LW_DM_QUEUE_LEN tweets with highest prediction score 
-            if (tweetqueue.size() > Configuration.LW_DM_QUEUE_LEN) {
-                tweetqueue.poll();
+            // we simply collect top-LW_DM_QUEUE_LEN tweets with highest prediction score
+            // for each query
+            QueryTweetPair qtp = tweetqueue.poll();
+            // if fetch no tweet from the queue
+            if (qtp == null) {
+                continue;
+            }
+            // if the fetched tweets have two low relative score, indicating
+            // it is barely relevant
+            if (qtp.getRelScore() < Configuration.LW_DM_SCORE_FILTER) {
+                continue;
+            }
+            // if the tweet is too similar with one of the already sent tweet
+            if (distFilter(qtp) == null) {
+                continue;
+            }
+            String qid = qtp.queryid;
+            if (!qidQueue.containsKey(qid)) {
+                qidQueue.put(qid, getPriorityQueue());
+            }
+
+            qidQueue.get(qid).offer(qtp);
+            if (qidQueue.get(qid).size() > Configuration.LW_DM_QUEUE_LEN) {
+                qidQueue.get(qid).poll();
             }
         }
     }
 
-    private List<QueryTweetPair> decisionMakeMaxRep() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    private List<CandidateTweet> decisionMakeMaxRep(PriorityBlockingQueue<QueryTweetPair> queue, String qid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         List<QueryTweetPair> candidateTweets = new ArrayList<>();
-        int tweetnum = tweetqueue.drainTo(candidateTweets);
+        int tweetnum = queue.drainTo(candidateTweets);
         Centroid[] points2select = new Centroid[tweetnum];
-        logger.info("ListwiseDecisionMaker is interrupted, " + tweetnum + " tweets have drained to list");
-        int i = 0;
-        for (QueryTweetPair qtp : candidateTweets) {
-            points2select[i++] = new Centroid(i, qtp.vectorizeMahout(), qtp.getAbsScore());
+        logger.info("ListwiseDecisionMaker is interrupted, " + tweetnum + " for " + qid + " tweets have drained to list");
+        for (int i = 0; i < candidateTweets.size(); i++) {
+            points2select[i++] = new Centroid(i, candidateTweets.get(i).vectorizeMahout(), candidateTweets.get(i).getAbsScore());
         }
         MaxRep selector = new MaxRep(points2select);
         int[] selectedIndex = selector.selectMaxRep(Configuration.LW_DM_SELECTNUM);
-        List<QueryTweetPair> selectedQTPs = new ArrayList<>();
+        List<CandidateTweet> selectedQTPs = new ArrayList<>();
+        int rank = 1;
         for (int index : selectedIndex) {
-            selectedQTPs.add(candidateTweets.get(index));
+            selectedQTPs.add(new CandidateTweet(candidateTweets.get(index).tweetid,
+                    candidateTweets.get(index).getAbsScore(),
+                    candidateTweets.get(index).getRelScore(),
+                    rank++,
+                    candidateTweets.get(index).queryid,
+                    candidateTweets.get(index).vectorizeMahout()));
         }
         return selectedQTPs;
     }
 
-    private void printListWise(List<QueryTweetPair> qtps) {
+    private void printListWise(List<QueryTweetPair> qtps, String qid) {
 
     }
 
