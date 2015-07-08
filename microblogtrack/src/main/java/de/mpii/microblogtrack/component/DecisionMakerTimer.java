@@ -16,28 +16,24 @@ public class DecisionMakerTimer implements Runnable {
 
     static Logger logger = Logger.getLogger(DecisionMakerTimer.class.getName());
 
-    private ScheduledExecutorService excutor = Executors.newScheduledThreadPool(1);
+    private final ScheduledExecutorService excutor;
 
-    private final PointwiseDecisionMaker decisionmaker;
+    private final Runnable decisionmaker;
 
     private Future<?> lastExecution = null;
 
-    public DecisionMakerTimer(PointwiseDecisionMaker decisionmaker) {
+    public DecisionMakerTimer(Runnable decisionmaker, int threadnum) {
         this.decisionmaker = decisionmaker;
+        this.excutor = Executors.newScheduledThreadPool(threadnum);
     }
 
     @Override
     public void run() {
-
         if (lastExecution != null) {
             if (!lastExecution.isDone()) {
                 boolean interrupted = lastExecution.cancel(true);
                 if (interrupted) {
-                    logger.warn("latest decision maker has been canceled due to its overtime.");
-                } else {
-                    logger.error("cancel job failed, now reboot the executor.");
-                    excutor.shutdownNow();
-                    excutor = Executors.newScheduledThreadPool(1);
+                    logger.warn("interrupte flag has been set.");
                 }
             }
         }

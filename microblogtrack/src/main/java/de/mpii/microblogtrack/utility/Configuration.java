@@ -65,16 +65,16 @@ public class Configuration {
     // average distance among centroids
     public final static double DM_DIST_FILTER = 0.2;
     // start delay for the decision maker in minutes 
-    public final static int PW_DM_START_DELAY = 15;
+    public final static int DM_START_DELAY = 15;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
     public final static int PW_DM_PERIOD = 30;
     /**
      * listwise decision maker for e-mail digest task
      */
-    // start delay for the listwise decision maker
-    public final static int LW_DM_START_DELAY = 15;
+    // decision maker calling period in minutes, should be 1440 if one day is a period  
+    public final static int LW_DM_PERIOD = 60 * 24;
     // the length of the priority queue: tracking at most n tweets with highest pointwise prediction score
-    public final static int LW_DM_QUEUE_LEN = 2000;
+    public final static int LW_DM_QUEUE_LEN = 1000;
 
     public final static int LW_DM_SELECTNUM = 100;
     // filter out the tweet with less than threshold relative score
@@ -106,7 +106,7 @@ public class Configuration {
     public final static double TRACKER_CUMULATIVE_TOPPERC = 0.5;
     // how accurate we compute the cumulative probability in converting the absolute predicting score
     // by governing how many digits we want to retain, i.e., the number of bins we have
-    public final static int TRACKER_CUMULATIVE_GRANULARITY = PW_DM_START_DELAY * LUCENE_TOP_N_SEARCH;
+    public final static int TRACKER_CUMULATIVE_GRANULARITY = DM_START_DELAY * LUCENE_TOP_N_SEARCH;
     /**
      * pointwise predictor outcome: confidence, score, etc..
      */

@@ -1,5 +1,6 @@
 package de.mpii.microblogtrack.utility;
 
+import java.text.DecimalFormat;
 import org.apache.mahout.math.Vector;
 
 /**
@@ -63,19 +64,20 @@ public class CandidateTweet {
         sb.append("Q0").append(" ");
         sb.append(tweetId).append(" ");
         sb.append(rank).append(" ");
-        sb.append(Configuration.RES_RUNINFO).append("\n");
+        sb.append(Configuration.RES_RUNINFO);
         //sb.append(tweetstr);
         return sb.toString();
     }
 
     public String forDebugToString(String tweetstr) {
+        DecimalFormat df = new DecimalFormat("#.###");
         StringBuilder sb = new StringBuilder();
-        sb.append(queryId).append(" ");
-        sb.append("Q0").append(" ");
-        sb.append(tweetId).append(" ");
-        sb.append(rank).append(" ");
-        sb.append(Configuration.RES_RUNINFO).append("\t");
-        sb.append(tweetstr).append("\n");
+        sb.append(queryId).append("\t");
+        sb.append(tweetId).append("\t");
+        sb.append(rank).append("\t");
+        sb.append(df.format(relativeScore)).append("\t");
+        sb.append(df.format(absoluteScore)).append("\t");
+        sb.append(tweetstr);
         return sb.toString();
     }
 

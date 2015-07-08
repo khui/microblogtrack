@@ -68,7 +68,8 @@ public class QueryTweetPair {
         this.predictorResults.clear();
         this.featureValues.putAll(qtp.getFeatures());
         this.predictorResults.putAll(qtp.getPredictRes());
-        this.vectorMahout = qtp.vectorizeMahout();
+        this.vectorMahout = qtp.vectorMahout;
+        this.vectorLibsvm = qtp.vectorLibsvm;
         this.featureMeanStd = qtp.featureMeanStd;
     }
 

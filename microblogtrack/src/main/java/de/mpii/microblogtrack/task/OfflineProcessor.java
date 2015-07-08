@@ -1,6 +1,7 @@
 package de.mpii.microblogtrack.task;
 
 import de.mpii.microblogtrack.component.DecisionMakerTimer;
+import de.mpii.microblogtrack.component.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.LuceneScorer;
 import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
@@ -9,7 +10,7 @@ import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.component.ResultTweetsTracker;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
-import de.mpii.microblogtrack.utility.io.printresult.WriteTrecSubmission;
+import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -44,7 +45,7 @@ import twitter4j.TwitterObjectFactory;
  *
  * @author khui
  */
-public class OfflineProcessor {
+public class OfflineProcessor extends Processor {
 
     static Logger logger = Logger.getLogger(OfflineProcessor.class.getName());
 
@@ -110,42 +111,10 @@ public class OfflineProcessor {
         }
     }
 
-    /**
-     * for notification task: 1) search the results and retain top-k per minute
-     * per query 2) the tracker keep track all the search results for each
-     * query: the centroids, as reference for distance between tweets, and the
-     * score distribution to generate relative score 3) the pointwise prediction
-     * scores are computed by pointwise scorer 4) the search results are passed
-     * to the decision maker through blocking queue 5) the decision maker will
-     * re-called each day
-     *
-     * @param datadir
-     * @param indexdir
-     * @param queryfile
-     * @param outfile
-     * @param scalefile
-     * @throws java.io.IOException
-     * @throws java.lang.InterruptedException
-     * @throws java.util.concurrent.ExecutionException
-     * @throws org.apache.lucene.queryparser.classic.ParseException
-     * @throws java.lang.ClassNotFoundException
-     * @throws java.lang.InstantiationException
-     * @throws java.lang.IllegalAccessException
-     * @throws twitter4j.TwitterException
-     */
-    public void notificationTask(String datadir, String indexdir, String queryfile, String outfile, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
-        // communication between lucene search results and pointwise decision maker
-        BlockingQueue<QueryTweetPair> querytweetpairs = new LinkedBlockingQueue<>(10000);
-        Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
-        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer(), LibsvmWrapper.readScaler(scalefile));
+    @Override
+    protected void receiveStatus(LuceneScorer lscorer, String datadir, int numProcessingThreads) {
         Executor excutor = Executors.newSingleThreadExecutor();
         excutor.execute(new ReadInTweets(lscorer, datadir));
-        lscorer.multiQuerySearch(queryfile, querytweetpairs);
-        // set up output writer to print out the notification task results
-        ResultPrinter resultprinter = new WriteTrecSubmission(outfile);
-        DecisionMakerTimer decisionMakerTimer = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, querytweetpairs, resultprinter));
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        scheduler.scheduleAtFixedRate(decisionMakerTimer, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
     }
 
     public static void main(String[] args) throws TwitterException, org.apache.commons.cli.ParseException, InterruptedException {
@@ -182,7 +151,7 @@ public class OfflineProcessor {
         logger.info("offline process test");
         OfflineProcessor op = new OfflineProcessor();
         try {
-            op.notificationTask(datadir, indexdir, queryfile, outputfile, scalefile);
+            op.start(datadir, indexdir, queryfile, outputfile, scalefile);
         } catch (IOException | InterruptedException | ExecutionException | ParseException | ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
             logger.error("entrance:", ex);
             logger.info("client is closed");

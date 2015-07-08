@@ -10,7 +10,6 @@ import gnu.trove.map.hash.TObjectDoubleHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +50,6 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
 
     @Override
     public void run() {
-        Map<String, String> resultline;
         for (String qid : queryResultTrackers.keySet()) {
             queryResultTrackers.get(qid).informStart2Record();
         }
@@ -79,15 +77,14 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                     if (distances != null) {
                         CandidateTweet resultTweet = decisionMake(tweet, distances);
                         if (resultTweet.rank > 0) {
+                            try {
+                                // write down the tweets that are notified
+                                resultprinter.println(queryid, resultTweet.forDebugToString(tweet.getStatus().getText()));
+                            } catch (FileNotFoundException ex) {
+                                logger.error("", ex);
+                            }
                             queryNumberCount.adjustValue(queryid, 1);
-                            // write down the tweets that are notified
-                            resultline = new HashMap<>();
-                            resultline.put(Configuration.QUERY_ID, queryid);
-                            resultline.put(Configuration.TWEET_ID, String.valueOf(tweet.tweetid));
-                            resultline.put(Configuration.RES_RANK, String.valueOf(queryNumberCount.get(queryid)));
-                            resultline.put(Configuration.RES_RUNINFO, Configuration.RUN_ID);
-                            resultline.put(Configuration.TWEET_CONTENT, tweet.getStatus().getText());
-                            resultprinter.println(resultline);
+
                             //logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
                         } else {
                             //logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));

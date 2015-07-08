@@ -104,11 +104,11 @@ public class LuceneScorer {
         this.featureMeanStd = featureMeanStd;
     }
 
-    public void multiQuerySearch(String queryfile, BlockingQueue<QueryTweetPair> tweetqueue) throws IOException, InterruptedException, ExecutionException, ParseException {
+    public void multiQuerySearch(String queryfile, BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) throws IOException, InterruptedException, ExecutionException, ParseException {
         TrecQuery tq = new TrecQuery();
         Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, Configuration.TWEET_CONTENT);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, tweetqueue), Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.LUCENE_SEARCH_FREQUENCY, TimeUnit.SECONDS);
+        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, queue2offer4PW, queue2offer4LW), Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.LUCENE_SEARCH_FREQUENCY, TimeUnit.SECONDS);
         // the task will be canceled after running certain days automatically
         scheduler.schedule(() -> {
             sercherHandler.cancel(true);
@@ -203,11 +203,14 @@ public class LuceneScorer {
 
         private int threadnum = Configuration.LUCENE_SEARCH_THREADNUM;
 
-        private final BlockingQueue<QueryTweetPair> tweetqueue;
+        private final BlockingQueue<QueryTweetPair> queue2offer4PW;
 
-        public MultiQuerySearcher(final Map<String, Query> queries, BlockingQueue<QueryTweetPair> tweetqueue) {
+        private final BlockingQueue<QueryTweetPair> queue2offer4LW;
+
+        public MultiQuerySearcher(final Map<String, Query> queries, BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) {
             this.queries = queries;
-            this.tweetqueue = tweetqueue;
+            this.queue2offer4PW = queue2offer4PW;
+            this.queue2offer4LW = queue2offer4LW;
         }
 
         public void setThreadNum(int threadnum) {
@@ -272,7 +275,7 @@ public class LuceneScorer {
                             // update the result tracker
                             queryResultTrackers.get(queryranking.queryid).addTweets(queryranking.results);
                             if (queryResultTrackers.get(queryranking.queryid).isStarted()) {
-                                queryranking.poll2queue(tweetqueue);
+                                queryranking.offer2queue(queue2offer4PW, queue2offer4LW);
                             }
                         } else {
                             logger.error("queryranking is null.");
@@ -347,6 +350,7 @@ public class LuceneScorer {
             for (QueryTweetPair qtp : searchresults.valueCollection()) {
                 qtp.rescaleFeatures(featureMeanStd);
                 pwScorer.predictor(qtp);
+                qtp.vectorizeMahout();
             }
             return new UniqQuerySearchResult(queryid, searchresults.valueCollection());
         }
@@ -369,12 +373,27 @@ public class LuceneScorer {
             this.results = results;
         }
 
-        private void poll2queue(BlockingQueue<QueryTweetPair> queue) throws InterruptedException {
+        private void offer2queue(BlockingQueue<QueryTweetPair> queue) throws InterruptedException {
             for (QueryTweetPair qtp : results) {
                 // offer to the blocking queue for the decision maker
                 boolean isSucceed = queue.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
                 if (!isSucceed) {
                     logger.error("offer to queue failed.");
+                }
+            }
+        }
+
+        private void offer2queue(BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) throws InterruptedException {
+            for (QueryTweetPair qtp : results) {
+                // offer to the blocking queue for the pointwise decision maker
+                boolean isSucceed = queue2offer4PW.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
+                if (!isSucceed) {
+                    logger.error("offer to queue2offer4PW failed.");
+                }
+                // offer to the blocking queue for the decision maker
+                isSucceed = queue2offer4LW.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
+                if (!isSucceed) {
+                    logger.error("offer to queue2offer4LW failed.");
                 }
             }
         }

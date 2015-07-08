@@ -4,6 +4,8 @@ import de.mpii.maxrep.MaxRep;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
+import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -30,9 +32,12 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
 
     private final Map<String, PriorityBlockingQueue<QueryTweetPair>> qidQueue = new HashMap<>(250);
 
-    public ListwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    private final ResultPrinter resultprinter;
+
+    public ListwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         super(tracker);
         this.tweetqueue = tweetqueue;
+        this.resultprinter = resultprinter;
     }
 
     @Override
@@ -46,9 +51,12 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
             if (Thread.interrupted()) {
                 try {
                     for (String qid : qidQueue.keySet()) {
-                        decisionMakeMaxRep(qidQueue.get(qid), qid);
+                        List<CandidateTweet> tweets = decisionMakeMaxRep(qidQueue.get(qid), qid);
+                        for (CandidateTweet tweet : tweets) {
+                            resultprinter.println(qid, tweet.forDebugToString(""));
+                        }
                     }
-                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
+                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | FileNotFoundException ex) {
                     logger.error("", ex);
                 }
                 break;
@@ -102,10 +110,6 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                     candidateTweets.get(index).vectorizeMahout()));
         }
         return selectedQTPs;
-    }
-
-    private void printListWise(List<QueryTweetPair> qtps, String qid) {
-
     }
 
     /**
