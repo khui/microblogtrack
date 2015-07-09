@@ -43,7 +43,7 @@ public class Configuration {
      * parameters for lucene systems
      */
     // the size of the in-memory index, determining how often the writer dump the index to the disk
-    public final static double LUCENE_MEM_SIZE = 1024.0;// * 10;
+    public final static double LUCENE_MEM_SIZE = 1024.0 * 5;
 
     public final static String LUCENE_TOKENIZER = "org.apache.lucene.analysis.en.EnglishAnalyzer";
     // lucene perform search per LUCENE_SEARCH_FREQUENCY seconds
@@ -51,12 +51,12 @@ public class Configuration {
     // every time invertal, we retrieve top_n tweets for each query for further processin from lucene
     public final static double LUCENE_TOP_N_SEARCH = 0.08;
     // number of threads we use to conduct multiquery search
-    public final static int LUCENE_SEARCH_THREADNUM = 5;
+    public final static int LUCENE_SEARCH_THREADNUM = 10;
     /**
      * pointwise decision maker parameters for mobile notification task
      */
     // adjust the threshold for pop-up tweets dynamically, governing the adjusting step
-    public final static double PW_DM_THRESHOLD_ALPHA = 0.05;
+    public final static double PW_DM_THRESHOLD_ALPHA = 0.01;
     // filter out the tweet with less than threshold relative score
     public final static double PW_DM_SCORE_FILTER = 0.95;
     // if it is the first tweet to pop-up, we require a relative high threshold
@@ -65,22 +65,22 @@ public class Configuration {
     // average distance among centroids
     public final static double DM_DIST_FILTER = 0.2;
     // start delay for the decision maker in minutes 
-    public final static int PW_DM_START_DELAY = 2;
+    public final static int PW_DM_START_DELAY = 60;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public final static int PW_DM_PERIOD = 2;
+    public final static int PW_DM_PERIOD = 60;
     // make decision untill we have receive enough tweets
-    public final static int PW_DW_CUMULATECOUNT_DELAY = 300;//1500 * 60 * 8;
+    public final static int PW_DW_CUMULATECOUNT_DELAY = 10000;//1500 * 60 * 8;
     /**
      * listwise decision maker for e-mail digest task
      */
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public final static int LW_DM_PERIOD = 2;//60 * 24;
+    public final static int LW_DM_PERIOD = 60;//60 * 24;
     // the length of the priority queue: tracking at most n tweets with highest pointwise prediction score
-    public final static int LW_DM_QUEUE_LEN = 100;
+    public final static int LW_DM_QUEUE_LEN = 2000;
 
-    public final static int LW_DM_SELECTNUM = 10;
+    public final static int LW_DM_SELECTNUM = 100;
 
-    public final static int LW_DM_START_DELAY = 2;
+    public final static int LW_DM_START_DELAY = 60;
     // for each query, we keep recording the top-LW_DM_QUEUE_LEN tweets with
     // highest scores, afterward conduct maxrep, where the weight for each tweet
     // is the min-max normalized prediction score. this parameter is to govern the
@@ -113,7 +113,7 @@ public class Configuration {
     public final static double TRACKER_CUMULATIVE_TOPPERC = 0.5;
     // how accurate we compute the cumulative probability in converting the absolute predicting score
     // by governing how many digits we want to retain, i.e., the number of bins we have
-    public final static int TRACKER_CUMULATIVE_GRANULARITY = 300;//1500 * 60 * 8;
+    public final static int TRACKER_CUMULATIVE_GRANULARITY = 10000;
 
     /**
      * pointwise predictor outcome: confidence, score, etc..
