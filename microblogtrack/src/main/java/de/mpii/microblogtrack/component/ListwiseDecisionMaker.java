@@ -8,6 +8,7 @@ import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
 import java.io.FileNotFoundException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -26,26 +27,28 @@ import org.apache.mahout.math.Centroid;
  * @author khui
  */
 public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable {
-    
+
     static Logger logger = Logger.getLogger(ListwiseDecisionMaker.class.getName());
-    
+
+    private final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
+
     private final BlockingQueue<QueryTweetPair> tweetqueue;
-    
+
     private final ResultPrinter resultprinter;
-    
+
     public ListwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         super(tracker);
         this.tweetqueue = tweetqueue;
         this.resultprinter = resultprinter;
     }
-    
+
     @Override
     public void run() {
         Map<String, PriorityBlockingQueue<QueryTweetPair>> qidQueue = new HashMap<>(250);
         logger.info("LW-DM started");
-        for (String qid : queryResultTrackers.keySet()) {
-            if (!queryResultTrackers.get(qid).whetherOffer2LWQueue()) {
-                queryResultTrackers.get(qid).offer2LWQueue();
+        for (String qid : queryTweetTrackers.keySet()) {
+            if (!queryTweetTrackers.get(qid).whetherOffer2LWQueue()) {
+                queryTweetTrackers.get(qid).offer2LWQueue();
             }
         }
         /**
@@ -74,38 +77,46 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                 return;
             }
 
-            // we simply collect top-LW_DM_QUEUE_LEN tweets with highest prediction score
-            // for each query
-            QueryTweetPair qtp = tweetqueue.poll();
+            try {
+                // we simply collect top-LW_DM_QUEUE_LEN tweets with highest prediction score
+                // for each query
+                QueryTweetPair qtp = tweetqueue.poll();
 
-            // if fetch no tweet from the queue
-            if (qtp == null) {
-                continue;
+                // if fetch no tweet from the queue
+                if (qtp == null) {
+                    continue;
+                }
+
+                synchronized (qidTweetSent) {
+                    // if the tweet is too similar with one of the already sent tweet
+                    if (distFilter(qtp, qidTweetSent) == null) {
+                        continue;
+                    }
+                }
+
+                String qid = qtp.queryid;
+                if (!qidQueue.containsKey(qid)) {
+                    qidQueue.put(qid, getPriorityQueue());
+                }
+
+                qidQueue.get(qid).offer(new QueryTweetPair(qtp));
+                if (qidQueue.get(qid).size() > Configuration.LW_DM_QUEUE_LEN) {
+                    qidQueue.get(qid).poll();
+                }
+            } catch (Exception ex) {
+                logger.error("", ex);
             }
-            // if the tweet is too similar with one of the already sent tweet
-            if (distFilter(qtp) == null) {
-                continue;
-            }
-            String qid = qtp.queryid;
-            if (!qidQueue.containsKey(qid)) {
-                qidQueue.put(qid, getPriorityQueue());
-            }
-            
-            qidQueue.get(qid).offer(new QueryTweetPair(qtp));
-            if (qidQueue.get(qid).size() > Configuration.LW_DM_QUEUE_LEN) {
-                qidQueue.get(qid).poll();
-            }
-            
+
         }
     }
-    
+
     private List<CandidateTweet> decisionMakeMaxRep(PriorityBlockingQueue<QueryTweetPair> queue) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         List<QueryTweetPair> candidateTweets = new ArrayList<>();
         int tweetnum = queue.drainTo(candidateTweets);
         if (tweetnum <= 0) {
             logger.error("The candidate tweet list is empty");
             return null;
-        } 
+        }
         List<Centroid> points2select = new ArrayList<>(tweetnum);
         // pick up the maximum and minimum absolute score
         double maxAbsoluteScore = Double.MIN_VALUE;
@@ -143,6 +154,11 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                     candidateTweets.get(index).vectorizeMahout()));
             selectedQTPs.get(selectedQTPs.size() - 1).setTweetStr(candidateTweets.get(index).getStatus().getText());
         }
+        for (CandidateTweet resultTweet : selectedQTPs) {
+            synchronized (qidTweetSent) {
+                updateSentTracker(resultTweet, qidTweetSent);
+            }
+        }
         return selectedQTPs;
     }
 
@@ -177,8 +193,8 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                         }
                     }
                 });
-        
+
         return queue;
     }
-    
+
 }

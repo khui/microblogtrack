@@ -11,7 +11,10 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 import java.io.FileNotFoundException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -25,6 +28,8 @@ import org.apache.log4j.Logger;
 public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable {
 
     static Logger logger = Logger.getLogger(PointwiseDecisionMaker.class);
+
+    private final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
 
     private final BlockingQueue<QueryTweetPair> tweetqueue;
 
@@ -48,8 +53,8 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         // be reported
         int received_tweet_num = 0;
 
-        for (String qid : queryResultTrackers.keySet()) {
-            queryResultTrackers.get(qid).offer2PWQueue();
+        for (String qid : queryTweetTrackers.keySet()) {
+            queryTweetTrackers.get(qid).offer2PWQueue();
         }
         logger.info("PW-DM started");
         TObjectIntMap<String> queryNumberCount = new TObjectIntHashMap<>(250);
@@ -80,7 +85,10 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             if (centroidnum > queryNumberCount.get(tweet.queryid)) {
                 queryid = tweet.queryid;
                 if (scoreFilter(tweet)) {
-                    double[] distances = distFilter(tweet);
+                    double[] distances;
+                    synchronized (qidTweetSent) {
+                        distances = distFilter(tweet, qidTweetSent);
+                    }
                     if (distances != null) {
                         CandidateTweet resultTweet = decisionMake(tweet, distances, queryNumberCount);
                         if (resultTweet.rank > 0) {
@@ -103,10 +111,10 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                     //logger.info("filter out the tweet by score: " + tweet.getRelScore());
                 }
             } else {
-                logger.info("Finished: " + tweet.queryid + " " + queryNumberCount.get(tweet.queryid));
+                //logger.info("Finished: " + tweet.queryid + " " + queryNumberCount.get(tweet.queryid));
                 finishedQueryId.add(tweet.queryid);
                 if (finishedQueryId.size() >= queryNumberCount.size()) {
-                    logger.info("Finished all! " + finishedQueryId.size());
+                    logger.info("Finished all in PW-DM in this round: " + finishedQueryId.size());
                     clear();
                     break;
                 }
@@ -117,8 +125,8 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
 
     private void clear() {
         resultprinter.flush();
-        for (String qid : queryResultTrackers.keySet()) {
-            queryResultTrackers.get(qid).ceasePWQueue();
+        for (String qid : queryTweetTrackers.keySet()) {
+            queryTweetTrackers.get(qid).ceasePWQueue();
         }
     }
 
@@ -191,11 +199,8 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             }
         }
         // keep tracking all tweets being pop-up in the qidTweetSent
-        if (resultTweet.rank > 0) {
-            if (!qidTweetSent.containsKey(queryId)) {
-                qidTweetSent.put(queryId, new ArrayList<>());
-            }
-            qidTweetSent.get(queryId).add(new CandidateTweet(resultTweet));
+        synchronized (qidTweetSent) {
+            updateSentTracker(resultTweet, qidTweetSent);
         }
         return resultTweet;
     }

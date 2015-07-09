@@ -34,7 +34,7 @@ import twitter4j.TwitterException;
  * @author khui
  */
 public abstract class Processor {
-    
+
     static Logger logger = Logger.getLogger(Processor.class.getName());
 
     /**
@@ -78,11 +78,12 @@ public abstract class Processor {
         // set up output writer to print out the notification task results
         ResultPrinter resultprinterpw = new ResultPrinter(outdir + "/pointwise");
         ResultPrinter resultprinterlw = new ResultPrinter(outdir + "/listwise");
-        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW", 5);
-        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW", 5);
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-        scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
-        scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, TimeUnit.MINUTES);
+        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW", 3);
+        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW", 3);
+        ScheduledExecutorService schedulerpw = Executors.newScheduledThreadPool(2);
+        ScheduledExecutorService schedulerlw = Executors.newScheduledThreadPool(2);
+        schedulerpw.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
+        schedulerlw.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, TimeUnit.MINUTES);
     }
 
     protected abstract void receiveStatus(LuceneScorer lscorer, String dataORkeydir, int numProcessingThreads);

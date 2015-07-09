@@ -5,6 +5,8 @@ import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,14 +25,13 @@ public class SentTweetTracker {
     static Logger logger = Logger.getLogger(SentTweetTracker.class.getName());
 
     // track the tweets being sent in the full duration
-    protected final static Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();
-
-    protected final Map<String, ResultTweetsTracker> queryResultTrackers;
+    //protected final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
+    protected final Map<String, ResultTweetsTracker> queryTweetTrackers;
 
     private final DistanceMeasure distanceMeasure;
 
     public SentTweetTracker(Map<String, ResultTweetsTracker> tracker) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-        this.queryResultTrackers = tracker;
+        this.queryTweetTrackers = tracker;
         this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
     }
 
@@ -39,19 +40,21 @@ public class SentTweetTracker {
      * with one of the sent tweet, return null
      *
      * @param tweet
+     * @param qidTweetSent
      * @return
      */
-    protected double[] distFilter(QueryTweetPair tweet) {
+    protected double[] distFilter(QueryTweetPair tweet, Map<String, List<CandidateTweet>> qidTweetSent) {
         TDoubleList distances = new TDoubleArrayList();
         String queryId = tweet.queryid;
         List<CandidateTweet> tweets;
         double relativeDist;
         Vector sentVector;
+
         if (qidTweetSent.containsKey(queryId)) {
             tweets = qidTweetSent.get(queryId);
             Vector features = tweet.vectorizeMahout();
             // the average distance among centroids as the metrics for the relative distance between tweets
-            double avgCentroidDistance = queryResultTrackers.get(queryId).avgDistCentroids();
+            double avgCentroidDistance = queryTweetTrackers.get(queryId).avgDistCentroids();
             for (CandidateTweet ct : tweets) {
                 sentVector = ct.getFeature();
                 relativeDist = distanceMeasure.distance(sentVector, features) / avgCentroidDistance;
@@ -62,6 +65,16 @@ public class SentTweetTracker {
             }
         }
         return distances.toArray();
+    }
+
+    protected void updateSentTracker(CandidateTweet resultTweet, Map<String, List<CandidateTweet>> qidTweetSent) {
+        if (resultTweet.rank > 0) {
+            String queryId = resultTweet.queryId;
+            if (!qidTweetSent.containsKey(queryId)) {
+                qidTweetSent.put(queryId, new ArrayList<>());
+            }
+            qidTweetSent.get(queryId).add(new CandidateTweet(resultTweet));
+        }
     }
 
 }
