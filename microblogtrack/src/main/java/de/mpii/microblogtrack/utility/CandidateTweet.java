@@ -70,7 +70,7 @@ public class CandidateTweet {
     }
 
     public String forDebugToString(String tweetstr) {
-        DecimalFormat df = new DecimalFormat("#.###");
+        DecimalFormat df = new DecimalFormat(".###");
         StringBuilder sb = new StringBuilder();
         sb.append(queryId).append("\t");
         sb.append(tweetId).append("\t");

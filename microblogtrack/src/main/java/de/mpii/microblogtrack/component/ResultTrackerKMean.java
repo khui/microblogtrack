@@ -61,8 +61,12 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     private final int numProjections = 20;
 
     private final int searchSize = 10;
-
-    private boolean isStarted = false;
+    // pointwise decision maker always need to wait amont of time
+    // before make decision
+    private volatile boolean pwQueue2receiveTweets = false;
+    // listwise decision keep track of all tweets within one day
+    // after start (set true), this flag will not change back to false
+    private volatile boolean lwQueue2receiveTweets = false;
 
     public ResultTrackerKMean(String queryid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryid = queryid;
@@ -107,7 +111,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
             qtp.setPredictScore(Configuration.PRED_RELATIVESCORE, relativeScore);
             datapoints2add.add(new Centroid(tweetcount, v.clone(), relativeScore));
             // update the average distance among centroids every x miniutes
-            if (tweetcount % (Configuration.LUCENE_TOP_N_SEARCH * Configuration.TRACKER_AVGDIST_UPDATE_MINUTES) == 0) {
+            if (tweetcount % Configuration.TRACKER_AVGDIST_UPDATE_TWEETNUM == 0) {
                 try {
                     updateAvgCentroidDist(this.centroidnum);
                 } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
@@ -140,20 +144,35 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
 //        }
 //    }
     @Override
-    public synchronized boolean isStarted() {
-        return isStarted;
+    public synchronized boolean whetherOffer2PWQueue() {
+        return pwQueue2receiveTweets;
     }
 
     @Override
-    public synchronized void informStart2Record() {
-        isStarted = true;
+    public synchronized boolean whetherOffer2LWQueue() {
+        return lwQueue2receiveTweets;
+    }
+
+    @Override
+    public synchronized void offer2PWQueue() {
+        pwQueue2receiveTweets = true;
+    }
+
+    @Override
+    public synchronized void ceasePWQueue() {
+        pwQueue2receiveTweets = false;
+    }
+
+    @Override
+    public synchronized void offer2LWQueue() {
+        lwQueue2receiveTweets = true;
     }
 
     @Override
     public Map<String, double[]> getMeanStdScaler() {
         return featureMeanStd;
     }
-    
+
     @Override
     public double avgDistCentroids() {
         return avgCentroidDistance;
@@ -227,7 +246,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
 
     /**
      * return the cumulative probability for the top
- Configuration.TRACKER_CUMULATIVE_TOPPERC tweets
+     * Configuration.TRACKER_CUMULATIVE_TOPPERC tweets
      *
      * @param score
      * @return

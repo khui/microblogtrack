@@ -16,10 +16,11 @@ public class PointwiseScorer {
 
     public double predictor(QueryTweetPair qtr) {
         String[] retrievalmodels = Configuration.FEATURES_SEMANTIC;
-        double scoresum = 0;
+        double scoresum = 10;
         for (String model : retrievalmodels) {
             scoresum += qtr.getFeature(model);
         }
+        scoresum = (scoresum > 0 ? scoresum : 0) / 10;
         qtr.setPredictScore(Configuration.PRED_ABSOLUTESCORE, scoresum);
         return scoresum;
     }

@@ -33,15 +33,15 @@ import org.apache.log4j.Logger;
  * @author khui
  */
 public class LibsvmWrapper {
-
+    
     static Logger logger = Logger.getLogger(LibsvmWrapper.class);
-
+    
     public class LocalTrainTest {
-
+        
         public svm_problem train_prob;
-
+        
         public List<svm_node[]> testdata;
-
+        
         public double[] test_true_labels;
 
         // each item corrsponds to each test data point in testdata, including the probability 
@@ -49,9 +49,9 @@ public class LibsvmWrapper {
         private final double[][] test_pred_prob;
         // each item corrsponds to each test data point in testdata
         private final double[] test_pred_labels;
-
+        
         private int TP, TN, FP, FN;
-
+        
         public LocalTrainTest(List<svm_node[]> traindata, double[] trainlabel, List<svm_node[]> testdata, double[] testlabel) {
             this.train_prob = new svm_problem();
             this.train_prob.l = trainlabel.length;
@@ -62,7 +62,7 @@ public class LibsvmWrapper {
             this.test_pred_prob = new double[testdata.size()][];
             this.test_pred_labels = new double[testdata.size()];
         }
-
+        
         public void addPredictResult(int index, double[] pred_prob) {
             this.test_pred_prob[index] = pred_prob;
             this.test_pred_labels[index] = pred_prob[0];
@@ -86,28 +86,28 @@ public class LibsvmWrapper {
             labelWeight.put(-1, 1d / npercent);
             return labelWeight;
         }
-
+        
         public double getPrecision() {
             return this.TP / (double) (this.TP + this.FP);
         }
-
+        
         public double getRecall() {
             return this.TP / (double) (this.TP + this.FN);
         }
-
+        
         public double getAccuracy() {
             return (this.TP + this.TN) / (double) this.test_true_labels.length;
         }
-
+        
         public double getFScore(double beta) {
             return ((beta * beta + 1) * this.getPrecision() * this.getRecall())
                     / (beta * beta * this.getPrecision() + this.getRecall());
         }
-
+        
         public double getF1() {
             return this.getFScore(1);
         }
-
+        
         public void computeTPTNFPFN() {
             for (int i = 0; i < test_true_labels.length; i++) {
                 if (test_pred_labels[i] == 1 && test_true_labels[i] == 1) {
@@ -128,7 +128,7 @@ public class LibsvmWrapper {
             sb.append(", FN: ").append(FN);
             logger.info(sb.toString());
         }
-
+        
     }
 
     /**
@@ -153,7 +153,7 @@ public class LibsvmWrapper {
             ps.close();
         }
     }
-
+    
     public static Map<String, double[]> readScaler(String infile) throws FileNotFoundException, IOException {
         BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(infile))));
         Map<String, double[]> featureMeanStd = new HashMap<>();
@@ -257,7 +257,7 @@ public class LibsvmWrapper {
         logger.info("training data points: " + traindata.size() + "  test data points: " + testdata.size());
         return new LocalTrainTest(traindata, trainlabel.toArray(), testdata, testlabel.toArray());
     }
-
+    
     public void printFeatures(Collection<LabeledTweet> datapoints, int[] qidrange, String outfile) throws FileNotFoundException {
         PrintStream ps = new PrintStream(outfile);
         StringBuilder sb;
@@ -278,7 +278,7 @@ public class LibsvmWrapper {
         ps.close();
         logger.info("Print out finished for: " + qidrange[0] + " to " + qidrange[1]);
     }
-
+    
     private svm_parameter setupParameters() {
         // set up problem parameters
         svm_parameter param = new svm_parameter();
@@ -301,11 +301,11 @@ public class LibsvmWrapper {
         });
         return param;
     }
-
+    
     public LocalTrainTest splitTrainTestData(Collection<LabeledTweet> datapoints, int[] qidrange2Train) {
         return splitTrainTestData(datapoints, qidrange2Train, new int[]{Math.max(qidrange2Train[1] + 1, 171), 225});
     }
-
+    
     private void do_cross_validation(svm_problem prob, svm_parameter param, int nr_fold) {
         int i;
         int total_correct = 0;
@@ -359,7 +359,7 @@ public class LibsvmWrapper {
         logger.info("start test.");
         double[] prob_estimates = null;
         double[] pred_prob;
-
+        
         svm_model model = svm.svm_load_model(model_file);
         int nr_class = svm.svm_get_nr_class(model);
         if (model == null) {
@@ -376,7 +376,7 @@ public class LibsvmWrapper {
                 logger.info("Model supports probability estimates, but disabled in prediction.\n");
             }
         }
-
+        
         if (predict_probability == 1) {
             int[] labels = new int[nr_class];
             svm.svm_get_labels(model, labels);
@@ -384,7 +384,7 @@ public class LibsvmWrapper {
         }
         List<svm_node[]> xs = traintestdata.testdata;
         double[] true_labels = traintestdata.test_true_labels;
-
+        
         for (int i = 0; i < true_labels.length; i++) {
             double v;
             pred_prob = new double[3];

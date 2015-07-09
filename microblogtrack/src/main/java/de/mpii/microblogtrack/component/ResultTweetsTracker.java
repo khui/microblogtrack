@@ -53,12 +53,18 @@ public interface ResultTweetsTracker {
      *
      * @return
      */
-    public boolean isStarted();
+    public boolean whetherOffer2PWQueue();
+
+    public boolean whetherOffer2LWQueue();
 
     /**
-     * inform that we can start to make decision of the input tweet
+     * inform that we can start/cease to make decision of the input tweet
      */
-    public void informStart2Record();
+    public void offer2PWQueue();
+
+    public void ceasePWQueue();
+
+    public void offer2LWQueue();
 
     /**
      * return the min/max value for each feature. note that this function is

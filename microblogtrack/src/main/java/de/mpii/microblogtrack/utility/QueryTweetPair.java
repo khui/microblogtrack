@@ -11,8 +11,12 @@ import libsvm.svm_node;
 import org.apache.log4j.Logger;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
+import twitter4j.HashtagEntity;
+import twitter4j.MediaEntity;
 import twitter4j.Status;
+import twitter4j.URLEntity;
 import twitter4j.User;
+import twitter4j.UserMentionEntity;
 
 /**
  *
@@ -172,7 +176,6 @@ public class QueryTweetPair {
                 nodes.add(new svm_node());
                 nodes.get(nodes.size() - 1).index = i;
                 nodes.get(nodes.size() - 1).value = fvalue;
-
             }
         }
         vectorLibsvm = nodes.toArray(new svm_node[0]);
@@ -276,23 +279,41 @@ public class QueryTweetPair {
                         featureV = status.getFavoriteCount();
                         break;
                     case Configuration.FEATURE_T_HASHTAGNUM:
-                        featureV = status.getHashtagEntities().length;
+                        HashtagEntity[] hashtagentity = status.getHashtagEntities();
+                        if (hashtagentity == null) {
+                            continue;
+                        }
+                        featureV = hashtagentity.length;
                         break;
                     case Configuration.FEATURE_T_MEDIANUM:
-                        featureV = status.getMediaEntities().length;
+                        MediaEntity[] mediaentity = status.getMediaEntities();
+                        if (mediaentity == null) {
+                            continue;
+                        }
+                        featureV = mediaentity.length;
                         break;
                     case Configuration.FEATURE_T_RETWEETNUM:
                         featureV = status.getRetweetCount();
                         break;
                     case Configuration.FEATURE_T_URLNUM:
-                        featureV = status.getURLEntities().length;
+                        URLEntity[] urlentity = status.getURLEntities();
+                        if (urlentity == null) {
+                            continue;
+                        }
+                        featureV = urlentity.length;
                         break;
                     case Configuration.FEATURE_T_USERMENTIONNUM:
-                        featureV = status.getUserMentionEntities().length;
+                        UserMentionEntity[] mentionentity = status.getUserMentionEntities();
+                        if (mentionentity == null) {
+                            continue;
+                        }
+                        featureV = mentionentity.length;
                         break;
                 }
                 if (featureV > 0) {
                     featureValues.put(feature, featureV);
+                } else {
+                    featureValues.put(feature, 0);
                 }
             }
         }
@@ -306,12 +327,24 @@ public class QueryTweetPair {
             User user = status.getUser();
             double featureV = -1;
             for (String feature : Configuration.FEATURES_USERAUTHORITY) {
+                if (user == null) {
+                    logger.error("User from status is null");
+                    break;
+                }
                 switch (feature) {
                     case Configuration.FEATURE_U_DESC_LEN:
-                        featureV = user.getDescription().length();
+                        String description = user.getDescription();
+                        if (description == null) {
+                            continue;
+                        }
+                        featureV = description.length();
                         break;
                     case Configuration.FEATURE_U_DESC_URLNUM:
-                        featureV = user.getDescriptionURLEntities().length;
+                        URLEntity[] uentity = user.getDescriptionURLEntities();
+                        if (uentity == null) {
+                            continue;
+                        }
+                        featureV = uentity.length;
                         break;
                     case Configuration.FEATURE_U_FAVORITENUM:
                         featureV = user.getFavouritesCount();
@@ -337,6 +370,8 @@ public class QueryTweetPair {
                 }
                 if (featureV > 0) {
                     featureValues.put(feature, featureV);
+                } else {
+                    featureValues.put(feature, 0);
                 }
             }
         }

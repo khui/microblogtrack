@@ -107,6 +107,16 @@ public class LuceneScorer {
     public void multiQuerySearch(String queryfile, BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) throws IOException, InterruptedException, ExecutionException, ParseException {
         TrecQuery tq = new TrecQuery();
         Map<String, Query> queries = tq.readInQueries(queryfile, this.analyzer, Configuration.TWEET_CONTENT);
+        // initialize trackers: track the centroids, the relative score
+        for (String queryid : queries.keySet()) {
+            if (!queryResultTrackers.containsKey(queryid)) {
+                try {
+                    queryResultTrackers.put(queryid, new ResultTrackerKMean(queryid));
+                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
+                    logger.error("multiquery search", ex);
+                }
+            }
+        }
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(queries, queue2offer4PW, queue2offer4LW), Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.LUCENE_SEARCH_FREQUENCY, TimeUnit.SECONDS);
         // the task will be canceled after running certain days automatically
@@ -193,6 +203,7 @@ public class LuceneScorer {
         HashMap<String, String> fieldnameStr = new HashMap<>();
         String str = textextractor.getTweet(status);
         fieldnameStr.put(Configuration.TWEET_CONTENT, str);
+        //fieldnameStr.put(Configuration.TWEET_CONTENT_URLEXPEND, str);
         return fieldnameStr;
 
     }
@@ -219,11 +230,15 @@ public class LuceneScorer {
 
         @Override
         public void run() {
+            int topk = 30;
             BooleanQuery combinedQuery;
             Executor excutor = Executors.newFixedThreadPool(threadnum);
             CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(excutor);
             long[] minmax = indexTracker.getAcurateTweetCount();
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
+            int difference = (int) (minmax[1] - minmax[0]);
+            topk = (difference > 0 ? (int) (difference * Configuration.LUCENE_TOP_N_SEARCH) : topk);
+            topk = Math.max(100, topk);
             DirectoryReader reopenedReader = null;
             try {
                 reopenedReader = DirectoryReader.openIfChanged(directoryReader);
@@ -238,7 +253,7 @@ public class LuceneScorer {
                 }
                 directoryReader = reopenedReader;
                 //////////////////////////////////////
-                // for test
+                // check whether the boundary is included in the index
                 NumericRangeQuery boundaryTest = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[1] - 1, minmax[1] - 1, true, true);
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(boundaryTest, BooleanClause.Occur.MUST);
@@ -250,20 +265,13 @@ public class LuceneScorer {
                 } catch (IOException ex) {
                     logger.error(ex.getMessage());
                 }
-                // end test
+                // end check
                 ///////////////////////////////////////
                 for (String queryid : queries.keySet()) {
-                    if (!queryResultTrackers.containsKey(queryid)) {
-                        try {
-                            queryResultTrackers.put(queryid, new ResultTrackerKMean(queryid));
-                        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
-                            logger.error("multiquery search", ex);
-                        }
-                    }
                     combinedQuery = new BooleanQuery();
                     combinedQuery.add(queries.get(queryid), BooleanClause.Occur.SHOULD);
                     combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
-                    completeservice.submit(new UniqQuerySearcher(combinedQuery, queryid, directoryReader));
+                    completeservice.submit(new UniqQuerySearcher(combinedQuery, queryid, directoryReader, topk));
                 }
                 int resultnum = queries.size();
                 UniqQuerySearchResult queryranking;
@@ -274,8 +282,14 @@ public class LuceneScorer {
                         if (queryranking != null) {
                             // update the result tracker
                             queryResultTrackers.get(queryranking.queryid).addTweets(queryranking.results);
-                            if (queryResultTrackers.get(queryranking.queryid).isStarted()) {
+                            // after the pointwise decision maker start, we start to send 
+                            // tweets to pw decision maker, before that, we only send to
+                            // the listwise decision maker
+                            if (queryResultTrackers.get(queryranking.queryid).whetherOffer2LWQueue()
+                                    && queryResultTrackers.get(queryranking.queryid).whetherOffer2PWQueue()) {
                                 queryranking.offer2queue(queue2offer4PW, queue2offer4LW);
+                            } else if (queryResultTrackers.get(queryranking.queryid).whetherOffer2LWQueue()) {
+                                queryranking.offer2queue(queue2offer4LW);
                             }
                         } else {
                             logger.error("queryranking is null.");
@@ -294,7 +308,7 @@ public class LuceneScorer {
 
     private class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
 
-        private int topN = Configuration.LUCENE_TOP_N_SEARCH;
+        private final int topN;
 
         private final String queryid;
 
@@ -302,14 +316,11 @@ public class LuceneScorer {
 
         private final DirectoryReader reader;
 
-        public UniqQuerySearcher(Query query, String queryId, DirectoryReader reader) {
+        public UniqQuerySearcher(Query query, String queryId, DirectoryReader reader, int topk) {
             this.query = query;
             this.queryid = queryId;
             this.reader = reader;
-        }
-
-        public void setTopN(int topN) {
-            this.topN = topN;
+            this.topN = topk;
         }
 
         private UniqQuerySearchResult mutliScorers(IndexReader reader, Query query, String queryId, int topN) throws IOException {
@@ -333,6 +344,7 @@ public class LuceneScorer {
                         searcherInUse.setSimilarity(new LMJelinekMercerSimilarity(Configuration.FEATURE_S_LMJM_Lambda));
                         break;
                 }
+
                 hits = searcherInUse.search(query, topN).scoreDocs;
                 for (ScoreDoc hit : hits) {
                     tweet = searcherInUse.doc(hit.doc);
@@ -352,7 +364,9 @@ public class LuceneScorer {
                 pwScorer.predictor(qtp);
                 qtp.vectorizeMahout();
             }
-            return new UniqQuerySearchResult(queryid, searchresults.valueCollection());
+
+            UniqQuerySearchResult uqsr = new UniqQuerySearchResult(queryid, searchresults.valueCollection());
+            return uqsr;
         }
 
         @Override
@@ -373,12 +387,12 @@ public class LuceneScorer {
             this.results = results;
         }
 
-        private void offer2queue(BlockingQueue<QueryTweetPair> queue) throws InterruptedException {
+        private void offer2queue(BlockingQueue<QueryTweetPair> queue2offer4LW) throws InterruptedException {
             for (QueryTweetPair qtp : results) {
                 // offer to the blocking queue for the decision maker
-                boolean isSucceed = queue.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
+                boolean isSucceed = queue2offer4LW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
                 if (!isSucceed) {
-                    logger.error("offer to queue failed.");
+                    logger.error("offer to queue2offer4LW failed.");
                 }
             }
         }
@@ -386,12 +400,12 @@ public class LuceneScorer {
         private void offer2queue(BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) throws InterruptedException {
             for (QueryTweetPair qtp : results) {
                 // offer to the blocking queue for the pointwise decision maker
-                boolean isSucceed = queue2offer4PW.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
+                boolean isSucceed = queue2offer4PW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
                 if (!isSucceed) {
                     logger.error("offer to queue2offer4PW failed.");
                 }
                 // offer to the blocking queue for the decision maker
-                isSucceed = queue2offer4LW.offer(new QueryTweetPair(qtp), 100, TimeUnit.MILLISECONDS);
+                isSucceed = queue2offer4LW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
                 if (!isSucceed) {
                     logger.error("offer to queue2offer4LW failed.");
                 }

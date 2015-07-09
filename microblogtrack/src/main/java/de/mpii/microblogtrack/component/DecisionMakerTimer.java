@@ -3,6 +3,7 @@ package de.mpii.microblogtrack.component;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.apache.log4j.Logger;
 
 /**
@@ -16,15 +17,18 @@ public class DecisionMakerTimer implements Runnable {
 
     static Logger logger = Logger.getLogger(DecisionMakerTimer.class.getName());
 
-    private final ScheduledExecutorService excutor;
+    private final ScheduledExecutorService startExecutor;
 
     private final Runnable decisionmaker;
 
     private Future<?> lastExecution = null;
 
-    public DecisionMakerTimer(Runnable decisionmaker, int threadnum) {
+    private final String taskname;
+
+    public DecisionMakerTimer(Runnable decisionmaker, String taskname, int threadnum) {
         this.decisionmaker = decisionmaker;
-        this.excutor = Executors.newScheduledThreadPool(threadnum);
+        this.startExecutor = Executors.newScheduledThreadPool(threadnum);
+        this.taskname = taskname;
     }
 
     @Override
@@ -33,11 +37,11 @@ public class DecisionMakerTimer implements Runnable {
             if (!lastExecution.isDone()) {
                 boolean interrupted = lastExecution.cancel(true);
                 if (interrupted) {
-                    logger.warn("interrupte flag has been set.");
+                    logger.warn("interrupte flag has been set for " + this.taskname);
                 }
             }
         }
-        lastExecution = excutor.submit(decisionmaker);
+        lastExecution = startExecutor.submit(decisionmaker);
     }
 
 }

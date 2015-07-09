@@ -1,30 +1,14 @@
 package de.mpii.microblogtrack.task;
 
-import de.mpii.microblogtrack.component.DecisionMakerTimer;
-import de.mpii.microblogtrack.component.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.LuceneScorer;
-import de.mpii.microblogtrack.component.PointwiseDecisionMaker;
-import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
-import de.mpii.microblogtrack.utility.LibsvmWrapper;
-import de.mpii.microblogtrack.utility.Configuration;
-import de.mpii.microblogtrack.utility.QueryTweetPair;
-import de.mpii.microblogtrack.component.ResultTweetsTracker;
-import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
-import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import org.apache.commons.cli.BasicParser;
@@ -95,7 +79,7 @@ public class OfflineProcessor extends Processor {
                             lscorer.write2Index(TwitterObjectFactory.createStatus(jsonstr));
                             br.close();
                             inputtweetcount++;
-                            if (inputtweetcount % 6000 == 0) {
+                            if (inputtweetcount % 3000 == 0) {
                                 Thread.sleep(1000 * 60);
                             }
                         }
@@ -106,7 +90,7 @@ public class OfflineProcessor extends Processor {
                     logger.info("read in " + f.getName() + " finished");
                 }
             }
-            logger.info("finished read in all");
+            logger.info("Finished read in zip files");
 
         }
     }
@@ -127,9 +111,9 @@ public class OfflineProcessor extends Processor {
         options.addOption("l", "log4jxml", true, "log4j conf file");
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
-        String outputfile = null, datadir = null, indexdir = null, queryfile = null, scalefile = null, log4jconf = null;
+        String outputdir = null, datadir = null, indexdir = null, queryfile = null, scalefile = null, log4jconf = null;
         if (cmd.hasOption("o")) {
-            outputfile = cmd.getOptionValue("o");
+            outputdir = cmd.getOptionValue("o");
         }
         if (cmd.hasOption("l")) {
             log4jconf = cmd.getOptionValue("l");
@@ -146,12 +130,23 @@ public class OfflineProcessor extends Processor {
         if (cmd.hasOption("s")) {
             scalefile = cmd.getOptionValue("s");
         }
+        /**
+         * for local test
+         */
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        indexdir = rootdir + "/index";
+        queryfile = rootdir + "/queries/fusion";
+        datadir = rootdir + "/tweetzipklein";
+        scalefile = rootdir + "/scale_file/scale_meanstd";
+        outputdir = rootdir + "/outputdir1";
+        log4jconf = "src/main/java/log4j.xml";
+
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         logger.info("offline process test");
         OfflineProcessor op = new OfflineProcessor();
         try {
-            op.start(datadir, indexdir, queryfile, outputfile, scalefile);
+            op.start(datadir, indexdir, queryfile, outputdir, scalefile);
         } catch (IOException | InterruptedException | ExecutionException | ParseException | ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
             logger.error("entrance:", ex);
             logger.info("client is closed");

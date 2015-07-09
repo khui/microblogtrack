@@ -24,7 +24,7 @@ public class ResultPrinter {
         File outd = new File(outdir);
         outd.deleteOnExit();
         outd.mkdirs();
-        logger.info("The results will be printed to " + outdir);
+        logger.info("Ouput directory " + outdir);
     }
 
     public void println(String qid, String line) throws FileNotFoundException {

@@ -25,17 +25,13 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
 
     static Logger logger = Logger.getLogger(PointwiseDecisionMaker.class);
 
+    private final BlockingQueue<QueryTweetPair> tweetqueue;
+
     private final TObjectDoubleMap<String> queryidThresholds = new TObjectDoubleHashMap<>(250);
     // dynamic threshold for the initial tweet, avoiding the most relevant tweets never come
     private final TObjectDoubleMap<String> queryidInitThresholds = new TObjectDoubleHashMap<>(250);
 
-    private final BlockingQueue<QueryTweetPair> tweetqueue;
-
-    private final TObjectIntMap<String> queryNumberCount = new TObjectIntHashMap<>(250);
-
     private final int centroidnum = 10;
-
-    private final Set<String> finishedQueryId = new HashSet<>(250);
 
     private final ResultPrinter resultprinter;
 
@@ -43,16 +39,20 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         super(tracker);
         this.tweetqueue = tweetqueue;
         this.resultprinter = resultprinter;
-        for (String qid : tracker.keySet()) {
-            queryNumberCount.put(qid, 1);
-        }
     }
 
     @Override
     public void run() {
+        // only after receiving enough tweets, the tweets will be considered to 
+        // be reported
+        int received_tweet_num = 0;
+
         for (String qid : queryResultTrackers.keySet()) {
-            queryResultTrackers.get(qid).informStart2Record();
+            queryResultTrackers.get(qid).offer2PWQueue();
         }
+        logger.info("pointwise started");
+        TObjectIntMap<String> queryNumberCount = new TObjectIntHashMap<>(250);
+        Set<String> finishedQueryId = new HashSet<>(250);
         QueryTweetPair tweet;
         String queryid;
         /**
@@ -63,11 +63,16 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         while (true) {
             if (Thread.interrupted()) {
                 clear();
-                logger.info("current PointwiseDecisionMaker has been interrupted");
+                logger.info("Current PointwiseDecisionMaker has been interrupted");
                 break;
             }
             tweet = tweetqueue.poll();
             if (tweet == null) {
+                continue;
+            } else {
+                received_tweet_num++;
+            }
+            if (received_tweet_num < Configuration.PW_DW_CUMULATECOUNT_DELAY) {
                 continue;
             }
             if (centroidnum > queryNumberCount.get(tweet.queryid)) {
@@ -75,7 +80,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                 if (scoreFilter(tweet)) {
                     double[] distances = distFilter(tweet);
                     if (distances != null) {
-                        CandidateTweet resultTweet = decisionMake(tweet, distances);
+                        CandidateTweet resultTweet = decisionMake(tweet, distances, queryNumberCount);
                         if (resultTweet.rank > 0) {
                             try {
                                 // write down the tweets that are notified
@@ -83,15 +88,16 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                             } catch (FileNotFoundException ex) {
                                 logger.error("", ex);
                             }
-                            queryNumberCount.adjustValue(queryid, 1);
-
-                            //logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
+                            queryNumberCount.adjustOrPutValue(queryid, 1, 1);
+                            // logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
                         } else {
                             //logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
                         }
                     } else {
                         //logger.info("filter out the tweet by distance: " + qidTweetSent.get(tweet.queryid).size());
                     }
+                } else {
+                    //logger.info("filter out the tweet by score: " + tweet.getRelScore());
                 }
             } else {
                 logger.info("Finished: " + tweet.queryid + " " + queryNumberCount.get(tweet.queryid));
@@ -108,6 +114,9 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
 
     private void clear() {
         resultprinter.flush();
+        for (String qid : queryResultTrackers.keySet()) {
+            queryResultTrackers.get(qid).ceasePWQueue();
+        }
     }
 
     /**
@@ -139,9 +148,10 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
      *
      * @param tweet
      * @param relativeDist
+     * @param queryNumberCount
      * @return
      */
-    protected CandidateTweet decisionMake(QueryTweetPair tweet, double[] relativeDist) {
+    protected CandidateTweet decisionMake(QueryTweetPair tweet, double[] relativeDist, TObjectIntMap<String> queryNumberCount) {
         double absoluteScore = tweet.getAbsScore();
         double relativeScore = tweet.getRelScore();
         String queryId = tweet.queryid;
@@ -158,7 +168,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             // the threshold, then pop-up the current tweet and lift the threshold
             // otherwise decrease the threshold
             if (adjustThreshold(queryId, avggain)) {
-                resultTweet.rank = queryNumberCount.get(queryId);
+                resultTweet.rank = queryNumberCount.get(queryId) + 1;
             }
         } else {
             // if this is the first tweet to pop-up, we should make sure this is the 
@@ -170,7 +180,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             double currentThread = queryidInitThresholds.get(queryId);
             if (relativeScore > currentThread) {
                 avggain = absoluteScore;
-                resultTweet.rank = queryNumberCount.get(queryId);
+                resultTweet.rank = queryNumberCount.get(queryId) + 1;
                 adjustThreshold(queryId, avggain);
             } else {
                 currentThread *= (1 - Configuration.PW_DM_THRESHOLD_ALPHA);
@@ -215,6 +225,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             result = true;
             threshold = currentGain;
         }
+        //logger.info("threahold " + queryidThresholds.get(queryId) + " " + queryidInitThresholds.get(queryId));
         queryidThresholds.put(queryId, threshold);
         return result;
     }

@@ -43,42 +43,47 @@ public class Configuration {
      * parameters for lucene systems
      */
     // the size of the in-memory index, determining how often the writer dump the index to the disk
-    public final static double LUCENE_MEM_SIZE = 1024.0 * 10;
+    public final static double LUCENE_MEM_SIZE = 1024.0;// * 10;
 
     public final static String LUCENE_TOKENIZER = "org.apache.lucene.analysis.en.EnglishAnalyzer";
     // lucene perform search per LUCENE_SEARCH_FREQUENCY seconds
-    public final static int LUCENE_SEARCH_FREQUENCY = 60;
+    public final static int LUCENE_SEARCH_FREQUENCY = 60;//60;
     // every time invertal, we retrieve top_n tweets for each query for further processin from lucene
-    public final static int LUCENE_TOP_N_SEARCH = 30;
+    public final static double LUCENE_TOP_N_SEARCH = 0.08;
     // number of threads we use to conduct multiquery search
-    public final static int LUCENE_SEARCH_THREADNUM = 10;
+    public final static int LUCENE_SEARCH_THREADNUM = 5;
     /**
      * pointwise decision maker parameters for mobile notification task
      */
     // adjust the threshold for pop-up tweets dynamically, governing the adjusting step
-    public final static double PW_DM_THRESHOLD_ALPHA = 0.005;
+    public final static double PW_DM_THRESHOLD_ALPHA = 0.05;
     // filter out the tweet with less than threshold relative score
     public final static double PW_DM_SCORE_FILTER = 0.95;
     // if it is the first tweet to pop-up, we require a relative high threshold
-    public final static double PW_DM_FIRSTPOPUP_SCORETHRESD = 0.999;
+    public final static double PW_DM_FIRSTPOPUP_SCORETHRESD = 0.9;
     // filter out the tweets that are too similar with at least one of the pop-up tweet, the number is relative to 
     // average distance among centroids
     public final static double DM_DIST_FILTER = 0.2;
     // start delay for the decision maker in minutes 
-    public final static int DM_START_DELAY = 15;
+    public final static int PW_DM_START_DELAY = 5;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public final static int PW_DM_PERIOD = 30;
+    public final static int PW_DM_PERIOD = 2;
     /**
      * listwise decision maker for e-mail digest task
      */
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public final static int LW_DM_PERIOD = 60 * 24;
+    public final static int LW_DM_PERIOD = 2;//60 * 24;
     // the length of the priority queue: tracking at most n tweets with highest pointwise prediction score
-    public final static int LW_DM_QUEUE_LEN = 1000;
+    public final static int LW_DM_QUEUE_LEN = 100;
 
-    public final static int LW_DM_SELECTNUM = 100;
-    // filter out the tweet with less than threshold relative score
-    public final static double LW_DM_SCORE_FILTER = 0.7;
+    public final static int LW_DM_SELECTNUM = 10;
+
+    public final static int LW_DM_START_DELAY = 5;
+    // for each query, we keep recording the top-LW_DM_QUEUE_LEN tweets with
+    // highest scores, afterward conduct maxrep, where the weight for each tweet
+    // is the min-max normalized prediction score. this parameter is to govern the
+    // lower bound of the min-max, the upper bound is 1. 
+    public final static double LW_DM_WEIGHT_MINW = 0.5;
 
     /**
      * parameter for maxrep
@@ -100,13 +105,16 @@ public class Configuration {
     public final static String TRACKER_DISTANT_MEASURE = "org.apache.mahout.common.distance.CosineDistanceMeasure";
     // every x minutes, we update the average distance among centroids, by re-clustering the existing centroids
     // from streaming k-mean, which is relative expensive
-    public final static double TRACKER_AVGDIST_UPDATE_MINUTES = 30;
+    public final static int TRACKER_AVGDIST_UPDATE_TWEETNUM = 5000;
     // when we convert the absolute pointwise predict score to relative score,
     // we only convert the top-p% for effiency reason
     public final static double TRACKER_CUMULATIVE_TOPPERC = 0.5;
     // how accurate we compute the cumulative probability in converting the absolute predicting score
     // by governing how many digits we want to retain, i.e., the number of bins we have
-    public final static int TRACKER_CUMULATIVE_GRANULARITY = DM_START_DELAY * LUCENE_TOP_N_SEARCH;
+    public final static int TRACKER_CUMULATIVE_GRANULARITY = 1000;//1500 * 60 * 8;
+    // before reach this threahold, we only return the default relative score for tweet,
+    // wihch will cause the tweet being filtered out
+    public final static int PW_DW_CUMULATECOUNT_DELAY = 300;//1500 * 60 * 8;
     /**
      * pointwise predictor outcome: confidence, score, etc..
      */

@@ -8,6 +8,7 @@ import gnu.trove.list.array.TDoubleArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.log4j.Logger;
 import org.apache.mahout.common.distance.DistanceMeasure;
 import org.apache.mahout.math.Vector;
 
@@ -18,6 +19,8 @@ import org.apache.mahout.math.Vector;
  * @author khui
  */
 public class SentTweetTracker {
+
+    static Logger logger = Logger.getLogger(SentTweetTracker.class.getName());
 
     // track the tweets being sent in the full duration
     protected final static Map<String, List<CandidateTweet>> qidTweetSent = new HashMap<>();

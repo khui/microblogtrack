@@ -37,9 +37,9 @@ import twitter4j.TwitterException;
  * @author khui
  */
 public class OnlineProcessor extends Processor {
-
+    
     static Logger logger = Logger.getLogger(OnlineProcessor.class.getName());
-
+    
     private BasicClient client;
 
     /**
@@ -99,9 +99,10 @@ public class OnlineProcessor extends Processor {
                 ps.println(keyname + " " + keyfileTimestamp.get(keyname));
             }
         }
+        logger.info("finished read in keys");
         return new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret};
     }
-
+    
     @Override
     protected void receiveStatus(LuceneScorer lscorer, String keydir, int numProcessingThreads) {
         BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>();
@@ -142,13 +143,14 @@ public class OnlineProcessor extends Processor {
         for (int threads = 0; threads < numProcessingThreads; threads++) {
             t4jClient.process();
         }
-
+        logger.info("finished connected to the api");
+        
     }
-
+    
     public void close() {
         client.stop();
     }
-
+    
     public static void main(String[] args) throws InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException, IOException {
         org.apache.log4j.PropertyConfigurator.configure("src/main/java/log4j.xml");
         //("/home/khui/workspace/javaworkspace/log4j.xml");
@@ -166,7 +168,7 @@ public class OnlineProcessor extends Processor {
         String indexdir = dir + "/index_1";
         logger.info("Start To Process");
         OnlineProcessor op = new OnlineProcessor();
-        op.start(keydir, indexdir, queryfile, "", "");
-
+        op.start(keydir, indexdir, queryfile, dir + "/outputdir", dir + "/scale_file/scale_meanstd");
+        
     }
 }

@@ -60,8 +60,8 @@ public abstract class Processor {
      */
     public void start(String datadir, String indexdir, String queryfile, String outdir, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
         // communication between lucene search results and pointwise decision maker
-        BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>(5000);
-        BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>(5000);
+        BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>();
+        BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>();
         Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer(), LibsvmWrapper.readScaler(scalefile));
         receiveStatus(lscorer, datadir, 1);
@@ -69,11 +69,11 @@ public abstract class Processor {
         // set up output writer to print out the notification task results
         ResultPrinter resultprinterpw = new ResultPrinter(outdir + "/pointwise");
         ResultPrinter resultprinterlw = new ResultPrinter(outdir + "/listwise");
-        DecisionMakerTimer decisionMakerTimerPW = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), 1);
-        DecisionMakerTimer decisionMakerTimerLW = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), 2);
+        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW_S", 1);
+        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW", 2);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-        scheduler.scheduleAtFixedRate(decisionMakerTimerPW, Configuration.DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
-        scheduler.scheduleAtFixedRate(decisionMakerTimerLW, Configuration.DM_START_DELAY, Configuration.LW_DM_PERIOD, TimeUnit.MINUTES);
+        scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
+        scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, TimeUnit.MINUTES);
     }
 
     protected abstract void receiveStatus(LuceneScorer lscorer, String dataORkeydir, int numProcessingThreads);

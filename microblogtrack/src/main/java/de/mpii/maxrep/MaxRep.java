@@ -3,11 +3,7 @@ package de.mpii.maxrep;
 import de.mpii.microblogtrack.utility.Configuration;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
-import gnu.trove.map.TDoubleObjectMap;
-import gnu.trove.map.hash.TDoubleObjectHashMap;
-import java.util.Arrays;
-import java.util.Collections;
-import org.apache.commons.lang3.ArrayUtils;
+import java.util.List;
 import org.apache.log4j.Logger;
 import org.apache.mahout.common.distance.DistanceMeasure;
 import org.apache.mahout.math.Centroid;
@@ -23,7 +19,7 @@ public class MaxRep {
 
     static Logger logger = Logger.getLogger(MaxRep.class.getName());
 
-    private final Centroid[] datapoints;
+    private final List<Centroid> datapoints;
 
     private final int n;
 
@@ -37,10 +33,10 @@ public class MaxRep {
 
     private final double similarityThreshold = Configuration.MAXREP_SIMI_THRESHOLD;
 
-    public MaxRep(Centroid[] datapoints) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    public MaxRep(List<Centroid> datapoints) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.datapoints = datapoints;
         this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.MAXREP_DISTANT_MEASURE).newInstance();
-        this.n = datapoints.length;
+        this.n = datapoints.size();
         this.maxRepInSelectedsetVector = new double[n];
         this.similarityMatrix = new double[n][];
         for (int i = 0; i < n; i++) {
@@ -58,15 +54,20 @@ public class MaxRep {
      * @return
      */
     public int[] selectMaxRep(int k) {
-        while (selectedL.size() <= Math.min(n, k)) {
+        while (selectedL.size() < Math.min(n, k)) {
             int max_simigain_index = getTopRep();
-            selectedL.add(max_simigain_index);
-            updateMaxRepVector(max_simigain_index);
+            if (max_simigain_index >= 0) {
+                selectedL.add(max_simigain_index);
+                updateMaxRepVector(max_simigain_index);
+            } else {
+                logger.error("max_ind is negative: " + max_simigain_index);
+                break;
+            }
         }
         // we use the key of the selected centroids as the final results
         TIntList selectedCentroidKeys = new TIntArrayList();
         for (int selectedIndex : selectedL.toArray()) {
-            selectedCentroidKeys.add(datapoints[selectedIndex].getIndex());
+            selectedCentroidKeys.add(datapoints.get(selectedIndex).getIndex());
         }
         return selectedCentroidKeys.toArray();
     }
@@ -86,25 +87,25 @@ public class MaxRep {
      * @return
      */
     private int getTopRep() {
-        TDoubleObjectMap<TIntList> deltaSimSums_indexes = new TDoubleObjectHashMap<>();
+        int max_ind = -1;
+        double max_delta = 0;
         // go thru all data points as candidate data points to be selected
         for (int i = 0; i < n; i++) {
             double delta_simi_sum = 0;
             // for i-th data point, compare it with every other data points
             // to compute the possible similarity gain, aggregating in delta_simi_sum
             for (int j = 0; j < n; j++) {
-                double ij_similarity = similarityMatrix[i][j] * datapoints[j].getWeight();
+                double ij_similarity = similarityMatrix[i][j] * datapoints.get(j).getWeight();
                 double max_simi_j = maxRepInSelectedsetVector[j];
                 delta_simi_sum += Math.max(ij_similarity - max_simi_j, 0);
             }
-            if (!deltaSimSums_indexes.containsKey(delta_simi_sum)) {
-                deltaSimSums_indexes.put(delta_simi_sum, new TIntArrayList());
+
+            if (delta_simi_sum > max_delta) {
+                max_ind = i;
+                max_delta = delta_simi_sum;
             }
-            deltaSimSums_indexes.get(delta_simi_sum).add(i);
         }
-        double max_delta_simi = Collections.max(Arrays.asList(ArrayUtils.toObject(deltaSimSums_indexes.keys())));
-        int selected_data_index = deltaSimSums_indexes.get(max_delta_simi).get(0);
-        return selected_data_index;
+        return max_ind;
     }
 
     /**
@@ -118,7 +119,7 @@ public class MaxRep {
     private void updateMaxRepVector(int selected_data_index) {
         for (int i = 0; i < n; i++) {
             maxRepInSelectedsetVector[i] = Math.max(maxRepInSelectedsetVector[i],
-                    similarityMatrix[i][selected_data_index] * datapoints[i].getWeight());
+                    similarityMatrix[i][selected_data_index] * datapoints.get(i).getWeight());
         }
     }
 
@@ -130,9 +131,8 @@ public class MaxRep {
         // compute similarity for upper diangel  
         for (int i = 0; i < n; i++) {
             for (int j = i + 1; j < n; j++) {
-                double distance = distanceMeasure.distance(datapoints[i], datapoints[j]);
+                double distance = distanceMeasure.distance(datapoints.get(i).getVector(), datapoints.get(j).getVector());
                 if (distance < 0 || distance > 1) {
-                    logger.error("Illegal distance: " + distance);
                     distance = (distance < 0 ? 0 : 1);
                 }
                 // regard datapoints far away enough as non-similar
