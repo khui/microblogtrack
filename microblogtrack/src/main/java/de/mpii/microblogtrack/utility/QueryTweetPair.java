@@ -281,14 +281,14 @@ public class QueryTweetPair {
                     case Configuration.FEATURE_T_HASHTAGNUM:
                         HashtagEntity[] hashtagentity = status.getHashtagEntities();
                         if (hashtagentity == null) {
-                            continue;
+                            break;
                         }
                         featureV = hashtagentity.length;
                         break;
                     case Configuration.FEATURE_T_MEDIANUM:
                         MediaEntity[] mediaentity = status.getMediaEntities();
                         if (mediaentity == null) {
-                            continue;
+                            break;
                         }
                         featureV = mediaentity.length;
                         break;
@@ -298,14 +298,14 @@ public class QueryTweetPair {
                     case Configuration.FEATURE_T_URLNUM:
                         URLEntity[] urlentity = status.getURLEntities();
                         if (urlentity == null) {
-                            continue;
+                            break;
                         }
                         featureV = urlentity.length;
                         break;
                     case Configuration.FEATURE_T_USERMENTIONNUM:
                         UserMentionEntity[] mentionentity = status.getUserMentionEntities();
                         if (mentionentity == null) {
-                            continue;
+                            break;
                         }
                         featureV = mentionentity.length;
                         break;
@@ -335,14 +335,14 @@ public class QueryTweetPair {
                     case Configuration.FEATURE_U_DESC_LEN:
                         String description = user.getDescription();
                         if (description == null) {
-                            continue;
+                            break;
                         }
                         featureV = description.length();
                         break;
                     case Configuration.FEATURE_U_DESC_URLNUM:
                         URLEntity[] uentity = user.getDescriptionURLEntities();
                         if (uentity == null) {
-                            continue;
+                            break;
                         }
                         featureV = uentity.length;
                         break;

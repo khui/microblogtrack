@@ -9,6 +9,7 @@ import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import java.io.FileNotFoundException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
@@ -50,7 +51,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         for (String qid : queryResultTrackers.keySet()) {
             queryResultTrackers.get(qid).offer2PWQueue();
         }
-        logger.info("pointwise started");
+        logger.info("PW-DM started");
         TObjectIntMap<String> queryNumberCount = new TObjectIntHashMap<>(250);
         Set<String> finishedQueryId = new HashSet<>(250);
         QueryTweetPair tweet;
@@ -63,8 +64,8 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         while (true) {
             if (Thread.interrupted()) {
                 clear();
-                logger.info("Current PointwiseDecisionMaker has been interrupted");
-                break;
+                logger.info("PW-DM interrupted");
+                return;
             }
             tweet = tweetqueue.poll();
             if (tweet == null) {
@@ -72,6 +73,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             } else {
                 received_tweet_num++;
             }
+            // make decision untill we have receive enough tweets
             if (received_tweet_num < Configuration.PW_DW_CUMULATECOUNT_DELAY) {
                 continue;
             }
@@ -84,12 +86,13 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                         if (resultTweet.rank > 0) {
                             try {
                                 // write down the tweets that are notified
-                                resultprinter.println(queryid, resultTweet.forDebugToString(tweet.getStatus().getText()));
-                            } catch (FileNotFoundException ex) {
+                                resultprinter.println(queryid, resultTweet.forDebugToString(""));
+                                resultprinter.printlog(queryid, tweet.getStatus().getText(), resultTweet.absoluteScore, resultTweet.relativeScore);
+                            } catch (FileNotFoundException | ParseException ex) {
                                 logger.error("", ex);
                             }
                             queryNumberCount.adjustOrPutValue(queryid, 1, 1);
-                            // logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
+                            //logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
                         } else {
                             //logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
                         }

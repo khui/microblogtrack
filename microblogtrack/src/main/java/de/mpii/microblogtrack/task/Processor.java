@@ -19,6 +19,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.cli.BasicParser;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.Options;
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.lucene.queryparser.classic.ParseException;
 import twitter4j.TwitterException;
 
@@ -27,6 +34,8 @@ import twitter4j.TwitterException;
  * @author khui
  */
 public abstract class Processor {
+    
+    static Logger logger = Logger.getLogger(Processor.class.getName());
 
     /**
      * for notification task: 1) search the results and retain top-k per minute
@@ -69,8 +78,8 @@ public abstract class Processor {
         // set up output writer to print out the notification task results
         ResultPrinter resultprinterpw = new ResultPrinter(outdir + "/pointwise");
         ResultPrinter resultprinterlw = new ResultPrinter(outdir + "/listwise");
-        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW_S", 1);
-        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW", 2);
+        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW", 5);
+        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW", 5);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
         scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
         scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, TimeUnit.MINUTES);
@@ -78,4 +87,52 @@ public abstract class Processor {
 
     protected abstract void receiveStatus(LuceneScorer lscorer, String dataORkeydir, int numProcessingThreads);
 
+    public static void main(String[] args) throws InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, TwitterException, org.apache.commons.cli.ParseException {
+        Options options = new Options();
+        options.addOption("o", "outfile", true, "output file");
+        options.addOption("d", "dataORkeydirectory", true, "data/api key directory");
+        options.addOption("i", "indexdirectory", true, "index directory");
+        options.addOption("q", "queryfile", true, "query file");
+        options.addOption("s", "meanstdscalefile", true, "scale parameters for feature normalization");
+        options.addOption("l", "log4jxml", true, "log4j conf file");
+        CommandLineParser parser = new BasicParser();
+        CommandLine cmd = parser.parse(options, args);
+        String outputdir = null, data_key_dir = null, indexdir = null, queryfile = null, scalefile = null, log4jconf = null;
+        if (cmd.hasOption("o")) {
+            outputdir = cmd.getOptionValue("o");
+        }
+        if (cmd.hasOption("l")) {
+            log4jconf = cmd.getOptionValue("l");
+        }
+        if (cmd.hasOption("d")) {
+            data_key_dir = cmd.getOptionValue("d");
+        }
+        if (cmd.hasOption("i")) {
+            indexdir = cmd.getOptionValue("i");
+        }
+        if (cmd.hasOption("q")) {
+            queryfile = cmd.getOptionValue("q");
+        }
+        if (cmd.hasOption("s")) {
+            scalefile = cmd.getOptionValue("s");
+        }
+        /**
+         * for local test
+         */
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        indexdir = rootdir + "/index";
+        queryfile = rootdir + "/queries/fusion";
+        //data_key_dir = rootdir + "/tweetzipklein";
+        data_key_dir = rootdir + "/twitterkeys";
+        scalefile = rootdir + "/scale_file/scale_meanstd";
+        outputdir = rootdir + "/outputdir";
+        log4jconf = "src/main/java/log4j.xml";
+
+        org.apache.log4j.PropertyConfigurator.configure(log4jconf);
+        LogManager.getRootLogger().setLevel(Level.INFO);
+        logger.info("online process start.");
+        Processor op = new OnlineProcessor();
+        op.start(data_key_dir, indexdir, queryfile, outputdir, scalefile);
+
+    }
 }

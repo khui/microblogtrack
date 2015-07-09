@@ -37,9 +37,9 @@ import twitter4j.TwitterException;
  * @author khui
  */
 public class OnlineProcessor extends Processor {
-    
+
     static Logger logger = Logger.getLogger(OnlineProcessor.class.getName());
-    
+
     private BasicClient client;
 
     /**
@@ -99,10 +99,10 @@ public class OnlineProcessor extends Processor {
                 ps.println(keyname + " " + keyfileTimestamp.get(keyname));
             }
         }
-        logger.info("finished read in keys");
+        logger.info("Readin key: " + keyfile);
         return new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret};
     }
-    
+
     @Override
     protected void receiveStatus(LuceneScorer lscorer, String keydir, int numProcessingThreads) {
         BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>();
@@ -143,32 +143,11 @@ public class OnlineProcessor extends Processor {
         for (int threads = 0; threads < numProcessingThreads; threads++) {
             t4jClient.process();
         }
-        logger.info("finished connected to the api");
-        
+        logger.info("Connected to the API.");
+
     }
-    
+
     public void close() {
         client.stop();
-    }
-    
-    public static void main(String[] args) throws InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException, IOException {
-        org.apache.log4j.PropertyConfigurator.configure("src/main/java/log4j.xml");
-        //("/home/khui/workspace/javaworkspace/log4j.xml");
-        //("src/main/java/log4j.xml");
-        LogManager.getRootLogger().setLevel(Level.INFO);
-        String dir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        //"/scratch/GW/pool0/khui/result/microblogtrack";
-        //"/home/khui/workspace/javaworkspace/twitter-localdebug";
-        String queryfile = "/home/khui/workspace/result/data/query/microblog/14";
-        //"/GW/D5data-2/khui/microblogtrack/queries/14";
-        //"/home/khui/workspace/result/data/query/microblog/14";
-        String keydir = dir + "/twitterkeys";
-        //"/GW/D5data-2/khui/microblogtrack/apikeys/batchkeys/apikey4-local";
-        //dir + "/twitterkeys"
-        String indexdir = dir + "/index_1";
-        logger.info("Start To Process");
-        OnlineProcessor op = new OnlineProcessor();
-        op.start(keydir, indexdir, queryfile, dir + "/outputdir", dir + "/scale_file/scale_meanstd");
-        
     }
 }

@@ -6,18 +6,16 @@ import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
 import java.io.FileNotFoundException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import org.apache.log4j.Logger;
 import org.apache.mahout.math.Centroid;
-import org.apache.mahout.math.Vector;
-import org.jsoup.nodes.Element;
 
 /**
  * collect tweets from lucene, thereafter return top-100 list at the end of day.
@@ -28,23 +26,23 @@ import org.jsoup.nodes.Element;
  * @author khui
  */
 public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable {
-
+    
     static Logger logger = Logger.getLogger(ListwiseDecisionMaker.class.getName());
-
+    
     private final BlockingQueue<QueryTweetPair> tweetqueue;
-
+    
     private final ResultPrinter resultprinter;
-
+    
     public ListwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         super(tracker);
         this.tweetqueue = tweetqueue;
         this.resultprinter = resultprinter;
     }
-
+    
     @Override
     public void run() {
         Map<String, PriorityBlockingQueue<QueryTweetPair>> qidQueue = new HashMap<>(250);
-        logger.info("LW started: " + queryResultTrackers.size());
+        logger.info("LW-DM started");
         for (String qid : queryResultTrackers.keySet()) {
             if (!queryResultTrackers.get(qid).whetherOffer2LWQueue()) {
                 queryResultTrackers.get(qid).offer2LWQueue();
@@ -57,7 +55,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
          */
         while (true) {
             if (Thread.interrupted()) {
-                logger.info("Current ListwiseDecisionMaker has been interrupted " + qidQueue.size() + " " + tweetqueue.size());
+                logger.info("LW-DM interrupted");
                 try {
                     for (String qid : qidQueue.keySet()) {
                         List<CandidateTweet> tweets = decisionMakeMaxRep(qidQueue.get(qid));
@@ -66,13 +64,14 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                         }
                         for (CandidateTweet tweet : tweets) {
                             resultprinter.println(qid, tweet.forDebugToString(""));
+                            resultprinter.printlog(qid, tweet.getTweetStr(), tweet.absoluteScore, tweet.relativeScore);
                         }
                     }
                     resultprinter.flush();
-                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | FileNotFoundException ex) {
+                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | FileNotFoundException | ParseException ex) {
                     logger.error("", ex);
                 }
-                break;
+                return;
             }
 
             // we simply collect top-LW_DM_QUEUE_LEN tweets with highest prediction score
@@ -91,24 +90,22 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
             if (!qidQueue.containsKey(qid)) {
                 qidQueue.put(qid, getPriorityQueue());
             }
-            Vector v = qtp.vectorizeMahout();
-            Iterable<Vector.Element> ve = v.all();
-
+            
             qidQueue.get(qid).offer(new QueryTweetPair(qtp));
             if (qidQueue.get(qid).size() > Configuration.LW_DM_QUEUE_LEN) {
                 qidQueue.get(qid).poll();
             }
-
+            
         }
     }
-
+    
     private List<CandidateTweet> decisionMakeMaxRep(PriorityBlockingQueue<QueryTweetPair> queue) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         List<QueryTweetPair> candidateTweets = new ArrayList<>();
         int tweetnum = queue.drainTo(candidateTweets);
         if (tweetnum <= 0) {
             logger.error("The candidate tweet list is empty");
             return null;
-        }
+        } 
         List<Centroid> points2select = new ArrayList<>(tweetnum);
         // pick up the maximum and minimum absolute score
         double maxAbsoluteScore = Double.MIN_VALUE;
@@ -144,6 +141,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                     rank++,
                     candidateTweets.get(index).queryid,
                     candidateTweets.get(index).vectorizeMahout()));
+            selectedQTPs.get(selectedQTPs.size() - 1).setTweetStr(candidateTweets.get(index).getStatus().getText());
         }
         return selectedQTPs;
     }
@@ -179,8 +177,8 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                         }
                     }
                 });
-
+        
         return queue;
     }
-
+    
 }

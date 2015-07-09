@@ -1,6 +1,7 @@
 package de.mpii.microblogtrack.utility;
 
 import java.text.DecimalFormat;
+import org.apache.log4j.Logger;
 import org.apache.mahout.math.Vector;
 
 /**
@@ -10,6 +11,8 @@ import org.apache.mahout.math.Vector;
  * @author khui
  */
 public class CandidateTweet {
+
+    static Logger logger = Logger.getLogger(CandidateTweet.class.getName());
 
     public final String queryId;
     public final long tweetId;
@@ -22,6 +25,8 @@ public class CandidateTweet {
     public int rank = -1;
 
     private final Vector featureVector;
+
+    private String tweetstr = null;
 
     public CandidateTweet(long tweetid, double absoluteS, double prob, int rank, String queryId, Vector featureVector) {
         this.tweetId = tweetid;
@@ -48,6 +53,19 @@ public class CandidateTweet {
         this.distance = candidatetweet.distance;
         this.absoluteScore = candidatetweet.absoluteScore;
         this.rank = candidatetweet.rank;
+    }
+
+    public void setTweetStr(String tweetstr) {
+        this.tweetstr = tweetstr;
+    }
+
+    public String getTweetStr() {
+        if (this.tweetstr != null) {
+            return this.tweetstr;
+        } else {
+            logger.error("tweetstr is null");
+            return "";
+        }
     }
 
     public void setDist(double dist) {

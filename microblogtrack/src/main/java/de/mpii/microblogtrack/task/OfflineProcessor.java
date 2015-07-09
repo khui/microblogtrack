@@ -99,58 +99,5 @@ public class OfflineProcessor extends Processor {
     protected void receiveStatus(LuceneScorer lscorer, String datadir, int numProcessingThreads) {
         Executor excutor = Executors.newSingleThreadExecutor();
         excutor.execute(new ReadInTweets(lscorer, datadir));
-    }
-
-    public static void main(String[] args) throws TwitterException, org.apache.commons.cli.ParseException, InterruptedException {
-        Options options = new Options();
-        options.addOption("o", "outfile", true, "output file");
-        options.addOption("d", "datadirectory", true, "data directory");
-        options.addOption("i", "indexdirectory", true, "index directory");
-        options.addOption("q", "queryfile", true, "query file");
-        options.addOption("s", "meanstdscalefile", true, "scale parameters for feature normalization");
-        options.addOption("l", "log4jxml", true, "log4j conf file");
-        CommandLineParser parser = new BasicParser();
-        CommandLine cmd = parser.parse(options, args);
-        String outputdir = null, datadir = null, indexdir = null, queryfile = null, scalefile = null, log4jconf = null;
-        if (cmd.hasOption("o")) {
-            outputdir = cmd.getOptionValue("o");
-        }
-        if (cmd.hasOption("l")) {
-            log4jconf = cmd.getOptionValue("l");
-        }
-        if (cmd.hasOption("d")) {
-            datadir = cmd.getOptionValue("d");
-        }
-        if (cmd.hasOption("i")) {
-            indexdir = cmd.getOptionValue("i");
-        }
-        if (cmd.hasOption("q")) {
-            queryfile = cmd.getOptionValue("q");
-        }
-        if (cmd.hasOption("s")) {
-            scalefile = cmd.getOptionValue("s");
-        }
-        /**
-         * for local test
-         */
-        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        indexdir = rootdir + "/index";
-        queryfile = rootdir + "/queries/fusion";
-        datadir = rootdir + "/tweetzipklein";
-        scalefile = rootdir + "/scale_file/scale_meanstd";
-        outputdir = rootdir + "/outputdir1";
-        log4jconf = "src/main/java/log4j.xml";
-
-        org.apache.log4j.PropertyConfigurator.configure(log4jconf);
-        LogManager.getRootLogger().setLevel(Level.INFO);
-        logger.info("offline process test");
-        OfflineProcessor op = new OfflineProcessor();
-        try {
-            op.start(datadir, indexdir, queryfile, outputdir, scalefile);
-        } catch (IOException | InterruptedException | ExecutionException | ParseException | ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
-            logger.error("entrance:", ex);
-            logger.info("client is closed");
-        }
-    }
-
+    } 
 }

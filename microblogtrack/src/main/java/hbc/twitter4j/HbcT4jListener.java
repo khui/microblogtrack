@@ -18,8 +18,14 @@ public class HbcT4jListener implements StatusListener {
 
     private final LuceneScorer lscorer;
 
+    private volatile int tweetReceivedCount = 0;
+
     public HbcT4jListener(LuceneScorer lscorer) {
         this.lscorer = lscorer;
+        tweetReceivedCount++;
+        if (tweetReceivedCount % 5000 == 0) {
+            logger.info("Received " + tweetReceivedCount + " tweets.");
+        }
     }
 
     @Override
