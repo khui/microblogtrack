@@ -1,6 +1,7 @@
 package de.mpii.microblogtrack.component;
 
 import de.mpii.maxrep.MaxRep;
+import static de.mpii.microblogtrack.component.ResultTrackerKMean.logger;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
@@ -85,6 +86,11 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                 // if fetch no tweet from the queue
                 if (qtp == null) {
                     continue;
+                }
+
+                double relativeScore = qtp.getRelScore();
+                if (relativeScore == 0) {
+                    logger.error("LW-DW, relativeScore:" + relativeScore);
                 }
 
                 synchronized (qidTweetSent) {

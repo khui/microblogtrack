@@ -296,7 +296,7 @@ public class LuceneScorer {
                         }
 
                     } catch (ExecutionException | InterruptedException ex) {
-                        logger.error("pass qtp", ex);
+                        logger.error("Write into the queue for DM", ex);
                     }
                 }
             } else {

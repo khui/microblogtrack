@@ -32,11 +32,11 @@ import org.apache.mahout.math.neighborhood.ProjectionSearch;
  * @author khui
  */
 public class ResultTrackerKMean implements ResultTweetsTracker {
-    
+
     static Logger logger = Logger.getLogger(ResultTweetsTracker.class);
-    
+
     public final String queryid;
-    
+
     private final Map<String, double[]> featureMeanStd;
 
     // record the occrrence for each predict score, generating the approximating cumulative distribution
@@ -53,13 +53,13 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
      * the fields below are for clustering algorithm
      */
     private final UpdatableSearcher streamKMCentroids;
-    
+
     private final StreamingKMeans clusterer;
-    
+
     private final DistanceMeasure distanceMeasure;
-    
+
     private final int numProjections = 20;
-    
+
     private final int searchSize = 10;
     // pointwise decision maker always need to wait amont of time
     // before make decision
@@ -67,7 +67,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     // listwise decision keep track of all tweets within one day
     // after start (set true), this flag will not change back to false
     private volatile boolean lwQueue2receiveTweets = false;
-    
+
     public ResultTrackerKMean(String queryid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryid = queryid;
         this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
@@ -76,7 +76,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         this.clusterer = new StreamingKMeans(streamKMCentroids, Configuration.TRACKER_SKMEAN_CLUSTERNUM_UPBOUND);
         this.featureMeanStd = new ConcurrentHashMap<>();
     }
-    
+
     public ResultTrackerKMean(String queryid, Map<String, double[]> featureMeanStd) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryid = queryid;
         this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
@@ -107,7 +107,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
             absoluteScore = trackPredictScore(qtp.getPredictRes());
             // add the tweet to the clustering, using the tweet count as the centroid key
             relativeScore = getCumulativeProb(absoluteScore);
-            
+
             qtp.setPredictScore(Configuration.PRED_RELATIVESCORE, relativeScore);
             datapoints2add.add(new Centroid(tweetcount, v.clone(), relativeScore));
             // update the average distance among centroids every x miniutes
@@ -147,51 +147,51 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     public synchronized boolean whetherOffer2PWQueue() {
         return pwQueue2receiveTweets;
     }
-    
+
     @Override
     public synchronized boolean whetherOffer2LWQueue() {
         return lwQueue2receiveTweets;
     }
-    
+
     @Override
     public synchronized void offer2PWQueue() {
         pwQueue2receiveTweets = true;
     }
-    
+
     @Override
     public synchronized void ceasePWQueue() {
         pwQueue2receiveTweets = false;
     }
-    
+
     @Override
     public synchronized void offer2LWQueue() {
         lwQueue2receiveTweets = true;
     }
-    
+
     @Override
     public Map<String, double[]> getMeanStdScaler() {
         return featureMeanStd;
     }
-    
+
     @Override
     public double avgDistCentroids() {
         return avgCentroidDistance;
     }
-    
+
     @Override
     public double relativeScore(double absoluteScore) {
         return getCumulativeProb(absoluteScore);
     }
-    
+
     @Override
     public void setCentroidNum(int centroidnum) {
         this.centroidnum = centroidnum;
     }
-    
+
     private synchronized void updateCentroid(Iterable<Centroid> centroid2add) {
         clusterer.cluster(centroid2add);
     }
-    
+
     private void updateAvgCentroidDist(int centroidnum) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         double distance = 0;
         double count = 1;
@@ -255,12 +255,12 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         // default value
         double prob = 1 - Configuration.TRACKER_CUMULATIVE_TOPPERC;
         int cumulativeCount = 0;
-        
+
         int currentTweetCount = this.tweetcount;
         // when we dont have enough tweets, we return the default directly as relative score
         if (currentTweetCount < Configuration.TRACKER_CUMULATIVE_GRANULARITY) {
             return prob;
-        } 
+        }
         // we only compute the top Configuration.TRACKER_CUMULATIVE_TOPPERC percent for efficiency reason 
         double topNumber = currentTweetCount * Configuration.TRACKER_CUMULATIVE_TOPPERC;
         TDoubleIntMap copyOfScoreTracker;
@@ -269,6 +269,10 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         }
         TDoubleList scores = new TDoubleArrayList(copyOfScoreTracker.keys());
         while (scores.size() > 0) {
+            double minV = scores.min();
+            if (score <= minV) {
+                break;
+            }
             double maxV = scores.max();
             cumulativeCount += copyOfScoreTracker.get(maxV);
             scores.remove(maxV);
@@ -282,7 +286,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         }
         return prob;
     }
-    
+
     private double trackPredictScore(TObjectDoubleMap<String> predictScores) {
         String[] scorenames = new String[]{Configuration.PRED_ABSOLUTESCORE};
         double[] scores = new double[scorenames.length];
@@ -300,5 +304,5 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         }
         return absoluteScore;
     }
-    
+
 }
