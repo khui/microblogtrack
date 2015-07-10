@@ -10,7 +10,6 @@ import gnu.trove.map.hash.TObjectDoubleHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import java.io.FileNotFoundException;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,7 +50,8 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
     public void run() {
         // only after receiving enough tweets, the tweets will be considered to 
         // be reported
-        int received_tweet_num = 0;
+        int num_received_since_start = 0;
+        int num_filtered_distance = 0;
 
         for (String qid : queryTweetTrackers.keySet()) {
             queryTweetTrackers.get(qid).offer2PWQueue();
@@ -68,18 +68,20 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
          */
         while (true) {
             if (Thread.interrupted()) {
+                printoutReceivedNum("received in PW-DM", num_received_since_start);
+                printoutReceivedNum("filtered by distance in PW-DM", num_filtered_distance);
                 clear();
-                logger.info("PW-DM interrupted");
                 return;
             }
             tweet = tweetqueue.poll();
             if (tweet == null) {
                 continue;
-            } else {
-                received_tweet_num++;
             }
+
+            num_received_since_start++;
+
             // make decision untill we have receive enough tweets
-            if (received_tweet_num < Configuration.PW_DW_CUMULATECOUNT_DELAY) {
+            if (num_received_since_start < Configuration.PW_DW_CUMULATECOUNT_DELAY) {
                 continue;
             }
             if (centroidnum > queryNumberCount.get(tweet.queryid)) {
@@ -105,6 +107,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                             //logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
                         }
                     } else {
+                        num_filtered_distance++;
                         //logger.info("filter out the tweet by distance: " + qidTweetSent.get(tweet.queryid).size());
                     }
                 } else {

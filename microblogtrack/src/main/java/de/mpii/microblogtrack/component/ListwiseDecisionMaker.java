@@ -1,7 +1,6 @@
 package de.mpii.microblogtrack.component;
 
 import de.mpii.maxrep.MaxRep;
-import static de.mpii.microblogtrack.component.ResultTrackerKMean.logger;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
@@ -45,6 +44,8 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
 
     @Override
     public void run() {
+        int num_received_since_start = 0;
+        int num_filtered_distance = 0;
         Map<String, PriorityBlockingQueue<QueryTweetPair>> qidQueue = new HashMap<>(250);
         logger.info("LW-DM started");
         for (String qid : queryTweetTrackers.keySet()) {
@@ -59,7 +60,8 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
          */
         while (true) {
             if (Thread.interrupted()) {
-                logger.info("LW-DM interrupted");
+                printoutReceivedNum("received in LW-DM", num_received_since_start);
+                printoutReceivedNum("filtered by distance in LW-DM", num_filtered_distance);
                 try {
                     for (String qid : qidQueue.keySet()) {
                         List<CandidateTweet> tweets = decisionMakeMaxRep(qidQueue.get(qid));
@@ -87,6 +89,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                 if (qtp == null) {
                     continue;
                 }
+                num_received_since_start++;
 
                 double relativeScore = qtp.getRelScore();
                 if (relativeScore == 0) {
@@ -96,6 +99,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                 synchronized (qidTweetSent) {
                     // if the tweet is too similar with one of the already sent tweet
                     if (distFilter(qtp, qidTweetSent) == null) {
+                        num_filtered_distance++;
                         continue;
                     }
                 }
@@ -123,6 +127,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
             logger.error("The candidate tweet list is empty");
             return null;
         }
+        logger.info("LW-DM  " + tweetnum + " candidates are being processed");
         List<Centroid> points2select = new ArrayList<>(tweetnum);
         // pick up the maximum and minimum absolute score
         double maxAbsoluteScore = Double.MIN_VALUE;

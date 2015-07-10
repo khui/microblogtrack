@@ -6,8 +6,6 @@ import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.log4j.Logger;
@@ -75,6 +73,10 @@ public class SentTweetTracker {
             }
             qidTweetSent.get(queryId).add(new CandidateTweet(resultTweet));
         }
+    }
+
+    protected void printoutReceivedNum(String task, int count) {
+        logger.info(count + " tweets [" + task + "] since start.");
     }
 
 }

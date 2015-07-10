@@ -218,6 +218,12 @@ public class LuceneScorer {
 
         private final BlockingQueue<QueryTweetPair> queue2offer4LW;
 
+        /**
+         * to report how many tweets we received in last period
+         */
+        private int count_runningtime = 0;
+        private int count_tweets = 0;
+
         public MultiQuerySearcher(final Map<String, Query> queries, BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) {
             this.queries = queries;
             this.queue2offer4PW = queue2offer4PW;
@@ -235,6 +241,16 @@ public class LuceneScorer {
             Executor excutor = Executors.newFixedThreadPool(threadnum);
             CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(excutor);
             long[] minmax = indexTracker.getAcurateTweetCount();
+            ////////////////////////////
+            /// report number of tweets received in the latest period
+            count_runningtime++;
+            count_tweets += (minmax[1] - minmax[0]);
+            if (count_runningtime == Configuration.LW_DM_PERIOD) {
+                logger.info(count_tweets + " tweets are written to Lucene index in past " + Configuration.LW_DM_PERIOD + " miniutes.");
+                count_runningtime = 0;
+                count_tweets = 0;
+            }
+            ////////////////////////////
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
             int difference = (int) (minmax[1] - minmax[0]);
             topk = (difference > 0 ? (int) (difference * Configuration.LUCENE_TOP_N_SEARCH) : topk);
