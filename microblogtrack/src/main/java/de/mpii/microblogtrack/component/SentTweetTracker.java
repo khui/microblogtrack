@@ -75,8 +75,8 @@ public class SentTweetTracker {
         }
     }
 
-    protected void printoutReceivedNum(String task, int count) {
-        logger.info(count + " tweets [" + task + "] since start.");
+    protected void printoutReceivedNum(String task, double count) {
+        logger.info((int) count + " tweets on average [" + task + "] since start.");
     }
 
 }

@@ -269,7 +269,7 @@ public class PointwiseTrain {
      * generate queries for lucene
      */
     private List<LabeledTweet> readinQueryQrel(String qrelf, String queryfile) throws FileNotFoundException, IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
-        Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_TOKENIZER).newInstance();
+        Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_ANALYZER).newInstance();
         List<LabeledTweet> labeledtweets = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(qrelf))))) {
             while (br.ready()) {

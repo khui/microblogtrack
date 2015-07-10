@@ -17,10 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.stream.IntStream;
 import org.apache.log4j.Logger;
 
 /**
- * periodically run to pick up tweet for notification
+ * periodically run to pick up qtp for notification
  *
  * @author khui
  */
@@ -33,7 +34,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
     private final BlockingQueue<QueryTweetPair> tweetqueue;
 
     private final TObjectDoubleMap<String> queryidThresholds = new TObjectDoubleHashMap<>(250);
-    // dynamic threshold for the initial tweet, avoiding the most relevant tweets never come
+    // dynamic threshold for the initial qtp, avoiding the most relevant tweets never come
     private final TObjectDoubleMap<String> queryidInitThresholds = new TObjectDoubleHashMap<>(250);
 
     private final int centroidnum = 10;
@@ -50,8 +51,8 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
     public void run() {
         // only after receiving enough tweets, the tweets will be considered to 
         // be reported
-        int num_received_since_start = 0;
-        int num_filtered_distance = 0;
+        TObjectIntMap<String> qid_tweetnum = new TObjectIntHashMap<>();
+        TObjectIntMap<String> num_filtered_distance = new TObjectIntHashMap<>();
 
         for (String qid : queryTweetTrackers.keySet()) {
             queryTweetTrackers.get(qid).offer2PWQueue();
@@ -59,7 +60,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         logger.info("PW-DM started");
         TObjectIntMap<String> queryNumberCount = new TObjectIntHashMap<>(250);
         Set<String> finishedQueryId = new HashSet<>(250);
-        QueryTweetPair tweet;
+        QueryTweetPair qtp;
         String queryid;
         /**
          * check the interrupt flag in each loop, since this is how we terminate
@@ -68,54 +69,53 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
          */
         while (true) {
             if (Thread.interrupted()) {
-                printoutReceivedNum("received in PW-DM", num_received_since_start);
-                printoutReceivedNum("filtered by distance in PW-DM", num_filtered_distance);
+                printoutReceivedNum("received in PW-DM", IntStream.of(qid_tweetnum.values()).average().getAsDouble());
+                printoutReceivedNum("filtered by distance in PW-DM", IntStream.of(num_filtered_distance.values()).average().getAsDouble());
                 clear();
                 return;
             }
-            tweet = tweetqueue.poll();
-            if (tweet == null) {
+            qtp = tweetqueue.poll();
+            if (qtp == null) {
                 continue;
             }
+            qid_tweetnum.adjustOrPutValue(qtp.queryid, 1, 1);
 
-            num_received_since_start++;
-
-            // make decision untill we have receive enough tweets
-            if (num_received_since_start < Configuration.PW_DW_CUMULATECOUNT_DELAY) {
+            // make decision untill we have receive enough tweets for each query
+            if (IntStream.of(qid_tweetnum.values()).average().getAsDouble() < Configuration.PW_DW_CUMULATECOUNT_DELAY) {
                 continue;
             }
-            if (centroidnum > queryNumberCount.get(tweet.queryid)) {
-                queryid = tweet.queryid;
-                if (scoreFilter(tweet)) {
+            if (centroidnum > queryNumberCount.get(qtp.queryid)) {
+                queryid = qtp.queryid;
+                if (scoreFilter(qtp)) {
                     double[] distances;
                     synchronized (qidTweetSent) {
-                        distances = distFilter(tweet, qidTweetSent);
+                        distances = distFilter(qtp, qidTweetSent);
                     }
                     if (distances != null) {
-                        CandidateTweet resultTweet = decisionMake(tweet, distances, queryNumberCount);
+                        CandidateTweet resultTweet = decisionMake(qtp, distances, queryNumberCount);
                         if (resultTweet.rank > 0) {
                             try {
                                 // write down the tweets that are notified
                                 resultprinter.println(queryid, resultTweet.forDebugToString(""));
-                                resultprinter.printlog(queryid, tweet.getStatus().getText(), resultTweet.absoluteScore, resultTweet.relativeScore);
+                                resultprinter.printlog(queryid, qtp.getStatus().getText(), resultTweet.absoluteScore, resultTweet.relativeScore);
                             } catch (FileNotFoundException | ParseException ex) {
                                 logger.error("", ex);
                             }
                             queryNumberCount.adjustOrPutValue(queryid, 1, 1);
-                            //logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + tweet.getStatus().getText() + " " + tweetqueue.size());
+                            //logger.info(queryNumberCount.get(queryid) + " " + resultTweet.toString() + " " + qtp.getStatus().getText() + " " + tweetqueue.size());
                         } else {
-                            //logger.info("tweet has not been selected: " + tweet.getRelScore() + "  " + tweet.getAbsScore() + " " + queryidThresholds.get(tweet.queryid));
+                            //logger.info("qtp has not been selected: " + qtp.getRelScore() + "  " + qtp.getAbsScore() + " " + queryidThresholds.get(qtp.queryid));
                         }
                     } else {
-                        num_filtered_distance++;
-                        //logger.info("filter out the tweet by distance: " + qidTweetSent.get(tweet.queryid).size());
+                        num_filtered_distance.adjustOrPutValue(queryid, 1, 1);
+                        //logger.info("filter out the qtp by distance: " + qidTweetSent.get(qtp.queryid).size());
                     }
                 } else {
-                    //logger.info("filter out the tweet by score: " + tweet.getRelScore());
+                    //logger.info("filter out the qtp by score: " + qtp.getRelScore());
                 }
             } else {
-                //logger.info("Finished: " + tweet.queryid + " " + queryNumberCount.get(tweet.queryid));
-                finishedQueryId.add(tweet.queryid);
+                //logger.info("Finished: " + qtp.queryid + " " + queryNumberCount.get(qtp.queryid));
+                finishedQueryId.add(qtp.queryid);
                 if (finishedQueryId.size() >= queryNumberCount.size()) {
                     logger.info("Finished all in PW-DM in this round: " + finishedQueryId.size());
                     clear();
@@ -149,9 +149,9 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
     }
 
     /**
-     * "send the tweet" and keep tracking all the pop-up tweets in qidTweetSent
+     * "send the qtp" and keep tracking all the pop-up tweets in qidTweetSent
      * meanwhile adjusting/maintaining the threshold for the gain to make
-     * decision. Intuitively, a tweet will be pop-up as long as it is highly
+     * decision. Intuitively, a qtp will be pop-up as long as it is highly
      * relevant and divergent enough from previously notification. In this
      * decision maker, the gain is computed as the sum-product of the absolute
      * relevance and the relative distance. The absolute relevance is from the
@@ -178,15 +178,15 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                 avggain += dist * absoluteScore;
             }
             avggain /= (double) relativeDist.length;
-            // if the average gain of the current tweet were larger than
-            // the threshold, then pop-up the current tweet and lift the threshold
+            // if the average gain of the current qtp were larger than
+            // the threshold, then pop-up the current qtp and lift the threshold
             // otherwise decrease the threshold
             if (adjustThreshold(queryId, avggain)) {
                 resultTweet.rank = queryNumberCount.get(queryId) + 1;
             }
         } else {
-            // if this is the first tweet to pop-up, we should make sure this is the 
-            // tweet that have nearly highest relevance score, meanwhile we store this
+            // if this is the first qtp to pop-up, we should make sure this is the 
+            // qtp that have nearly highest relevance score, meanwhile we store this
             // relevance as threshold
             if (!queryidInitThresholds.containsKey(queryId)) {
                 queryidInitThresholds.put(queryId, Configuration.PW_DM_FIRSTPOPUP_SCORETHRESD);
@@ -212,7 +212,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
      * return true or false according to the comparison between current gain and
      * the existing threshold. If currentGain >= threshold, return true and lift
      * the threshold; if currentGain < threshold, return false and decrease the
-     * threshold; it this is the first tweet for this query, i.e., the
+     * threshold; it this is the first qtp for this query, i.e., the
      * queryidThresholds doesnt contain threshold, then return true and store
      * currentGain as threshold
      *

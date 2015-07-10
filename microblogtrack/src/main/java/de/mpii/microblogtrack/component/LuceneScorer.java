@@ -236,7 +236,7 @@ public class LuceneScorer {
 
         @Override
         public void run() {
-            int topk = 30;
+            int topk = Configuration.LUCENE_TOP_N_SEARCH;
             BooleanQuery combinedQuery;
             Executor excutor = Executors.newFixedThreadPool(threadnum);
             CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(excutor);
@@ -252,9 +252,9 @@ public class LuceneScorer {
             }
             ////////////////////////////
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
-            int difference = (int) (minmax[1] - minmax[0]);
-            topk = (difference > 0 ? (int) (difference * Configuration.LUCENE_TOP_N_SEARCH) : topk);
-            topk = Math.max(100, topk);
+//            int difference = (int) (minmax[1] - minmax[0]);
+//            topk = (difference > 0 ? (int) (difference * Configuration.LUCENE_TOP_N_SEARCH) : topk);
+//            topk = Math.max(100, topk);
             DirectoryReader reopenedReader = null;
             try {
                 reopenedReader = DirectoryReader.openIfChanged(directoryReader);

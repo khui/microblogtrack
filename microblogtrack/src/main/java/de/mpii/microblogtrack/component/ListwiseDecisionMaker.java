@@ -5,6 +5,8 @@ import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
+import gnu.trove.map.TObjectIntMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
 import java.io.FileNotFoundException;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.stream.IntStream;
 import org.apache.log4j.Logger;
 import org.apache.mahout.math.Centroid;
 
@@ -44,8 +47,8 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
 
     @Override
     public void run() {
-        int num_received_since_start = 0;
-        int num_filtered_distance = 0;
+        TObjectIntMap<String> qid_tweetnum = new TObjectIntHashMap<>();
+        TObjectIntMap<String> num_filtered_distance = new TObjectIntHashMap<>();
         Map<String, PriorityBlockingQueue<QueryTweetPair>> qidQueue = new HashMap<>(250);
         logger.info("LW-DM started");
         for (String qid : queryTweetTrackers.keySet()) {
@@ -60,8 +63,8 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
          */
         while (true) {
             if (Thread.interrupted()) {
-                printoutReceivedNum("received in LW-DM", num_received_since_start);
-                printoutReceivedNum("filtered by distance in LW-DM", num_filtered_distance);
+                printoutReceivedNum("received in LW-DM", IntStream.of(qid_tweetnum.values()).average().getAsDouble());
+                printoutReceivedNum("filtered by distance in LW-DM", IntStream.of(num_filtered_distance.values()).average().getAsDouble());
                 try {
                     for (String qid : qidQueue.keySet()) {
                         List<CandidateTweet> tweets = decisionMakeMaxRep(qidQueue.get(qid));
@@ -89,7 +92,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                 if (qtp == null) {
                     continue;
                 }
-                num_received_since_start++;
+                qid_tweetnum.adjustOrPutValue(qtp.queryid, 1, 1);
 
                 double relativeScore = qtp.getRelScore();
                 if (relativeScore == 0) {
@@ -99,7 +102,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                 synchronized (qidTweetSent) {
                     // if the tweet is too similar with one of the already sent tweet
                     if (distFilter(qtp, qidTweetSent) == null) {
-                        num_filtered_distance++;
+                        num_filtered_distance.adjustOrPutValue(qtp.queryid, 1, 1);
                         continue;
                     }
                 }
@@ -127,7 +130,6 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
             logger.error("The candidate tweet list is empty");
             return null;
         }
-        logger.info("LW-DM  " + tweetnum + " candidates are being processed");
         List<Centroid> points2select = new ArrayList<>(tweetnum);
         // pick up the maximum and minimum absolute score
         double maxAbsoluteScore = Double.MIN_VALUE;

@@ -102,7 +102,7 @@ public class ConstructLuceneIndex {
      */
     public void ConstructIndex(String[] datadirs, String indexdir) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
-        Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_TOKENIZER).newInstance();
+        Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_ANALYZER).newInstance();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setRAMBufferSizeMB(Configuration.LUCENE_MEM_SIZE);
