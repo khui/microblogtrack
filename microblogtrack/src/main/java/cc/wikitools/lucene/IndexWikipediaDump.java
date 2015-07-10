@@ -18,15 +18,12 @@ package cc.wikitools.lucene;
 import cc.wikitools.WikipediaXMLDumpInputStream;
 import de.mpii.microblogtrack.utility.Configuration;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Paths;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -51,7 +48,7 @@ public class IndexWikipediaDump {
     static final FieldType TEXT_OPTIONS = new FieldType();
 
     static {
-        TEXT_OPTIONS.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+        TEXT_OPTIONS.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         TEXT_OPTIONS.setStored(true);
         TEXT_OPTIONS.setTokenized(true);
     }
@@ -71,7 +68,6 @@ public class IndexWikipediaDump {
 
     public static void constructIndex(String indexPath, String inputPath) throws UnsupportedEncodingException, IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         int threads = 16;
-        PrintStream out = new PrintStream(System.out, true, "UTF-8");
         WikiClean cleaner = new WikiCleanBuilder().withTitle(true).build();
         Directory dir = FSDirectory.open(Paths.get(indexPath));
         // the analyzer should be the same with the runtime analyzer
@@ -125,7 +121,6 @@ public class IndexWikipediaDump {
         } finally {
             writer.close();
             dir.close();
-            out.close();
         }
     }
 

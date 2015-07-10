@@ -125,37 +125,6 @@ public class LuceneScorer {
         }, 12, TimeUnit.DAYS);
     }
 
-    /**
-     * for debug
-     *
-     * @throws java.io.IOException
-     */
-    public void multiScorerDemo() throws IOException {
-        NumericRangeQuery rangeQuery;
-        int resultcount = 0;
-        Collection<QueryTweetPair> qtpairs;
-        directoryReader = DirectoryReader.openIfChanged(directoryReader);
-        QueryBuilder qb = new QueryBuilder(this.analyzer);
-        Query termquery = qb.createBooleanQuery(Configuration.TWEET_CONTENT, "RT");
-        Query phrasequery = qb.createPhraseQuery(Configuration.TWEET_CONTENT, "thanks for");
-        long[] minmax = indexTracker.getAcurateTweetCount();
-        rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
-        BooleanQuery combinedQuery = new BooleanQuery();
-        combinedQuery.add(rangeQuery, BooleanClause.Occur.MUST);
-        combinedQuery.add(termquery, BooleanClause.Occur.SHOULD);
-        combinedQuery.add(phrasequery, BooleanClause.Occur.SHOULD);
-        logger.info("***************************************************************************");
-        logger.info("***************************************************************************");
-        logger.info("indexed documents: " + minmax[0] + " -------- " + (minmax[1] - 1));
-        if (directoryReader != null) {
-            qtpairs = null;
-            //mutliScorers(directoryReader, combinedQuery, Configuration.QUERY_ID, 10);
-            for (QueryTweetPair qtp : qtpairs) {
-                resultcount++;
-                logger.info(printQueryTweet(qtp, resultcount));
-            }
-        }
-    }
 
     /**
      * for debug
