@@ -8,6 +8,7 @@ import de.mpii.microblogtrack.component.core.ResultTweetsTracker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.LibsvmWrapper;
+import de.mpii.microblogtrack.utility.LoadProperties;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
 import java.io.IOException;
@@ -89,6 +90,7 @@ public abstract class Processor {
     protected abstract void receiveStatus(LuceneScorer lscorer, String dataORkeydir, int numProcessingThreads);
 
     public static void main(String[] args) throws InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, TwitterException, org.apache.commons.cli.ParseException {
+
         Options options = new Options();
         options.addOption("o", "outfile", true, "output file");
         options.addOption("d", "dataORkeydirectory", true, "data/api key directory");
@@ -96,9 +98,11 @@ public abstract class Processor {
         options.addOption("q", "queryfile", true, "query file");
         options.addOption("s", "meanstdscalefile", true, "scale parameters for feature normalization");
         options.addOption("l", "log4jxml", true, "log4j conf file");
+        options.addOption("p", "property", true, "property file");
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
-        String outputdir = null, data_key_dir = null, indexdir = null, queryfile = null, scalefile = null, log4jconf = null;
+        String outputdir = null, data_key_dir = null, indexdir = null, queryfile = null, scalefile = null, propertyfile = null,
+                log4jconf = null;
         if (cmd.hasOption("o")) {
             outputdir = cmd.getOptionValue("o");
         }
@@ -117,20 +121,26 @@ public abstract class Processor {
         if (cmd.hasOption("s")) {
             scalefile = cmd.getOptionValue("s");
         }
+        if (cmd.hasOption("p")) {
+            propertyfile = cmd.getOptionValue("p");
+        }
+
         /**
          * for local test
          */
-        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        indexdir = rootdir + "/index";
-        queryfile = rootdir + "/queries/fusion";
-        //data_key_dir = rootdir + "/tweetzipklein";
-        data_key_dir = rootdir + "/twitterkeys";
-        scalefile = rootdir + "/scale_file/scale_meanstd";
-        outputdir = rootdir + "/outputdir";
-        log4jconf = "src/main/java/log4j.xml";
-
+//        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+//        indexdir = rootdir + "/index";
+//        queryfile = rootdir + "/queries/fusion";
+//        //data_key_dir = rootdir + "/tweetzipklein";
+//        data_key_dir = rootdir + "/twitterkeys";
+//        scalefile = rootdir + "/scale_file/scale_meanstd";
+//        outputdir = rootdir + "/outputdir";
+//        log4jconf = "src/main/java/log4j.xml";
+//        propertyfile = rootdir + "/debug-property.config";
+        
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
+        LoadProperties.load(propertyfile);
         logger.info("online process start.");
         Processor op = new OnlineProcessor();
         op.start(data_key_dir, indexdir, queryfile, outputdir, scalefile);

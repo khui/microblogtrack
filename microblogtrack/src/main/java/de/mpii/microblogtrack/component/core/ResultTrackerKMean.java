@@ -44,7 +44,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
     private final TDoubleIntMap predictScoreTracker = TCollections.synchronizedMap(new TDoubleIntHashMap());
 
     // centroid number, default value is 10, governing how many classes we may have after clustering
-    private int centroidnum = 10;
+    private int centroidnum = Configuration.PW_DM_SELECTNUM;
     // average distance among centroids, as reference in computing distance between two tweets
     private double avgCentroidDistance = 0.01;
     // identification for each tweet

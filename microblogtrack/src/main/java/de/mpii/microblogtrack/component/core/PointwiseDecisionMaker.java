@@ -38,7 +38,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
     // dynamic threshold for the initial qtp, avoiding the most relevant tweets never come
     private final TObjectDoubleMap<String> queryidInitThresholds = new TObjectDoubleHashMap<>(250);
 
-    private final int centroidnum = 10;
+    private final int centroidnum = Configuration.PW_DM_SELECTNUM;
 
     private final ResultPrinter resultprinter;
 
