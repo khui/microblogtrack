@@ -47,7 +47,7 @@ public class Configuration {
 
     public final static String LUCENE_ANALYZER = "org.apache.lucene.analysis.en.EnglishAnalyzer";
     // lucene perform search per LUCENE_SEARCH_FREQUENCY seconds
-    public final static int LUCENE_SEARCH_FREQUENCY = 60;//60;
+    public final static int LUCENE_SEARCH_FREQUENCY = 60;
     // every time invertal, we retrieve top_n tweets for each query for further processin from lucene
     public final static int LUCENE_TOP_N_SEARCH = 50;
     // number of threads we use to conduct multiquery search
@@ -64,23 +64,27 @@ public class Configuration {
     // filter out the tweets that are too similar with at least one of the pop-up tweet, the number is relative to 
     // average distance among centroids
     public final static double DM_DIST_FILTER = 0.2;
+    // the number of sent tweets to be compared for duplication filter when a new tweet comes in
+    public final static int PW_DM_DIST_SENTTWEET_LEN = 20;
     // start delay for the decision maker in minutes 
-    public final static int PW_DM_START_DELAY = 60;
+    public final static int PW_DM_START_DELAY = 2;//60;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public final static int PW_DM_PERIOD = 60;
+    public final static int PW_DM_PERIOD = 2;//60;
     // make decision untill we have receive enough tweets
-    public final static int PW_DW_CUMULATECOUNT_DELAY = 1000;//1500 * 60 * 8;
+    public final static int PW_DW_CUMULATECOUNT_DELAY = 100;//1000;
     /**
      * listwise decision maker for e-mail digest task
      */
+    // the number of sent tweets to be compared for duplication filter when a new tweet comes in
+    public final static int LW_DM_DIST_SENTTWEET_LEN = 100;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public final static int LW_DM_PERIOD = 60;//60 * 24;
+    public final static int LW_DM_PERIOD = 2;//60;//60 * 24;
     // the length of the priority queue: tracking at most n tweets with highest pointwise prediction score
     public final static int LW_DM_QUEUE_LEN = 800;
 
     public final static int LW_DM_SELECTNUM = 40;
 
-    public final static int LW_DM_START_DELAY = 60;
+    public final static int LW_DM_START_DELAY = 2;//60;
     // for each query, we keep recording the top-LW_DM_QUEUE_LEN tweets with
     // highest scores, afterward conduct maxrep, where the weight for each tweet
     // is the min-max normalized prediction score. this parameter is to govern the

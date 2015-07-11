@@ -23,6 +23,10 @@ public class CandidateTweet {
     public double distance = -1;
 
     public int rank = -1;
+    // count how many tweets are similar to this tweet after it being sent; 
+    public volatile int duplicateCount = 0;
+    // the time stamp when this tweets are sent
+    public long sentTimeStamp = 0;
 
     private final Vector featureVector;
 
@@ -53,6 +57,17 @@ public class CandidateTweet {
         this.distance = candidatetweet.distance;
         this.absoluteScore = candidatetweet.absoluteScore;
         this.rank = candidatetweet.rank;
+    }
+
+    public CandidateTweet(CandidateTweet candidatetweet, long timestamp) {
+        this.tweetId = candidatetweet.tweetId;
+        this.featureVector = candidatetweet.getFeature();
+        this.relativeScore = candidatetweet.relativeScore;
+        this.queryId = candidatetweet.queryId;
+        this.distance = candidatetweet.distance;
+        this.absoluteScore = candidatetweet.absoluteScore;
+        this.rank = candidatetweet.rank;
+        this.sentTimeStamp = timestamp;
     }
 
     public void setTweetStr(String tweetstr) {

@@ -14,8 +14,8 @@ import java.text.ParseException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.stream.IntStream;
@@ -30,7 +30,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
 
     static Logger logger = Logger.getLogger(PointwiseDecisionMaker.class);
 
-    private final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
+    private final static Map<String, PriorityQueue<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
 
     private final BlockingQueue<QueryTweetPair> tweetqueue;
 
@@ -71,7 +71,16 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         while (true) {
             if (Thread.interrupted()) {
                 printoutReceivedNum("received in PW-DM", IntStream.of(qid_tweetnum.values()).average().getAsDouble());
-                printoutReceivedNum("filtered by distance in PW-DM", IntStream.of(num_filtered_distance.values()).average().getAsDouble());
+                try {
+                    int[] dists = num_filtered_distance.values();
+                    if (dists.length > 0) {
+                        printoutReceivedNum("filtered by distance in PW-DM", IntStream.of(dists).average().getAsDouble());
+                    } else {
+                        printoutReceivedNum("filtered by distance in PW-DM", 0);
+                    }
+                } catch (Exception ex) {
+                    logger.error("", ex);
+                }
                 clear();
                 return;
             }
@@ -90,7 +99,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                 if (scoreFilter(qtp)) {
                     double[] distances;
                     synchronized (qidTweetSent) {
-                        distances = distFilter(qtp, qidTweetSent);
+                        distances = distFilter(qtp, qidTweetSent, Configuration.PW_DM_DIST_SENTTWEET_LEN);
                     }
                     if (distances != null) {
                         CandidateTweet resultTweet = decisionMake(qtp, distances, queryNumberCount);
@@ -204,7 +213,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         }
         // keep tracking all tweets being pop-up in the qidTweetSent
         synchronized (qidTweetSent) {
-            updateSentTracker(resultTweet, qidTweetSent);
+            updateSentTracker(resultTweet, qidTweetSent, Configuration.PW_DM_DIST_SENTTWEET_LEN);
         }
         return resultTweet;
     }

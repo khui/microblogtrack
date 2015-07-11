@@ -1,6 +1,5 @@
 package de.mpii.microblogtrack.component.core;
 
-import de.mpii.microblogtrack.component.core.ResultTweetsTracker;
 import de.mpii.lowcosteval.maxrep.MaxRep;
 import de.mpii.microblogtrack.component.SentTweetTracker;
 import de.mpii.microblogtrack.utility.CandidateTweet;
@@ -17,6 +16,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.stream.IntStream;
@@ -35,7 +35,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
 
     static Logger logger = Logger.getLogger(ListwiseDecisionMaker.class.getName());
 
-    private final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
+    private final static Map<String, PriorityQueue<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
 
     private final BlockingQueue<QueryTweetPair> tweetqueue;
 
@@ -66,7 +66,16 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
         while (true) {
             if (Thread.interrupted()) {
                 printoutReceivedNum("received in LW-DM", IntStream.of(qid_tweetnum.values()).average().getAsDouble());
-                printoutReceivedNum("filtered by distance in LW-DM", IntStream.of(num_filtered_distance.values()).average().getAsDouble());
+                try {
+                    int[] dists = num_filtered_distance.values();
+                    if (dists.length > 0) {
+                        printoutReceivedNum("filtered by distance in LW-DM", IntStream.of(dists).average().getAsDouble());
+                    } else {
+                        printoutReceivedNum("filtered by distance in LW-DM", 0);
+                    }
+                } catch (Exception ex) {
+                    logger.error("", ex);
+                }
                 try {
                     for (String qid : qidQueue.keySet()) {
                         List<CandidateTweet> tweets = decisionMakeMaxRep(qidQueue.get(qid));
@@ -103,7 +112,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
 
                 synchronized (qidTweetSent) {
                     // if the tweet is too similar with one of the already sent tweet
-                    if (distFilter(qtp, qidTweetSent) == null) {
+                    if (distFilter(qtp, qidTweetSent, Configuration.LW_DM_DIST_SENTTWEET_LEN) == null) {
                         num_filtered_distance.adjustOrPutValue(qtp.queryid, 1, 1);
                         continue;
                     }
@@ -171,7 +180,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
         }
         for (CandidateTweet resultTweet : selectedQTPs) {
             synchronized (qidTweetSent) {
-                updateSentTracker(resultTweet, qidTweetSent);
+                updateSentTracker(resultTweet, qidTweetSent, Configuration.LW_DM_DIST_SENTTWEET_LEN);
             }
         }
         return selectedQTPs;

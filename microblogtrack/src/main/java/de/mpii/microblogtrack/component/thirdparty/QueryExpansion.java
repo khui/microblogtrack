@@ -52,7 +52,7 @@ public class QueryExpansion {
     private final IndexSearcher searcher;
     private List<TermQuery> expandedTerms;
     private int termNum = 20, docNum = 10;
-    private float alpha = 0.8f, beta = 0.4f, decay = 0f;
+    private float alpha = 1.0f, beta = 0.8f, decay = 0f;
     private final String fieldname;
 
     /**
@@ -155,8 +155,6 @@ public class QueryExpansion {
      * @param alpha - factor of the equation
      * @param beta - factor of the equation
      * @param decay
-     * @param docsRelevantCount - number of the top documents to assume to be
-     * relevant
      * @param maxExpandedQueryTerms - maximum number of terms in expanded query
      *
      * @return expandedQuery with boost factors adjusted using Rocchio's
@@ -166,13 +164,13 @@ public class QueryExpansion {
      * @throws ParseException
      */
     private Query adjust(List<QueryTermVector> docsTermsVector, String queryStr,
-            float alpha, float beta, float decay, int docsRelevantCount,
+            float alpha, float beta, float decay, int reldocnum,
             int maxExpandedQueryTerms)
             throws IOException, ParseException {
         Query expandedQuery;
 
         // setBoost of docs terms
-        List<TermQuery> docsTerms = setBoost(docsTermsVector, beta, decay);
+        List<TermQuery> docsTerms = setBoost(docsTermsVector, beta / reldocnum, decay);
         logger.info(docsTerms.toString());
 
         // setBoost of query terms

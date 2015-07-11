@@ -120,14 +120,14 @@ public abstract class Processor {
         /**
          * for local test
          */
-//        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-//        indexdir = rootdir + "/index";
-//        queryfile = rootdir + "/queries/fusion";
-//        //data_key_dir = rootdir + "/tweetzipklein";
-//        data_key_dir = rootdir + "/twitterkeys";
-//        scalefile = rootdir + "/scale_file/scale_meanstd";
-//        outputdir = rootdir + "/outputdir";
-//        log4jconf = "src/main/java/log4j.xml";
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        indexdir = rootdir + "/index";
+        queryfile = rootdir + "/queries/fusion";
+        //data_key_dir = rootdir + "/tweetzipklein";
+        data_key_dir = rootdir + "/twitterkeys";
+        scalefile = rootdir + "/scale_file/scale_meanstd";
+        outputdir = rootdir + "/outputdir";
+        log4jconf = "src/main/java/log4j.xml";
 
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
