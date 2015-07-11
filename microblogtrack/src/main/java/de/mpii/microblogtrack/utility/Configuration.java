@@ -65,7 +65,7 @@ public class Configuration {
     // average distance among centroids
     public final static double DM_DIST_FILTER = 0.2;
     // start delay for the decision maker in minutes 
-    public final static int PW_DM_START_DELAY = 10;
+    public final static int PW_DM_START_DELAY = 60;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
     public final static int PW_DM_PERIOD = 60;
     // make decision untill we have receive enough tweets
@@ -80,7 +80,7 @@ public class Configuration {
 
     public final static int LW_DM_SELECTNUM = 40;
 
-    public final static int LW_DM_START_DELAY = 10;
+    public final static int LW_DM_START_DELAY = 60;
     // for each query, we keep recording the top-LW_DM_QUEUE_LEN tweets with
     // highest scores, afterward conduct maxrep, where the weight for each tweet
     // is the min-max normalized prediction score. this parameter is to govern the

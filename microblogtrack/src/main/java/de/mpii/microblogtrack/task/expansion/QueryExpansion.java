@@ -48,7 +48,6 @@ public class QueryExpansion {
 
     static Logger logger = Logger.getLogger(QueryExpansion.class.getName());
 
-
     private final Analyzer analyzer;
     private final IndexSearcher searcher;
     private List<TermQuery> expandedTerms;
@@ -340,8 +339,13 @@ public class QueryExpansion {
     private float idf(Term term) throws IOException {
         int N = searcher.getIndexReader().numDocs();
         int df = searcher.getIndexReader().docFreq(term);
-        float idf = (float) Math.log(N / (double) df);
-        return idf;
+        if (df > 0) {
+            float idf = (float) Math.log(N / (double) df);
+            return idf;
+        } else {
+            logger.error(term.text() + ": df=" + df);
+            return 1;
+        }
     }
 
     /**
