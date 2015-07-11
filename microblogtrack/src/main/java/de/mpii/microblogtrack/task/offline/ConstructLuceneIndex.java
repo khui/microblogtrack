@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.task.offlinetrain;
+package de.mpii.microblogtrack.task.offline;
 
 import de.mpii.microblogtrack.component.ExtractTweetText;
 import de.mpii.microblogtrack.utility.Configuration;

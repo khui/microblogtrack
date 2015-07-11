@@ -1,5 +1,6 @@
-package de.mpii.microblogtrack.task.expansion;
+package de.mpii.microblogtrack.task.offline.qe;
 
+import de.mpii.microblogtrack.component.thirdparty.QueryExpansion;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import java.io.IOException;

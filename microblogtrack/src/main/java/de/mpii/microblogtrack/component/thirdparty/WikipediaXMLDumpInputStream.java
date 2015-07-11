@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package cc.wikitools;
+package de.mpii.microblogtrack.component.thirdparty;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;

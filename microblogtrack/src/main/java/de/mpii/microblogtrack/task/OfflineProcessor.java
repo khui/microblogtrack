@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.task;
 
-import de.mpii.microblogtrack.component.LuceneScorer;
+import de.mpii.microblogtrack.component.core.LuceneScorer;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;

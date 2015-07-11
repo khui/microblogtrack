@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.task.expansion;
+package de.mpii.microblogtrack.component.thirdparty;
 
 import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectIntHashMap;

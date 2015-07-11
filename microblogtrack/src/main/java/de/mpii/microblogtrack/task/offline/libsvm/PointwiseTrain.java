@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.task.offlinetrain;
+package de.mpii.microblogtrack.task.offline.libsvm;
 
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.LibsvmWrapper;

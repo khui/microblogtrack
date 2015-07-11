@@ -1,4 +1,4 @@
-package de.mpii.maxrep;
+package de.mpii.lowcosteval.maxrep;
 
 import de.mpii.microblogtrack.utility.Configuration;
 import gnu.trove.list.TIntList;

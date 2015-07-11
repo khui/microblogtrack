@@ -1,6 +1,6 @@
-package de.mpii.microblogtrack.task.expansion;
+package de.mpii.microblogtrack.task.offline.qe;
 
-import cc.wikitools.lucene.IndexWikipediaDump;
+import de.mpii.microblogtrack.component.thirdparty.IndexWikipediaDump;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import org.apache.commons.cli.BasicParser;

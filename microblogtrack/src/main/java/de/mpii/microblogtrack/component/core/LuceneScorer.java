@@ -1,5 +1,7 @@
-package de.mpii.microblogtrack.component;
+package de.mpii.microblogtrack.component.core;
 
+import de.mpii.microblogtrack.component.ExtractTweetText;
+import de.mpii.microblogtrack.component.IndexTracker;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
@@ -38,7 +40,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -221,9 +222,6 @@ public class LuceneScorer {
             }
             ////////////////////////////
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
-//            int difference = (int) (minmax[1] - minmax[0]);
-//            topk = (difference > 0 ? (int) (difference * Configuration.LUCENE_TOP_N_SEARCH) : topk);
-//            topk = Math.max(100, topk);
             DirectoryReader reopenedReader = null;
             try {
                 reopenedReader = DirectoryReader.openIfChanged(directoryReader);

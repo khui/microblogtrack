@@ -13,9 +13,8 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package cc.wikitools.lucene;
+package de.mpii.microblogtrack.component.thirdparty;
 
-import cc.wikitools.WikipediaXMLDumpInputStream;
 import de.mpii.microblogtrack.utility.Configuration;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;

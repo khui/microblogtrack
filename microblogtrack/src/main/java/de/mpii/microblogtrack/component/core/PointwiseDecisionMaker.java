@@ -1,5 +1,6 @@
-package de.mpii.microblogtrack.component;
+package de.mpii.microblogtrack.component.core;
 
+import de.mpii.microblogtrack.component.SentTweetTracker;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;

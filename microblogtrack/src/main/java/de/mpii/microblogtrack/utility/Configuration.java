@@ -69,7 +69,7 @@ public class Configuration {
     // decision maker calling period in minutes, should be 1440 if one day is a period  
     public final static int PW_DM_PERIOD = 60;
     // make decision untill we have receive enough tweets
-    public final static int PW_DW_CUMULATECOUNT_DELAY = 5000;//1500 * 60 * 8;
+    public final static int PW_DW_CUMULATECOUNT_DELAY = 1000;//1500 * 60 * 8;
     /**
      * listwise decision maker for e-mail digest task
      */

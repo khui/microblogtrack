@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.component;
+package de.mpii.microblogtrack.component.core;
 
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import java.util.Collection;
