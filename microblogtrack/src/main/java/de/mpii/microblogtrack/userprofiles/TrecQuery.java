@@ -35,6 +35,16 @@ public class TrecQuery {
         return queries;
     }
 
+    public QualityQuery[] readTrecQueryIntQID(String queryfile) throws IOException {
+        //TrecTopicsReader ttr = new TrecTopicsReader();
+        ParseMicroblogQuery ttr = new ParseMicroblogQuery();
+        QualityQuery[] queries;
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(queryfile))))) {
+            queries = ttr.readQueriesIntQID(br);
+        }
+        return queries;
+    }
+
     public QualityQuery[] readMQTrecQuery(String queryfile) throws IOException {
         Trec1MQReader ttr = new Trec1MQReader("topic");
         QualityQuery[] queries = ttr.readQueries(new BufferedReader(new InputStreamReader(new FileInputStream(new File(queryfile)))));
