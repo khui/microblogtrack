@@ -1,5 +1,6 @@
 package de.mpii.microblogtrack.userprofiles;
 
+import de.mpii.microblogtrack.utility.Configuration;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +63,7 @@ public class ParseMicroblogQuery {
         ArrayList<QualityQuery> res = new ArrayList<>();
         StringBuilder sb;
         String[] tags = new String[]{"<query>", "<querytime>", "<querytweettime>"};
-        String[] tagnames = new String[]{"query", "querytime", "querytweettime"};
+        String[] tagnames = new String[]{Configuration.QUERY_STR, "querytime", Configuration.QUERY_QUERYTWEETTIME};
 
         try {
             while (null != (sb = read(reader, "<top>", null, false, false))) {

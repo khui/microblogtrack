@@ -34,6 +34,8 @@ public class Configuration {
     public final static String QUERY_DESC = "description";
 
     public final static String QUERY_NARR = "narrative";
+    // used to tune the system
+    public final static String QUERY_QUERYTWEETTIME = "narrative";
     /**
      * additional field names for result printer
      */
@@ -129,17 +131,27 @@ public class Configuration {
 
     public final static String PRED_RELATIVESCORE = "relativePrimaryScore";
     /**
-     * feature names
+     * feature names and parameters
      */
     public final static String FEATURE_S_BM25 = "bm25";
+
+    public final static float FEATURE_S_BM25_b = 0f;
+    
+    public final static float FEATURE_S_BM25_k1 = 1.2f;
 
     public final static String FEATURE_S_TFIDF = "tfidf";
 
     public final static String FEATURE_S_LMD = "lmDirichlet";
+    
+    public final static int FEATURE_S_LMD_mu = 140;
 
     public final static String FEATURE_S_LMJM = "lmJelinekMercer";
 
-    public final static float FEATURE_S_LMJM_Lambda = 0.8f;
+    public final static float FEATURE_S_LMJM_Lambda = 0.1f;
+
+    public final static String FEATURE_S_DFR_BE_B = "dfr_ibe_b";
+
+    public final static String FEATURE_S_DFR_IF_L = "dfr_if_l";
 
     public final static String FEATURE_T_RETWEETNUM = "tweet_retweet_count";
 
@@ -171,7 +183,8 @@ public class Configuration {
 
     public final static String FEATURE_U_ISDEFAULT_ICON = "user_isdefault_profileimage";
     // feature name array to categorize above features into four classes
-    public final static String[] FEATURES_SEMANTIC = new String[]{FEATURE_S_TFIDF, FEATURE_S_BM25, FEATURE_S_LMD, FEATURE_S_LMJM};
+    public final static String[] FEATURES_SEMANTIC = new String[]{FEATURE_S_TFIDF, FEATURE_S_BM25, FEATURE_S_LMD,
+        FEATURE_S_LMJM, FEATURE_S_DFR_BE_B, FEATURE_S_DFR_IF_L};
 
     public final static String[] FEATURES_EXPANSION = new String[]{};
 

@@ -24,10 +24,17 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.similarities.AfterEffectB;
+import org.apache.lucene.search.similarities.AfterEffectL;
 import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BasicModelBE;
+import org.apache.lucene.search.similarities.BasicModelIF;
+import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
+import org.apache.lucene.search.similarities.Normalization.NoNormalization;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.QueryBuilder;
@@ -85,17 +92,19 @@ public class LuceneTrecBenchmark {
         @Override
         public Query parse(QualityQuery qq) throws ParseException {
             QueryBuilder qb = new QueryBuilder(analyzer);
-            BooleanQuery bq = new BooleanQuery();
+            BooleanQuery combine = new BooleanQuery();
             Query tweetcontent = qb.createBooleanQuery(Configuration.TWEET_CONTENT, qq.getValue(Configuration.QUERY_STR));
             tweetcontent.setBoost(1);
+            Query querytweettime = NumericRangeQuery.newLongRange(Configuration.TWEET_ID, 0l, Long.valueOf(qq.getValue(Configuration.QUERY_QUERYTWEETTIME)), true, true);
             Query urltitle = qb.createBooleanQuery(Configuration.TWEET_URL_TITLE, qq.getValue(Configuration.QUERY_STR));
             tweetcontent.setBoost(0.8f);
             Query urlcontent = qb.createBooleanQuery(Configuration.TWEET_URL_CONTENT, qq.getValue(Configuration.QUERY_STR));
             urlcontent.setBoost(0.6f);
-            bq.add(tweetcontent, Occur.SHOULD);
-            //bq.add(urltitle, Occur.SHOULD);
-            //bq.add(urlcontent, Occur.SHOULD);
-            return bq;
+            combine.add(tweetcontent, Occur.SHOULD);
+            //combine.add(querytweettime, Occur.MUST);
+            //combine.add(urltitle, Occur.SHOULD);
+            //combine.add(urlcontent, Occur.SHOULD);
+            return combine;
         }
 
     }
@@ -125,19 +134,26 @@ public class LuceneTrecBenchmark {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         DirectoryReader directoryReader = DirectoryReader.open(dir);
         IndexSearcher searcher;
+
         for (String name : Configuration.FEATURES_SEMANTIC) {
             searcher = new IndexSearcher(directoryReader);
             switch (name) {
                 case Configuration.FEATURE_S_TFIDF:
                     break;
                 case Configuration.FEATURE_S_BM25:
-                    searcher.setSimilarity(new BM25Similarity());
+                    searcher.setSimilarity(new BM25Similarity(Configuration.FEATURE_S_BM25_k1, Configuration.FEATURE_S_BM25_b));
                     break;
                 case Configuration.FEATURE_S_LMD:
-                    searcher.setSimilarity(new LMDirichletSimilarity());
+                    searcher.setSimilarity(new LMDirichletSimilarity(Configuration.FEATURE_S_LMD_mu));
                     break;
                 case Configuration.FEATURE_S_LMJM:
                     searcher.setSimilarity(new LMJelinekMercerSimilarity(Configuration.FEATURE_S_LMJM_Lambda));
+                    break;
+                case Configuration.FEATURE_S_DFR_BE_B:
+                    searcher.setSimilarity(new DFRSimilarity(new BasicModelBE(), new AfterEffectB(), new NoNormalization()));
+                    break;
+                case Configuration.FEATURE_S_DFR_IF_L:
+                    searcher.setSimilarity(new DFRSimilarity(new BasicModelIF(), new AfterEffectL(), new NoNormalization()));
                     break;
             }
             trecbenchmark(searcher, name);
@@ -158,15 +174,14 @@ public class LuceneTrecBenchmark {
         String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
         String indexdir = rootdir + "/index_url";
         //"/tweet2011-index";
-        String queryfile = rootdir + "/queries/12";
-        String qrelfile = rootdir + "/qrels/12";
+        String queryfile = rootdir + "/queries/";
+        String qrelfile = rootdir + "/qrels/";
         String expandedquery = rootdir + "/queries/queryexpansion.res";
 
         indexdir = "/GW/D5data-2/khui/microblogtrack/index/tweet2011-nort-url";
         queryfile = "/GW/D5data-2/khui/microblogtrack/queries/";
         qrelfile = "/GW/D5data-2/khui/microblogtrack/qrels/";
         expandedquery = "/scratch/GW/pool0/khui/result/microblogtrack/queryexpansion.res";
-
         Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_ANALYZER).newInstance();
         for (String year : new String[]{"11", "12"}) {
             //LuceneTrecBenchmark ltb = new LuceneTrecBenchmark(analyzer, Configuration.TWEET_CONTENT, queryfile + year, expandedquery, qrelfile + year, 8);
