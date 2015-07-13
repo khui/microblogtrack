@@ -135,7 +135,7 @@ public class LuceneTrecBenchmark {
         DirectoryReader directoryReader = DirectoryReader.open(dir);
         IndexSearcher searcher;
 
-        for (String name : Configuration.FEATURES_SEMANTIC) {
+        for (String name : Configuration.FEATURES_RETRIVEMODELS) {
             searcher = new IndexSearcher(directoryReader);
             switch (name) {
                 case Configuration.FEATURE_S_TFIDF:

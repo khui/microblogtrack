@@ -4,7 +4,6 @@ import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import libsvm.svm_node;
@@ -42,13 +41,10 @@ public class QueryTweetPair {
 
     private svm_node[] vectorLibsvm = null;
 
-    private Map<String, double[]> featureMeanStd;
-
     public QueryTweetPair(long tweetid, String queryid, Status status) {
         this.tweetid = tweetid;
         this.queryid = queryid;
         this.status = status;
-        this.featureMeanStd = new HashMap<>();
         updateFeatures();
     }
 
@@ -56,7 +52,6 @@ public class QueryTweetPair {
         this.tweetid = tweetid;
         this.queryid = queryid;
         this.status = status;
-        this.featureMeanStd = featureMeanStd;
         updateFeatures();
     }
 
@@ -74,11 +69,10 @@ public class QueryTweetPair {
         this.predictorResults.putAll(qtp.getPredictRes());
         this.vectorMahout = qtp.vectorMahout;
         this.vectorLibsvm = qtp.vectorLibsvm;
-        this.featureMeanStd = qtp.featureMeanStd;
     }
 
-    public void updateMeanStdScaler(Map<String, double[]> featureMeanStd) {
-        this.featureMeanStd = featureMeanStd;
+    public static String concatModelQuerytypeFeature(String model, String querytype) {
+        return model + "_" + querytype;
     }
 
     public void updateFeatures(String name, double score) {
@@ -186,7 +180,7 @@ public class QueryTweetPair {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(queryid).append(":").append(tweetid).append(" ");
-//        for (String featurename : Configuration.FEATURES_SEMANTIC) {
+//        for (String featurename : Configuration.FEATURES_RETRIVEMODELS) {
 //            sb.append(featurename).append(":").append(featureValues.get(featurename)).append(" ");
 //        }
         sb.append(getAbsScore()).append(" ");
@@ -199,11 +193,9 @@ public class QueryTweetPair {
      * afterward the vector representations are rebuilt. The mean/std value for
      * each feature can either come from off-line computation
      *
+     * @param featureMeanStd
      */
-    public void rescaleFeatures() {
-        if (featureMeanStd.isEmpty()) {
-            return;
-        }
+    public void rescaleFeatures(Map<String, double[]> featureMeanStd) {
         double std, mean, r_value, n_value;
         String[] features = featureValues.keySet().toArray(new String[0]);
         for (String feature : features) {
@@ -223,27 +215,18 @@ public class QueryTweetPair {
                 }
             }
         }
-        if (vectorMahout != null) {
-            vectorMahout = null;
-            vectorizeMahout();
-        }
+//        if (vectorMahout != null) {
+//            vectorMahout = null;
+//            vectorizeMahout();
+//        }
         if (vectorLibsvm != null) {
             vectorLibsvm = null;
             vectorizeLibsvm();
         }
     }
 
-    public void rescaleFeatures(Map<String, double[]> featureMeanStd) {
-        updateMeanStdScaler(featureMeanStd);
-        if (featureMeanStd.isEmpty()) {
-            return;
-        }
-        rescaleFeatures();
-    }
-
     protected final void updateFeatures() {
         semanticFeatures();
-        expansionFeatures();
         tweetFeatures();
         userFeatures();
     }
@@ -252,17 +235,12 @@ public class QueryTweetPair {
      * semantic matching features
      */
     private void semanticFeatures() {
-        for (String featurename : Configuration.FEATURES_SEMANTIC) {
-            if (!featureValues.containsKey(featurename)) {
-                featureValues.put(featurename, 0);
-            }
-        }
-    }
-
-    private void expansionFeatures() {
-        for (String featurename : Configuration.FEATURES_EXPANSION) {
-            if (!featureValues.containsKey(featurename)) {
-                featureValues.put(featurename, 0);
+        for (String querytype : Configuration.QUERY_TYPES) {
+            for (String model : Configuration.FEATURES_RETRIVEMODELS) {
+                String featurename = concatModelQuerytypeFeature(model, querytype);
+                if (!featureValues.containsKey(featurename)) {
+                    featureValues.put(featurename, 0);
+                }
             }
         }
     }

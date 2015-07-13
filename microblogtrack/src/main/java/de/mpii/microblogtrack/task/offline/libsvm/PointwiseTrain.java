@@ -157,7 +157,7 @@ public class PointwiseTrain {
         readInStatus(zipfiles);
         int countNoStatus = 0;
         List<LabeledTweet> labeledtweets = readinQueryQrel(qrelf, queryfile);
-        String[] searchModels = Configuration.FEATURES_SEMANTIC;
+        String[] searchModels = Configuration.FEATURES_RETRIVEMODELS;
         DirectoryReader indexReader = DirectoryReader.open(FSDirectory.open(Paths.get(indexdir)));
         IndexSearcher searcherInUse;
         ScoreDoc[] hits;

@@ -122,20 +122,21 @@ public class WikipediaXMLDumpInputStream {
         }
 
         String path = cmdline.getOptionValue(INPUT_OPTION);
-        PrintStream out = new PrintStream(System.out, true, "UTF-8");
-        WikiClean cleaner = new WikiCleanBuilder().withLanguage(lang).build();
-
-        WikipediaXMLDumpInputStream stream = new WikipediaXMLDumpInputStream(path);
-        String page;
-        while ((page = stream.readNext()) != null) {
-            if (page.contains("<ns>") && !page.contains("<ns>0</ns>")) {
-                continue;
+        try (PrintStream out = new PrintStream(System.out, true, "UTF-8")) {
+            WikiClean cleaner = new WikiCleanBuilder().withLanguage(lang).build();
+            
+            WikipediaXMLDumpInputStream stream = new WikipediaXMLDumpInputStream(path);
+            String page;
+            while ((page = stream.readNext()) != null) {
+                if (page.contains("<ns>") && !page.contains("<ns>0</ns>")) {
+                    continue;
+                }
+                
+                out.println("Title = " + cleaner.getTitle(page));
+                out.println("Id = " + cleaner.getId(page));
+                out.println(cleaner.clean(page) + "\n\n#################################\n");
             }
-
-            out.println("Title = " + cleaner.getTitle(page));
-            out.println("Id = " + cleaner.getId(page));
-            out.println(cleaner.clean(page) + "\n\n#################################\n");
+            out.close();
         }
-        out.close();
     }
 }

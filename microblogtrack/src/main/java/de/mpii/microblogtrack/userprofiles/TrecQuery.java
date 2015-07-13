@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
 import de.mpii.microblogtrack.utility.Configuration;
 import org.apache.log4j.Logger;
+import org.apache.lucene.search.BooleanClause;
 
 /**
  * based on org.apache.lucene.benchmark.quality.trec.TrecTopicsReader
@@ -31,6 +32,7 @@ public class TrecQuery {
         QualityQuery[] queries;
         try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(queryfile))))) {
             queries = ttr.readQueries(br);
+            br.close();
         }
         return queries;
     }
@@ -59,6 +61,22 @@ public class TrecQuery {
         for (QualityQuery qq : qqs) {
             querystr = qq.getValue(Configuration.QUERY_STR);
             res.put(qq.getQueryID(), qb.createBooleanQuery(field, querystr));
+        }
+        logger.info("In total, read in queries: " + res.size());
+        return res;
+    }
+
+    public Map<String, Map<String, Query>> readFieldQueries(String queryfile, Analyzer analyzer) throws IOException, ParseException {
+        QualityQuery[] qqs = readTrecQuery(queryfile);
+        QueryBuilder qb = new QueryBuilder(analyzer);
+        String querystr;
+        Map<String, Map<String, Query>> res = new HashMap<>();
+        for (QualityQuery qq : qqs) {
+            querystr = qq.getValue(Configuration.QUERY_STR);
+            res.put(qq.getQueryID(), new HashMap<>());
+            res.get(qq.getQueryID()).put(Configuration.TWEET_CONTENT, qb.createBooleanQuery(Configuration.TWEET_CONTENT, querystr, BooleanClause.Occur.SHOULD));
+            res.get(qq.getQueryID()).put(Configuration.TWEET_URL_TITLE, qb.createBooleanQuery(Configuration.TWEET_URL_TITLE, querystr, BooleanClause.Occur.SHOULD));
+            return res;
         }
         logger.info("In total, read in queries: " + res.size());
         return res;

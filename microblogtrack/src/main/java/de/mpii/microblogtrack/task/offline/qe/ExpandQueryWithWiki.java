@@ -108,26 +108,74 @@ public class ExpandQueryWithWiki {
                 }
                 query = new BooleanQuery();
                 for (ReadInQuery q : queue) {
-                    query.add(q.query, Occur.SHOULD);
+                    query.add(q.tweetContentQuery, Occur.SHOULD);
                 }
                 queries.put(Integer.parseInt(qid.replace("MB", "")), query);
             }
         }
+        br.close();
         return queries;
+    }
+
+    public static Map<String, Map<String, Query>> readExpandedFieldQueries(String file, Analyzer analyzer, int topk) throws FileNotFoundException, IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(file))));
+        Map<String, Map<String, Query>> res = new HashMap<>();
+        SimpleQueryParser tweetcontentParser = new SimpleQueryParser(analyzer, Configuration.TWEET_CONTENT);
+        SimpleQueryParser tweeturlParser = new SimpleQueryParser(analyzer, Configuration.TWEET_URL_TITLE);
+        tweetcontentParser.setDefaultOperator(Occur.SHOULD);
+        tweeturlParser.setDefaultOperator(Occur.SHOULD);
+        BooleanQuery tweetcontentQuery;
+        BooleanQuery tweeturlQuery;
+        PriorityQueue<ReadInQuery> queue;
+        while (br.ready()) {
+            String line = br.readLine();
+            String[] cols = line.split(" ");
+            if (cols.length > 1) {
+                String qid = cols[0];
+                res.put(qid, new HashMap<>());
+                queue = new PriorityQueue<>();
+                for (int i = 1; i < cols.length; i++) {
+                    String[] termWeight = cols[i].split("\\^");
+                    queue.add(new ReadInQuery(qid, tweetcontentParser.parse(termWeight[0]), tweeturlParser.parse(termWeight[0]), Float.parseFloat(termWeight[1])));
+                }
+                while (queue.size() > topk) {
+                    queue.poll();
+                }
+                tweeturlQuery = new BooleanQuery();
+                tweetcontentQuery = new BooleanQuery();
+                for (ReadInQuery q : queue) {
+                    tweetcontentQuery.add(q.tweetContentQuery, Occur.SHOULD);
+                    tweeturlQuery.add(q.tweetUrlQuery, Occur.SHOULD);
+                }
+                res.get(qid).put(Configuration.TWEET_CONTENT, tweetcontentQuery.clone());
+                res.get(qid).put(Configuration.TWEET_URL_TITLE, tweeturlQuery.clone());
+            }
+        }
+        br.close();
+        return res;
     }
 
     private static class ReadInQuery implements Comparable<ReadInQuery> {
 
         public String qid;
-        public Query query;
+        public Query tweetContentQuery;
+        public Query tweetUrlQuery;
         public float weight;
 
         public ReadInQuery(String qid, Query query, float weight) {
             this.qid = qid;
-            this.query = query;
+            this.tweetContentQuery = query;
             this.weight = weight;
-            //logger.info(query.toString());
             query.setBoost(weight);
+        }
+
+        public ReadInQuery(String qid, Query contentQuery, Query urlQuery, float weight) {
+            this.qid = qid;
+            this.tweetContentQuery = contentQuery;
+            this.tweetUrlQuery = urlQuery;
+            this.weight = weight;
+            tweetContentQuery.setBoost(weight);
+            tweetUrlQuery.setBoost(weight);
         }
 
         @Override

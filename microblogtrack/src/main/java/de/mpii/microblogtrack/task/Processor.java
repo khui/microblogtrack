@@ -5,7 +5,7 @@ import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.core.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.core.ResultTweetsTracker;
-import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
+import de.mpii.microblogtrack.component.predictor.PointwiseScorerArregate;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.LibsvmWrapper;
 import de.mpii.microblogtrack.utility.LoadProperties;
@@ -57,6 +57,7 @@ public abstract class Processor {
      * @param datadir
      * @param indexdir
      * @param queryfile
+     * @param expandqueryfile
      * @param outdir
      * @param scalefile
      * @throws java.io.IOException
@@ -68,19 +69,19 @@ public abstract class Processor {
      * @throws java.lang.IllegalAccessException
      * @throws twitter4j.TwitterException
      */
-    public void start(String datadir, String indexdir, String queryfile, String outdir, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
+    public void start(String datadir, String indexdir, String queryfile, String expandqueryfile, String outdir, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
         // communication between lucene search results and pointwise decision maker
         BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>();
         BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>();
         Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
-        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorer(), LibsvmWrapper.readScaler(scalefile));
+        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorerArregate());
         receiveStatus(lscorer, datadir, 1);
-        lscorer.multiQuerySearch(queryfile, queueLucene2PointwiseDM, queueLucene2ListwiseDM);
+        lscorer.multiQuerySearch(queryfile, expandqueryfile, queueLucene2PointwiseDM, queueLucene2ListwiseDM);
         // set up output writer to print out the notification task results
         ResultPrinter resultprinterpw = new ResultPrinter(outdir + "/pointwise");
         ResultPrinter resultprinterlw = new ResultPrinter(outdir + "/listwise");
-        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW", 3);
-        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW", 3);
+        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW-DM", 3);
+        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 3);
         ScheduledExecutorService schedulerpw = Executors.newScheduledThreadPool(2);
         ScheduledExecutorService schedulerlw = Executors.newScheduledThreadPool(2);
         schedulerpw.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
@@ -96,12 +97,13 @@ public abstract class Processor {
         options.addOption("d", "dataORkeydirectory", true, "data/api key directory");
         options.addOption("i", "indexdirectory", true, "index directory");
         options.addOption("q", "queryfile", true, "query file");
+        options.addOption("e", "expandqueryfile", true, "expanded query file");
         options.addOption("s", "meanstdscalefile", true, "scale parameters for feature normalization");
         options.addOption("l", "log4jxml", true, "log4j conf file");
         options.addOption("p", "property", true, "property file");
         CommandLineParser parser = new BasicParser();
         CommandLine cmd = parser.parse(options, args);
-        String outputdir = null, data_key_dir = null, indexdir = null, queryfile = null, scalefile = null, propertyfile = null,
+        String outputdir = null, data_key_dir = null, indexdir = null, queryfile = null, expandqueryfile = null, scalefile = null, propertyfile = null,
                 log4jconf = null;
         if (cmd.hasOption("o")) {
             outputdir = cmd.getOptionValue("o");
@@ -118,6 +120,9 @@ public abstract class Processor {
         if (cmd.hasOption("q")) {
             queryfile = cmd.getOptionValue("q");
         }
+        if (cmd.hasOption("e")) {
+            expandqueryfile = cmd.getOptionValue("e");
+        }
         if (cmd.hasOption("s")) {
             scalefile = cmd.getOptionValue("s");
         }
@@ -128,22 +133,22 @@ public abstract class Processor {
         /**
          * for local test
          */
-//        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-//        indexdir = rootdir + "/index";
-//        queryfile = rootdir + "/queries/fusion";
-//        //data_key_dir = rootdir + "/tweetzipklein";
-//        data_key_dir = rootdir + "/twitterkeys";
-//        scalefile = rootdir + "/scale_file/scale_meanstd";
-//        outputdir = rootdir + "/outputdir";
-//        log4jconf = "src/main/java/log4j.xml";
-//        propertyfile = rootdir + "/debug-property.config";
-        
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        indexdir = rootdir + "/index";
+        queryfile = rootdir + "/queries/fusion";
+        expandqueryfile = rootdir + "/queries/queryexpansion.res";
+        //data_key_dir = rootdir + "/tweetzipklein";
+        data_key_dir = rootdir + "/twitterkeys";
+        scalefile = rootdir + "/scale_file/scale_meanstd";
+        outputdir = rootdir + "/outputdir";
+        log4jconf = "src/main/java/log4j.xml";
+        propertyfile = rootdir + "/debug-property.config";
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         LoadProperties.load(propertyfile);
         logger.info("online process start.");
         Processor op = new OnlineProcessor();
-        op.start(data_key_dir, indexdir, queryfile, outputdir, scalefile);
+        op.start(data_key_dir, indexdir, queryfile, expandqueryfile, outputdir, scalefile);
 
     }
 }

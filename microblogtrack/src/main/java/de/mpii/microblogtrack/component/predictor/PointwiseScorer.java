@@ -1,28 +1,12 @@
 package de.mpii.microblogtrack.component.predictor;
 
-import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
-import org.apache.log4j.Logger;
 
 /**
- * for pointwise prediction, more complicated predictor should extends this
- * class and override the predictor
  *
  * @author khui
  */
-public class PointwiseScorer {
+public interface PointwiseScorer {
 
-    static Logger logger = Logger.getLogger(PointwiseScorer.class);
-
-    public double predictor(QueryTweetPair qtr) {
-        String[] retrievalmodels = Configuration.FEATURES_SEMANTIC;
-        double scoresum = 10;
-        for (String model : retrievalmodels) {
-            scoresum += qtr.getFeature(model);
-        }
-        scoresum = (scoresum > 0 ? scoresum : 0) / 10;
-        qtr.setPredictScore(Configuration.PRED_ABSOLUTESCORE, scoresum);
-        return scoresum;
-    }
-
+    public abstract double predictor(QueryTweetPair qtr);
 }

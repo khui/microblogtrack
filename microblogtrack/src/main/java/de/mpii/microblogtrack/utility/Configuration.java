@@ -43,6 +43,22 @@ public class Configuration {
 
     public final static String RES_RUNINFO = "runinfo";
     /**
+     * different types of queries:expansion, original query, and different
+     * fields to search
+     */
+    public final static String Q_TWEET = "q_tweet";
+    public final static String Q_URL = "q_url";
+    public final static String Q_TWEETURL = "q_tweeturl";
+    public final static String QE_TWEET = "qe_tweet";
+    public final static String QE_URL = "qe_url";
+    public final static String QE_TWEETURL = "qe_tweeturl";
+
+    // all these query will generate features
+    public final static String[] QUERY_TYPES = new String[]{Q_TWEET, Q_TWEETURL, QE_TWEET, QE_TWEETURL};
+
+    public static int QUERY_EXPANSION_TERMNUM = 10;
+
+    /**
      * parameters for lucene systems
      */
     // the size of the in-memory index, determining how often the writer dump the index to the disk
@@ -136,13 +152,13 @@ public class Configuration {
     public final static String FEATURE_S_BM25 = "bm25";
 
     public final static float FEATURE_S_BM25_b = 0f;
-    
+
     public final static float FEATURE_S_BM25_k1 = 1.2f;
 
     public final static String FEATURE_S_TFIDF = "tfidf";
 
     public final static String FEATURE_S_LMD = "lmDirichlet";
-    
+
     public final static int FEATURE_S_LMD_mu = 140;
 
     public final static String FEATURE_S_LMJM = "lmJelinekMercer";
@@ -183,10 +199,8 @@ public class Configuration {
 
     public final static String FEATURE_U_ISDEFAULT_ICON = "user_isdefault_profileimage";
     // feature name array to categorize above features into four classes
-    public final static String[] FEATURES_SEMANTIC = new String[]{FEATURE_S_TFIDF, FEATURE_S_BM25, FEATURE_S_LMD,
+    public final static String[] FEATURES_RETRIVEMODELS = new String[]{FEATURE_S_TFIDF, FEATURE_S_BM25, FEATURE_S_LMD,
         FEATURE_S_LMJM, FEATURE_S_DFR_BE_B, FEATURE_S_DFR_IF_L};
-
-    public final static String[] FEATURES_EXPANSION = new String[]{};
 
     public final static String[] FEATURES_TWEETQUALITY = new String[]{FEATURE_T_RETWEETNUM, FEATURE_T_FAVORITENUM, FEATURE_T_HASHTAGNUM, FEATURE_T_URLNUM, FEATURE_T_USERMENTIONNUM, FEATURE_T_MEDIANUM};
 
