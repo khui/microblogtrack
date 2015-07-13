@@ -77,8 +77,11 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                     logger.error("", ex);
                 }
                 try {
+                    TObjectIntMap<String> qid_pasttomaxrep = new TObjectIntHashMap<>();
                     for (String qid : qidQueue.keySet()) {
+                        qid_pasttomaxrep.put(qid, qidQueue.get(qid).size());
                         List<CandidateTweet> tweets = decisionMakeMaxRep(qidQueue.get(qid));
+
                         if (tweets == null) {
                             continue;
                         }
@@ -86,6 +89,12 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                             resultprinter.println(qid, tweet.forDebugToString(""));
                             resultprinter.printlog(qid, tweet.getTweetStr(), tweet.absoluteScore, tweet.relativeScore);
                         }
+                    }
+                    int[] passed_tweet_num = qid_pasttomaxrep.values();
+                    if (passed_tweet_num.length > 0) {
+                        printoutReceivedNum("passed to maxrep in LW-DM", IntStream.of(passed_tweet_num).average().getAsDouble());
+                    } else {
+                        printoutReceivedNum("passed to maxrep in LW-DM", 0);
                     }
                     resultprinter.flush();
                 } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | FileNotFoundException | ParseException ex) {

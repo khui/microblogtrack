@@ -3,9 +3,19 @@ package de.mpii.microblogtrack.task.offline.qe;
 import de.mpii.microblogtrack.component.thirdparty.QueryExpansion;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.PriorityQueue;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -18,6 +28,9 @@ import org.apache.lucene.benchmark.quality.QualityQuery;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.queryparser.simple.SimpleQueryParser;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -54,7 +67,80 @@ public class ExpandQueryWithWiki {
         this.decay = decay;
     }
 
-    public Query search(String querystr, int termNum, int docNum) throws IOException, ParseException {
+    public static Map<String, Query> readExpandedQueries(String file, Map<String, Float> weights, Analyzer analyzer) throws FileNotFoundException, IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(file))));
+        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, weights);
+        sqp.setDefaultOperator(Occur.SHOULD);
+        Query query;
+        Map<String, Query> queries = new HashMap<>();
+        while (br.ready()) {
+            String line = br.readLine();
+            String[] cols = line.split(" ");
+            if (cols.length > 1) {
+                String qid = cols[0];
+                String querystr = line.replace(qid, "");
+                query = sqp.parse(querystr);
+                queries.put(qid, query);
+            }
+        }
+        return queries;
+    }
+
+    public static TIntObjectMap<Query> readExpandedQueriesIntQid(String file, Map<String, Float> weights, Analyzer analyzer, int topk) throws FileNotFoundException, IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(file))));
+        SimpleQueryParser sqp = new SimpleQueryParser(analyzer, weights);
+        sqp.setDefaultOperator(Occur.SHOULD);
+        BooleanQuery query;
+        PriorityQueue<ReadInQuery> queue;
+        TIntObjectMap<Query> queries = new TIntObjectHashMap<>();
+        while (br.ready()) {
+            String line = br.readLine();
+            String[] cols = line.split(" ");
+            if (cols.length > 1) {
+                String qid = cols[0];
+                queue = new PriorityQueue<>();
+                for (int i = 1; i < cols.length; i++) {
+                    String[] termWeight = cols[i].split("\\^");
+                    queue.add(new ReadInQuery(qid, sqp.parse(termWeight[0]), Float.parseFloat(termWeight[1])));
+                }
+                while (queue.size() > topk) {
+                    queue.poll();
+                }
+                query = new BooleanQuery();
+                for (ReadInQuery q : queue) {
+                    query.add(q.query, Occur.SHOULD);
+                }
+                queries.put(Integer.parseInt(qid.replace("MB", "")), query);
+            }
+        }
+        return queries;
+    }
+
+    private static class ReadInQuery implements Comparable<ReadInQuery> {
+
+        public String qid;
+        public Query query;
+        public float weight;
+
+        public ReadInQuery(String qid, Query query, float weight) {
+            this.qid = qid;
+            this.query = query;
+            this.weight = weight;
+            //logger.info(query.toString());
+            query.setBoost(weight);
+        }
+
+        @Override
+        public int compareTo(ReadInQuery o) {
+            if (this.weight > o.weight) {
+                return 1;
+            } else {
+                return -1;
+            }
+        }
+    }
+
+    public String queryExpansion(String querystr, int termNum, int docNum) throws IOException, ParseException {
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setSimilarity(new LMDirichletSimilarity());
         QueryParser qp = new QueryParser(fieldname, analyzer);
@@ -62,7 +148,7 @@ public class ExpandQueryWithWiki {
         ScoreDoc[] hits = searcher.search(query, docNum).scoreDocs;
         QueryExpansion qe = new QueryExpansion(analyzer, searcher, fieldname);
         qe.setParameters(termNum, docNum, alpha, beta, decay);
-        Query expandedquery = qe.expandQuery(querystr, hits);
+        String expandedquery = qe.expandQuery2str(querystr, hits);
         return expandedquery;
     }
 
@@ -101,18 +187,16 @@ public class ExpandQueryWithWiki {
         eqww.setQEParameter(1, 0.8f, 0.1f);
         TrecQuery tq = new TrecQuery();
         QualityQuery[] qqs = tq.readTrecQuery(queryfile);
-        StringBuilder sb;
-        Query expandedQ;
-        PrintStream ps = new PrintStream(outputf);
-        for (QualityQuery qq : qqs) {
-            String qid = qq.getQueryID();
-            String query = qq.getValue("query");
-            expandedQ = eqww.search(query, 15, 10);
-            sb = new StringBuilder();
-            sb.append(qid).append("\t").append(query).append(":\n").append(expandedQ.toString("title"));
-            ps.println(sb.toString());
+        String expandedQ;
+        try (PrintStream ps = new PrintStream(outputf)) {
+            for (QualityQuery qq : qqs) {
+                String qid = qq.getQueryID();
+                String query = qq.getValue("query");
+                expandedQ = eqww.queryExpansion(query, 15, 10);
+                ps.println(qid + " " + expandedQ);
+            }
+            ps.close();
         }
-
     }
 
 }

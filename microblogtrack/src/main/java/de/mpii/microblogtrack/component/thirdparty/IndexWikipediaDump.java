@@ -50,6 +50,7 @@ public class IndexWikipediaDump {
         TEXT_OPTIONS.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         TEXT_OPTIONS.setStored(true);
         TEXT_OPTIONS.setTokenized(true);
+        TEXT_OPTIONS.setStoreTermVectors(true);
     }
 
     public static enum IndexField {

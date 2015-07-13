@@ -96,6 +96,14 @@ public class QueryExpansion {
         return expandQuery(queryStr, vHits);
     }
 
+    public String expandQuery2str(String queryStr, ScoreDoc[] hits)
+            throws IOException, ParseException {
+        // Get Docs to be used in query expansion
+        List<Document> vHits = getDocs(hits);
+
+        return expandQuery2str(queryStr, vHits);
+    }
+
     /**
      * Gets documents that will be used in query expansion. number of docs
      * indicated by <code>QueryExpansion.DOC_NUM_FLD</code> from <code> QueryExpansion.DOC_SOURCE_FLD
@@ -141,6 +149,18 @@ public class QueryExpansion {
 
         // Adjust term features of the docs with alpha * query; and beta; and assign weights/boost to terms (tf*idf)
         Query expandedQuery = adjust(docsTermVector, queryStr, alpha, beta, decay, docNum, termNum);
+
+        return expandedQuery;
+    }
+
+    public String expandQuery2str(String queryStr, List<Document> hits)
+            throws IOException, ParseException {
+
+        // Create combine documents term vectors - sum ( rel term vectors )
+        List<QueryTermVector> docsTermVector = getDocsTerms(hits, docNum, analyzer);
+
+        // Adjust term features of the docs with alpha * query; and beta; and assign weights/boost to terms (tf*idf)
+        String expandedQuery = adjust2str(docsTermVector, queryStr, alpha, beta, decay, docNum, termNum);
 
         return expandedQuery;
     }
@@ -197,6 +217,39 @@ public class QueryExpansion {
         return expandedQuery;
     }
 
+    private String adjust2str(List<QueryTermVector> docsTermsVector, String queryStr,
+            float alpha, float beta, float decay, int reldocnum,
+            int maxExpandedQueryTerms)
+            throws IOException, ParseException {
+        String expandedQuery;
+
+        // setBoost of docs terms
+        List<TermQuery> docsTerms = setBoost(docsTermsVector, beta / reldocnum, decay);
+        logger.info(docsTerms.toString());
+
+        // setBoost of query terms
+        // Get queryTerms from the query
+        QueryTermVector queryTermsVector = new QueryTermVector(queryStr, analyzer);
+        List<TermQuery> queryTerms = setBoost(queryTermsVector, alpha);
+
+        // combine weights according to expansion formula
+        List<TermQuery> expandedQueryTerms = combine(queryTerms, docsTerms);
+        setExpandedTerms(expandedQueryTerms);
+        // Sort by boost=weight, in descending order
+        Collections.sort(expandedQueryTerms, (TermQuery q1, TermQuery q2) -> {
+            if (q1.getBoost() > q2.getBoost()) {
+                return -1;
+            } else {
+                return 1;
+            }
+        });
+
+        // Create Expanded Query
+        expandedQuery = mergeQueries2str(expandedQueryTerms, maxExpandedQueryTerms);
+
+        return expandedQuery;
+    }
+
     /**
      * Merges <code>termQueries</code> into a single query. In the future this
      * method should probably be in <code>Query</code> class. This is akward way
@@ -233,6 +286,23 @@ public class QueryExpansion {
         query = qp.parse(qBuf.toString());
         logger.info(query.toString());
         return query;
+    }
+
+    private String mergeQueries2str(List<TermQuery> termQueries, int maxTerms)
+            throws ParseException {
+        Query query;
+
+        // Select only the maxTerms number of terms
+        int termCount = Math.min(termQueries.size(), maxTerms);
+
+        // Create Query String
+        StringBuilder qBuf = new StringBuilder();
+        for (int i = 0; i < termCount; i++) {
+            TermQuery termQuery = termQueries.get(i);
+            Term term = termQuery.getTerm();
+            qBuf.append(term.text()).append("^").append(termQuery.getBoost()).append(" ");
+        }
+        return qBuf.toString();
     }
 
     /**

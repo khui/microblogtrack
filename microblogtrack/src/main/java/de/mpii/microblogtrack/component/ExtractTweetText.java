@@ -12,24 +12,55 @@ import twitter4j.URLEntity;
  */
 public class ExtractTweetText {
 
-    private String extracturl(String url) throws IOException {
-        Document doc = Jsoup.connect(url).get();
-        String title = doc.title().replaceAll("[^A-Za-z0-9]", " ");
-        String text = doc.body().text().replaceAll("[^A-Za-z0-9]", " ");
-        return title + " " + text;
+    private Document doc = null;
+
+    private void extracturl(String url) {
+        if (doc == null) {
+            try {
+                doc = Jsoup.connect(url).get();
+            } catch (Exception ex) {
+                // do nothing, just keep silence if the url is invalid
+            }
+        }
+    }
+
+    private String getUrlTitle(String url) throws IOException {
+        extracturl(url);
+        String title = "";
+        if (doc != null) {
+            title = doc.title();
+        }
+        return title;
+    }
+
+    private String getUrlContent(String url) throws IOException {
+        extracturl(url);
+        String title = "";
+        if (doc != null) {
+            title = doc.body().text();
+        }
+        return title;
     }
 
     public String getTweet(Status status) {
-        String tweettext = status.getText();
-        String cleanedtext = tweettext.replaceAll("[^A-Za-z0-9]", " ");
+        String cleanedtext = status.getText();
         return cleanedtext;
     }
 
-    public String getUrl(Status status) throws IOException {
+    public String getUrlTitle(Status status) throws IOException {
         URLEntity[] urls = status.getURLEntities();
         StringBuilder sb = new StringBuilder();
         for (URLEntity url : urls) {
-            sb.append(extracturl(url.getURL())).append(" ");
+            sb.append(getUrlTitle(url.getURL())).append(" ");
+        }
+        return sb.toString();
+    }
+
+    public String getUrlContent(Status status) throws IOException {
+        URLEntity[] urls = status.getURLEntities();
+        StringBuilder sb = new StringBuilder();
+        for (URLEntity url : urls) {
+            sb.append(getUrlContent(url.getURL())).append(" ");
         }
         return sb.toString();
     }

@@ -20,9 +20,10 @@ public class Configuration {
 
     public final static String TWEET_CONTENT = "tweetcontent";
 
-    public final static String TWEET_URLCONTENT = "langdingpage";
+    public final static String TWEET_URL_CONTENT = "langdingpagecontent";
 
-    public final static String TWEET_CONTENT_URLEXPEND = "tweeturl";
+    public final static String TWEET_URL_TITLE = "langdingpagetitle";
+
     /**
      * fields name for query
      */

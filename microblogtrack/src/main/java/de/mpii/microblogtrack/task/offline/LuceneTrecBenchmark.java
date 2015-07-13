@@ -1,0 +1,179 @@
+package de.mpii.microblogtrack.task.offline;
+
+import de.mpii.microblogtrack.task.offline.qe.ExpandQueryWithWiki;
+import de.mpii.microblogtrack.userprofiles.TrecQuery;
+import de.mpii.microblogtrack.utility.Configuration;
+import gnu.trove.map.TIntObjectMap;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.log4j.Logger;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.benchmark.quality.Judge;
+import org.apache.lucene.benchmark.quality.QualityQuery;
+import org.apache.lucene.benchmark.quality.QualityQueryParser;
+import org.apache.lucene.benchmark.quality.trec.TrecJudge;
+import org.apache.lucene.benchmark.quality.utils.SubmissionReport;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.LMDirichletSimilarity;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.QueryBuilder;
+
+/**
+ * search the offline index and compare against the labeled qrel to check
+ * whether lucene perform good.
+ *
+ * @author khui
+ */
+public class LuceneTrecBenchmark {
+
+    static Logger logger = Logger.getLogger(LuceneTrecBenchmark.class.getName());
+
+    private final Analyzer analyzer;
+
+    private final String fieldname;
+
+    private final QualityQuery[] qqs;
+
+    private final QualityQueryParser qqParser;
+
+    private final Judge judge;
+
+    public LuceneTrecBenchmark(Analyzer analyzer, String fieldname, String queryfile, String expandedquery, String qrelfile, int querytopk) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, ParseException {
+        this.analyzer = analyzer;
+        this.fieldname = fieldname;
+        // prepare queries
+        TrecQuery tq = new TrecQuery();
+        qqs = tq.readTrecQueryIntQID(queryfile);
+        // set the parsing of quality queries into Lucene queries.
+        qqParser = new FromFileQueryParser(expandedquery, querytopk);
+        // prepare judge, with trec utilities that read from a QRels file
+        judge = new TrecJudge(new BufferedReader(new FileReader(new File(qrelfile))));
+        // validate topics & judgments match each other
+        judge.validateData(qqs, new PrintWriter(System.out));
+    }
+
+    public LuceneTrecBenchmark(Analyzer analyzer, String fieldname, String queryfile, String qrelfile) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, ParseException {
+        this.analyzer = analyzer;
+        this.fieldname = fieldname;
+        // prepare queries
+        TrecQuery tq = new TrecQuery();
+        qqs = tq.readTrecQueryIntQID(queryfile);
+        // set the parsing of quality queries into Lucene queries.
+        qqParser = new MultiFieldQueryParser();
+        // prepare judge, with trec utilities that read from a QRels file
+        judge = new TrecJudge(new BufferedReader(new FileReader(new File(qrelfile))));
+        // validate topics & judgments match each other
+        judge.validateData(qqs, new PrintWriter(System.out));
+    }
+
+    public class MultiFieldQueryParser implements QualityQueryParser {
+
+        @Override
+        public Query parse(QualityQuery qq) throws ParseException {
+            QueryBuilder qb = new QueryBuilder(analyzer);
+            BooleanQuery bq = new BooleanQuery();
+            Query tweetcontent = qb.createBooleanQuery(Configuration.TWEET_CONTENT, qq.getValue(Configuration.QUERY_STR));
+            tweetcontent.setBoost(1);
+            Query urltitle = qb.createBooleanQuery(Configuration.TWEET_URL_TITLE, qq.getValue(Configuration.QUERY_STR));
+            tweetcontent.setBoost(0.8f);
+            Query urlcontent = qb.createBooleanQuery(Configuration.TWEET_URL_CONTENT, qq.getValue(Configuration.QUERY_STR));
+            urlcontent.setBoost(0.6f);
+            bq.add(tweetcontent, Occur.SHOULD);
+            //bq.add(urltitle, Occur.SHOULD);
+            //bq.add(urlcontent, Occur.SHOULD);
+            return bq;
+        }
+
+    }
+
+    public class FromFileQueryParser implements QualityQueryParser {
+
+        private final TIntObjectMap<Query> queries;
+
+        public FromFileQueryParser(String queryfile, int topk) throws IOException {
+            Map<String, Float> fieldWeight = new HashMap<>();
+            fieldWeight.put(Configuration.TWEET_CONTENT, 1f);
+            fieldWeight.put(Configuration.TWEET_URL_TITLE, 0.8f);
+            queries = ExpandQueryWithWiki.readExpandedQueriesIntQid(queryfile, fieldWeight, analyzer, topk);
+        }
+
+        @Override
+        public Query parse(QualityQuery qq) throws ParseException {
+            int queryid = Integer.parseInt(qq.getQueryID());
+            Query q = queries.get(queryid);
+            //logger.info(qq.getValue(Configuration.QUERY_STR) + " " + q.toString());
+            return q;
+        }
+
+    }
+
+    public void search(String indexdir) throws IOException, ParseException, Exception {
+        Directory dir = FSDirectory.open(Paths.get(indexdir));
+        DirectoryReader directoryReader = DirectoryReader.open(dir);
+        IndexSearcher searcher;
+        for (String name : Configuration.FEATURES_SEMANTIC) {
+            searcher = new IndexSearcher(directoryReader);
+            switch (name) {
+                case Configuration.FEATURE_S_TFIDF:
+                    break;
+                case Configuration.FEATURE_S_BM25:
+                    searcher.setSimilarity(new BM25Similarity());
+                    break;
+                case Configuration.FEATURE_S_LMD:
+                    searcher.setSimilarity(new LMDirichletSimilarity());
+                    break;
+                case Configuration.FEATURE_S_LMJM:
+                    searcher.setSimilarity(new LMJelinekMercerSimilarity(Configuration.FEATURE_S_LMJM_Lambda));
+                    break;
+            }
+            trecbenchmark(searcher, name);
+        }
+    }
+
+    public void trecbenchmark(IndexSearcher searcher, String searchername) throws IOException, Exception {
+        // run the benchmark
+        QualityBenchmark qrun = new QualityBenchmark(qqs, qqParser, searcher, Configuration.TWEET_ID);
+        SubmissionReport submitLog = null;
+        QualityStats[] stats = qrun.execute(judge, submitLog, null);
+        // print an average sum of the results
+        QualityStats avg = QualityStats.average(stats);
+        logger.info(searchername + "\tMAP: " + avg.getAvp() + "\t" + "P@30: " + avg.getPrecisionAt(30));
+    }
+
+    public static void main(String[] args) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, ParseException, Exception {
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        String indexdir = rootdir + "/index_url";
+        //"/tweet2011-index";
+        String queryfile = rootdir + "/queries/12";
+        String qrelfile = rootdir + "/qrels/12";
+        String expandedquery = rootdir + "/queries/queryexpansion.res";
+
+        indexdir = "/GW/D5data-2/khui/microblogtrack/index/tweet2011-nort-url";
+        queryfile = "/GW/D5data-2/khui/microblogtrack/queries/";
+        qrelfile = "/GW/D5data-2/khui/microblogtrack/qrels/";
+        expandedquery = "/scratch/GW/pool0/khui/result/microblogtrack/queryexpansion.res";
+
+        Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_ANALYZER).newInstance();
+        for (String year : new String[]{"11", "12"}) {
+            //LuceneTrecBenchmark ltb = new LuceneTrecBenchmark(analyzer, Configuration.TWEET_CONTENT, queryfile + year, expandedquery, qrelfile + year, 8);
+            LuceneTrecBenchmark ltb = new LuceneTrecBenchmark(analyzer, Configuration.TWEET_CONTENT, queryfile + year, qrelfile + year);
+
+            ltb.search(indexdir);
+        }
+    }
+
+}

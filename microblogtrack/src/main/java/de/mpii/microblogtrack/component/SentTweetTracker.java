@@ -22,15 +22,15 @@ import org.apache.mahout.math.Vector;
  * @author khui
  */
 public class SentTweetTracker {
-    
+
     static Logger logger = Logger.getLogger(SentTweetTracker.class.getName());
 
     // track the tweets being sent in the full duration
     //protected final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
     protected final Map<String, ResultTweetsTracker> queryTweetTrackers;
-    
+
     private final DistanceMeasure distanceMeasure;
-    
+
     public SentTweetTracker(Map<String, ResultTweetsTracker> tracker) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryTweetTrackers = tracker;
         this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
@@ -53,10 +53,6 @@ public class SentTweetTracker {
         Vector sentVector;
         try {
             if (qidTweetSent.containsKey(queryId)) {
-                // only retain the top sent tweets in the queue
-                while (qidTweetSent.get(queryId).size() > queuelenlimit) {
-                    qidTweetSent.get(queryId).poll();
-                }
                 tweets = new ArrayList(qidTweetSent.get(queryId));
                 Vector features = tweet.vectorizeMahout();
                 // the average distance among centroids as the metrics for the relative distance between tweets
@@ -76,7 +72,7 @@ public class SentTweetTracker {
         }
         return distances.toArray();
     }
-    
+
     protected void updateSentTracker(CandidateTweet resultTweet, Map<String, PriorityQueue<CandidateTweet>> qidTweetSent, int queuelenlimit) {
         if (resultTweet.rank > 0) {
             String queryId = resultTweet.queryId;
@@ -85,15 +81,19 @@ public class SentTweetTracker {
             }
             // record the time that sent tweets are being added
             qidTweetSent.get(queryId).add(new CandidateTweet(resultTweet, System.currentTimeMillis()));
+            // only retain the top sent tweets in the queue
+            while (qidTweetSent.get(queryId).size() > queuelenlimit) {
+                qidTweetSent.get(queryId).poll();
+            }
         }
     }
-    
+
     protected void printoutReceivedNum(String task, double count) {
         logger.info((int) count + " tweets on average [" + task + "] since start.");
     }
-    
+
     protected class SentTweetComparator implements Comparator<CandidateTweet> {
-        
+
         @Override
         public int compare(CandidateTweet t1, CandidateTweet t2) {
             // for some tweets that are similar to a lot of tweets, making it important to be 
@@ -109,7 +109,7 @@ public class SentTweetTracker {
                 return -1;
             }
         }
-        
+
     }
-    
+
 }
