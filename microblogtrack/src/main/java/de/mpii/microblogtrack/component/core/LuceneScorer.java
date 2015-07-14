@@ -2,6 +2,7 @@ package de.mpii.microblogtrack.component.core;
 
 import de.mpii.microblogtrack.component.ExtractTweetText;
 import de.mpii.microblogtrack.component.IndexTracker;
+import de.mpii.microblogtrack.component.LuceneDMConnector;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
@@ -99,11 +100,11 @@ public class LuceneScorer {
     // language filter, retaining english tweets
     private final Filter langfilter;
 
-    private final Map<String, ResultTweetsTracker> queryResultTrackers;
+    private final Map<String, LuceneDMConnector> queryResultTrackers;
 
     private final PointwiseScorer pwScorer;
 
-    public LuceneScorer(String indexdir, Map<String, ResultTweetsTracker> queryTweetList, PointwiseScorerArregate pwScorer) throws IOException {
+    public LuceneScorer(String indexdir, Map<String, LuceneDMConnector> queryTweetList, PointwiseScorerArregate pwScorer) throws IOException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         this.analyzer = new EnglishAnalyzer();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
@@ -125,11 +126,8 @@ public class LuceneScorer {
         // initialize trackers: track the centroids, the relative score
         for (String queryid : qidFieldQuery.keySet()) {
             if (!queryResultTrackers.containsKey(queryid)) {
-                try {
-                    queryResultTrackers.put(queryid, new ResultTrackerKMean(queryid));
-                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException ex) {
-                    logger.error("multiquery search", ex);
-                }
+                queryResultTrackers.put(queryid, new LuceneDMConnector(queryid));
+
             }
         }
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);

@@ -1,6 +1,7 @@
 package de.mpii.microblogtrack.task;
 
 import de.mpii.microblogtrack.component.DecisionMakerTimer;
+import de.mpii.microblogtrack.component.LuceneDMConnector;
 import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.core.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
@@ -73,7 +74,7 @@ public abstract class Processor {
         // communication between lucene search results and pointwise decision maker
         BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>();
         BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>();
-        Map<String, ResultTweetsTracker> queryTrackers = new HashMap<>(250);
+        Map<String, LuceneDMConnector> queryTrackers = new HashMap<>(250);
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorerArregate());
         receiveStatus(lscorer, datadir, 1);
         lscorer.multiQuerySearch(queryfile, expandqueryfile, queueLucene2PointwiseDM, queueLucene2ListwiseDM);

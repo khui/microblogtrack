@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.component.core;
 
-
+import de.mpii.microblogtrack.component.ScoreTracker;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.TCollections;
@@ -122,6 +122,7 @@ public class ResultTrackerKMean implements ResultTweetsTracker {
         }
         updateCentroid(datapoints2add);
     }
+
 
 //    @Override
 //    public void updateFeatureMinMax(QueryTweetPair qtp) {

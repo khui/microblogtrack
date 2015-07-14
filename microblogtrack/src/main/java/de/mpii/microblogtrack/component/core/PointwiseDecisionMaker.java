@@ -1,5 +1,6 @@
 package de.mpii.microblogtrack.component.core;
 
+import de.mpii.microblogtrack.component.LuceneDMConnector;
 import de.mpii.microblogtrack.component.SentTweetTracker;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
@@ -42,7 +43,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
 
     private final ResultPrinter resultprinter;
 
-    public PointwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
+    public PointwiseDecisionMaker(Map<String, LuceneDMConnector> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
         super(tracker);
         this.tweetqueue = tweetqueue;
         this.resultprinter = resultprinter;

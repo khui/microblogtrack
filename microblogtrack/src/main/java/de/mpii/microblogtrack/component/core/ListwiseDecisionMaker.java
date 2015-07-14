@@ -1,6 +1,7 @@
 package de.mpii.microblogtrack.component.core;
 
 import de.mpii.lowcosteval.maxrep.MaxRep;
+import de.mpii.microblogtrack.component.LuceneDMConnector;
 import de.mpii.microblogtrack.component.SentTweetTracker;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
@@ -41,7 +42,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
 
     private final ResultPrinter resultprinter;
 
-    public ListwiseDecisionMaker(Map<String, ResultTweetsTracker> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    public ListwiseDecisionMaker(Map<String, LuceneDMConnector> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         super(tracker);
         this.tweetqueue = tweetqueue;
         this.resultprinter = resultprinter;

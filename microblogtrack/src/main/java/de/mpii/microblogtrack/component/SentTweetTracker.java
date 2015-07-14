@@ -27,11 +27,11 @@ public class SentTweetTracker {
 
     // track the tweets being sent in the full duration
     //protected final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
-    protected final Map<String, ResultTweetsTracker> queryTweetTrackers;
+    protected final Map<String, LuceneDMConnector> queryTweetTrackers;
 
     private final DistanceMeasure distanceMeasure;
 
-    public SentTweetTracker(Map<String, ResultTweetsTracker> tracker) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    public SentTweetTracker(Map<String, LuceneDMConnector> tracker) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryTweetTrackers = tracker;
         this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
     }
@@ -56,7 +56,7 @@ public class SentTweetTracker {
                 tweets = new ArrayList(qidTweetSent.get(queryId));
                 Vector features = tweet.vectorizeMahout();
                 // the average distance among centroids as the metrics for the relative distance between tweets
-                double avgCentroidDistance = queryTweetTrackers.get(queryId).avgDistCentroids();
+                double avgCentroidDistance = 1;
                 for (CandidateTweet ct : tweets) {
                     sentVector = ct.getFeature();
                     relativeDist = distanceMeasure.distance(sentVector, features) / avgCentroidDistance;
