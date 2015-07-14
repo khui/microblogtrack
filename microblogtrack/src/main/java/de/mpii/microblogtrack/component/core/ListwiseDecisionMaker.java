@@ -1,7 +1,6 @@
 package de.mpii.microblogtrack.component.core;
 
 import de.mpii.lowcosteval.maxrep.MaxRep;
-import de.mpii.microblogtrack.component.LuceneDMConnector;
 import de.mpii.microblogtrack.component.SentTweetTracker;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;

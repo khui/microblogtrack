@@ -1,6 +1,6 @@
-package de.mpii.microblogtrack.component;
+package de.mpii.microblogtrack.component.core;
 
-import de.mpii.microblogtrack.component.core.*;
+import de.mpii.microblogtrack.component.ScoreTracker;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import gnu.trove.TCollections;
@@ -22,7 +22,7 @@ import org.apache.log4j.Logger;
  */
 public class LuceneDMConnector implements ScoreTracker {
 
-    static Logger logger = Logger.getLogger(ResultTweetsTracker.class);
+    static Logger logger = Logger.getLogger(LuceneDMConnector.class);
 
     public final String queryid;
 

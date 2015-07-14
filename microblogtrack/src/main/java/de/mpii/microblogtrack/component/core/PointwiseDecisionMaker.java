@@ -1,6 +1,5 @@
 package de.mpii.microblogtrack.component.core;
 
-import de.mpii.microblogtrack.component.LuceneDMConnector;
 import de.mpii.microblogtrack.component.SentTweetTracker;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
@@ -108,7 +107,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                             try {
                                 // write down the tweets that are notified
                                 resultprinter.println(queryid, resultTweet.forDebugToString(""));
-                                resultprinter.printlog(queryid, qtp.getStatus().getText(), resultTweet.absoluteScore, resultTweet.relativeScore);
+                                resultprinter.printlog(queryid, qtp.getTweetText(), resultTweet.absoluteScore, resultTweet.relativeScore);
                             } catch (FileNotFoundException | ParseException ex) {
                                 logger.error("", ex);
                             }
@@ -182,7 +181,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         String queryId = tweet.queryid;
 
         double avggain = 0;
-        CandidateTweet resultTweet = new CandidateTweet(tweet.tweetid, absoluteScore, relativeScore, queryId, tweet.vectorizeMahout());
+        CandidateTweet resultTweet = new CandidateTweet(tweet);
         // the distances w.r.t. all popped up tweets
         if (relativeDist.length > 0) {
             for (double dist : relativeDist) {

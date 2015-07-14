@@ -1,8 +1,12 @@
 package de.mpii.microblogtrack.utility;
 
+import gnu.trove.map.TObjectDoubleMap;
+import gnu.trove.map.hash.TObjectDoubleHashMap;
 import java.text.DecimalFormat;
+import java.util.HashMap;
+import java.util.Map;
+import libsvm.svm_node;
 import org.apache.log4j.Logger;
-import org.apache.mahout.math.Vector;
 
 /**
  * the unique tweet for the final results. Include the pointwise score and its
@@ -28,67 +32,61 @@ public class CandidateTweet {
     // the time stamp when this tweets are sent
     public long sentTimeStamp = 0;
 
-    private final Vector featureVector;
+    private final TObjectDoubleMap<String> featureValues = new TObjectDoubleHashMap<>();
 
-    private String tweetstr = null;
+    private final Map<String, String> contentString = new HashMap<>();
 
-    public CandidateTweet(long tweetid, double absoluteS, double prob, int rank, String queryId, Vector featureVector) {
-        this.tweetId = tweetid;
-        this.featureVector = featureVector;
-        this.relativeScore = prob;
-        this.queryId = queryId;
-        this.absoluteScore = absoluteS;
+    private final svm_node[] vectorLibsvm;
+
+    public CandidateTweet(QueryTweetPair tweet, int rank, long timestamp) {
+        this.tweetId = tweet.tweetid;
+        this.relativeScore = tweet.getRelScore();
+        this.queryId = tweet.queryid;
+        this.absoluteScore = tweet.getAbsScore();
         this.rank = rank;
+        this.sentTimeStamp = timestamp;
+        this.vectorLibsvm = tweet.vectorizeLibsvm();
+        featureValues.putAll(tweet.getFeatures());
+        contentString.putAll(tweet.getContentStr());
     }
 
-    public CandidateTweet(long tweetid, double absoluteS, double prob, String queryId, Vector featureVector) {
-        this.tweetId = tweetid;
-        this.featureVector = featureVector;
-        this.relativeScore = prob;
-        this.queryId = queryId;
-        this.absoluteScore = absoluteS;
+    public CandidateTweet(QueryTweetPair tweet) {
+        this(tweet, -1, 0);
     }
 
     public CandidateTweet(CandidateTweet candidatetweet) {
         this.tweetId = candidatetweet.tweetId;
-        this.featureVector = candidatetweet.getFeature();
         this.relativeScore = candidatetweet.relativeScore;
         this.queryId = candidatetweet.queryId;
-        this.distance = candidatetweet.distance;
         this.absoluteScore = candidatetweet.absoluteScore;
         this.rank = candidatetweet.rank;
+        this.sentTimeStamp = candidatetweet.sentTimeStamp;
+        this.featureValues.clear();
+        this.featureValues.putAll(candidatetweet.featureValues);
+        this.contentString.clear();
+        this.contentString.putAll(candidatetweet.contentString);
+        this.vectorLibsvm = candidatetweet.vectorLibsvm;
+    }
+
+    public String getTweetText() {
+        return contentString.get(Configuration.TWEET_CONTENT);
+    }
+
+    public String getUrlTitleText() {
+        if (contentString.containsKey(Configuration.TWEET_URL_TITLE)) {
+            return contentString.get(Configuration.TWEET_URL_TITLE);
+        } else {
+            return null;
+        }
     }
 
     public CandidateTweet(CandidateTweet candidatetweet, long timestamp) {
-        this.tweetId = candidatetweet.tweetId;
-        this.featureVector = candidatetweet.getFeature();
-        this.relativeScore = candidatetweet.relativeScore;
-        this.queryId = candidatetweet.queryId;
-        this.distance = candidatetweet.distance;
-        this.absoluteScore = candidatetweet.absoluteScore;
-        this.rank = candidatetweet.rank;
+        this(candidatetweet);
         this.sentTimeStamp = timestamp;
-    }
-
-    public void setTweetStr(String tweetstr) {
-        this.tweetstr = tweetstr;
-    }
-
-    public String getTweetStr() {
-        if (this.tweetstr != null) {
-            return this.tweetstr;
-        } else {
-            logger.error("tweetstr is null");
-            return "";
-        }
     }
 
     public void setDist(double dist) {
         this.distance = dist;
-    }
-
-    public Vector getFeature() {
-        return this.featureVector;
     }
 
     public String toTrecFormat() {

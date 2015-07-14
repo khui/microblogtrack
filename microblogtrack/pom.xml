@@ -116,6 +116,11 @@
             <artifactId>wikiclean</artifactId>
             <version>0.3</version>
         </dependency>
+        <dependency>
+            <groupId>info.debatty</groupId>
+            <artifactId>java-string-similarity</artifactId>
+            <version>RELEASE</version>
+        </dependency>
 
     </dependencies>
     <build>

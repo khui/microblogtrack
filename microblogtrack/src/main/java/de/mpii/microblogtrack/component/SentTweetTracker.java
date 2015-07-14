@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.component;
 
-import de.mpii.microblogtrack.component.core.ResultTweetsTracker;
+import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import org.apache.log4j.Logger;
-import org.apache.mahout.common.distance.DistanceMeasure;
 import org.apache.mahout.math.Vector;
 
 /**
@@ -29,11 +28,10 @@ public class SentTweetTracker {
     //protected final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
     protected final Map<String, LuceneDMConnector> queryTweetTrackers;
 
-    private final DistanceMeasure distanceMeasure;
+    
 
     public SentTweetTracker(Map<String, LuceneDMConnector> tracker) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.queryTweetTrackers = tracker;
-        this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.TRACKER_DISTANT_MEASURE).newInstance();
     }
 
     /**

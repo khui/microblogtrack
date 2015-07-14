@@ -2,7 +2,6 @@ package de.mpii.microblogtrack.component.core;
 
 import de.mpii.microblogtrack.component.ExtractTweetText;
 import de.mpii.microblogtrack.component.IndexTracker;
-import de.mpii.microblogtrack.component.LuceneDMConnector;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
@@ -43,6 +42,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -164,7 +164,7 @@ public class LuceneScorer {
         for (String name : Configuration.FEATURES_RETRIVEMODELS) {
             sb.append(name).append(":").append(df.format(qtp.getFeature(name))).append(",");
         }
-        sb.append(" ").append(qtp.getStatus().getText());
+        sb.append(" ").append(qtp.getTweetText());
         return sb.toString();
     }
 
@@ -355,6 +355,8 @@ public class LuceneScorer {
             ScoreDoc[] hits;
             Document tweet;
             long tweetid;
+            IndexableField tweeturltitle;
+            String tweeturltitlestr;
             for (String querytype : Configuration.QUERY_TYPES) {
                 for (String model : Configuration.FEATURES_RETRIVEMODELS) {
                     searcherInUse = new IndexSearcher(reader);
@@ -382,7 +384,17 @@ public class LuceneScorer {
                         tweet = searcherInUse.doc(hit.doc);
                         tweetid = Long.parseLong(tweet.get(Configuration.TWEET_ID));
                         if (!searchresults.containsKey(tweetid)) {
-                            searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
+                            tweeturltitle = tweet.getField(Configuration.TWEET_URL_TITLE);
+                            if (tweeturltitle != null) {
+                                tweeturltitlestr = tweeturltitle.stringValue();
+                                if (tweeturltitlestr.length() > 0) {
+                                    searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid), tweeturltitlestr));
+                                } else {
+                                    searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
+                                }
+                            } else {
+                                logger.error("tweeturltitle: " + tweeturltitle);
+                            }
                         }
                         searchresults.get(tweetid).updateFeatures(QueryTweetPair.concatModelQuerytypeFeature(model, querytype), hit.score);
                     }

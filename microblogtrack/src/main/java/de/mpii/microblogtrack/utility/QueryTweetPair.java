@@ -4,12 +4,11 @@ import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import libsvm.svm_node;
 import org.apache.log4j.Logger;
-import org.apache.mahout.math.DenseVector;
-import org.apache.mahout.math.Vector;
 import twitter4j.HashtagEntity;
 import twitter4j.MediaEntity;
 import twitter4j.Status;
@@ -31,44 +30,45 @@ public class QueryTweetPair {
 
     private static String[] featureNames = null;
 
+    private Map<String, String> contentString = new HashMap<>();
+
     public final long tweetid;
 
     public final String queryid;
 
-    protected Status status;
-
-    private Vector vectorMahout = null;
-
     private svm_node[] vectorLibsvm = null;
 
+    public QueryTweetPair(long tweetid, String queryid, Status status, String urltitle) {
+        this.tweetid = tweetid;
+        this.queryid = queryid;
+        updateFeatures(status, urltitle);
+    }
+
     public QueryTweetPair(long tweetid, String queryid, Status status) {
-        this.tweetid = tweetid;
-        this.queryid = queryid;
-        this.status = status;
-        updateFeatures();
-    }
-
-    public QueryTweetPair(long tweetid, String queryid, Status status, Map<String, double[]> featureMeanStd) {
-        this.tweetid = tweetid;
-        this.queryid = queryid;
-        this.status = status;
-        updateFeatures();
-    }
-
-    public QueryTweetPair(long tweetid, String queryid) {
-        this(tweetid, queryid, null);
+        this(tweetid, queryid, status, null);
     }
 
     public QueryTweetPair(QueryTweetPair qtp) {
         this.tweetid = qtp.tweetid;
         this.queryid = qtp.queryid;
-        this.status = qtp.getStatus();
         this.featureValues.clear();
         this.predictorResults.clear();
         this.featureValues.putAll(qtp.getFeatures());
         this.predictorResults.putAll(qtp.getPredictRes());
-        this.vectorMahout = qtp.vectorMahout;
+        this.contentString = new HashMap(qtp.contentString);
         this.vectorLibsvm = qtp.vectorLibsvm;
+    }
+
+    public String getTweetText() {
+        return contentString.get(Configuration.TWEET_CONTENT);
+    }
+
+    public String getUrlTitleText() {
+        if (contentString.containsKey(Configuration.TWEET_URL_TITLE)) {
+            return contentString.get(Configuration.TWEET_URL_TITLE);
+        } else {
+            return null;
+        }
     }
 
     public static String concatModelQuerytypeFeature(String model, String querytype) {
@@ -91,6 +91,10 @@ public class QueryTweetPair {
         return featureValues;
     }
 
+    public Map<String, String> getContentStr() {
+        return contentString;
+    }
+
     public void setPredictScore(String predictresultname, double predictscore) {
         this.predictorResults.put(predictresultname, predictscore);
     }
@@ -109,37 +113,6 @@ public class QueryTweetPair {
             score = predictorResults.get(Configuration.PRED_RELATIVESCORE);
         }
         return score;
-    }
-
-    /**
-     * for debug to printQueryTweet
-     *
-     * @return
-     */
-    public Status getStatus() {
-        return this.status;
-    }
-
-    public Vector vectorizeMahout() {
-        if (vectorMahout != null) {
-            return vectorMahout;
-        }
-        boolean regenerateFeatureNames = false;
-        if (featureNames == null) {
-            regenerateFeatureNames = true;
-        } else if (featureNames.length != featureValues.size()) {
-            regenerateFeatureNames = true;
-        }
-        if (regenerateFeatureNames) {
-            featureNames = featureValues.keys(new String[0]);
-            Arrays.sort(featureNames);
-        }
-        double[] fvalues = new double[featureNames.length];
-        for (int i = 0; i < fvalues.length; i++) {
-            fvalues[i] = featureValues.get(featureNames[i]);
-        }
-        vectorMahout = new DenseVector(fvalues);
-        return vectorMahout;
     }
 
     /**
@@ -215,20 +188,20 @@ public class QueryTweetPair {
                 }
             }
         }
-//        if (vectorMahout != null) {
-//            vectorMahout = null;
-//            vectorizeMahout();
-//        }
         if (vectorLibsvm != null) {
             vectorLibsvm = null;
             vectorizeLibsvm();
         }
     }
 
-    protected final void updateFeatures() {
+    protected final void updateFeatures(Status status, String urltitle) {
         semanticFeatures();
-        tweetFeatures();
-        userFeatures();
+        tweetFeatures(status);
+        userFeatures(status);
+        this.contentString.put(Configuration.TWEET_CONTENT, status.getText());
+        if (urltitle != null) {
+            this.contentString.put(Configuration.TWEET_URL_TITLE, urltitle);
+        }
     }
 
     /**
@@ -248,7 +221,7 @@ public class QueryTweetPair {
     /**
      * #retweet #like #hashmap url
      */
-    private void tweetFeatures() {
+    private void tweetFeatures(Status status) {
         if (status != null) {
             double featureV = -1;
             for (String feature : Configuration.FEATURES_TWEETQUALITY) {
@@ -300,7 +273,7 @@ public class QueryTweetPair {
     /**
      * #retweet #following #follower
      */
-    private void userFeatures() {
+    private void userFeatures(Status status) {
         if (status != null) {
             User user = status.getUser();
             double featureV = -1;

@@ -1,14 +1,12 @@
 package de.mpii.microblogtrack.task;
 
 import de.mpii.microblogtrack.component.DecisionMakerTimer;
-import de.mpii.microblogtrack.component.LuceneDMConnector;
+import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.core.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
-import de.mpii.microblogtrack.component.core.ResultTweetsTracker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorerArregate;
 import de.mpii.microblogtrack.utility.Configuration;
-import de.mpii.microblogtrack.utility.LibsvmWrapper;
 import de.mpii.microblogtrack.utility.LoadProperties;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;

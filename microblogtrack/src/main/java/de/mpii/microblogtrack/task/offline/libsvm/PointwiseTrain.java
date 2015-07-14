@@ -100,8 +100,7 @@ public class PointwiseTrain {
         }
 
         public void updateStatus(Status status) {
-            this.status = status;
-            updateFeatures();
+            updateFeatures(status, null);
         }
     }
 
