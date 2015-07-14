@@ -55,7 +55,7 @@ public class IndexTracker {
         return tweetcountId;
     }
 
-    public long[] getAcurateTweetCount() {
+    public long[] minMaxTweetCountInTimeInterval() {
         long[] minmax = new long[2];
         synchronized (tweetidStatus_0) {
             // twitter tweetCountId to report

@@ -6,19 +6,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Enumeration;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import org.apache.commons.cli.BasicParser;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.Options;
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.apache.lucene.queryparser.classic.ParseException;
 import twitter4j.TwitterException;
 import twitter4j.TwitterObjectFactory;
 
@@ -79,7 +71,7 @@ public class OfflineProcessor extends Processor {
                             lscorer.write2Index(TwitterObjectFactory.createStatus(jsonstr));
                             br.close();
                             inputtweetcount++;
-                            if (inputtweetcount % 3000 == 0) {
+                            if (inputtweetcount % 8000 == 0) {
                                 Thread.sleep(1000 * 60);
                             }
                         }

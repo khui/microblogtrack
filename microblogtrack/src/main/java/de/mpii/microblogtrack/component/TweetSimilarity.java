@@ -1,6 +1,5 @@
 package de.mpii.microblogtrack.component;
 
-import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 
 /**
@@ -17,8 +16,6 @@ public interface TweetSimilarity {
      * @param qtp1
      * @return
      */
-    public double similarity(QueryTweetPair qtp0, CandidateTweet qtp1);
-
-    public double similarity(CandidateTweet qtp0, CandidateTweet qtp1);
+    public double similarity(QueryTweetPair qtp0, QueryTweetPair qtp1);
 
 }

@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import org.apache.log4j.Logger;
-import org.apache.mahout.math.Vector;
 
 /**
  * keep tracking all tweets being sent, avoiding to send duplicate/similar
@@ -24,14 +23,13 @@ public class SentTweetTracker {
 
     static Logger logger = Logger.getLogger(SentTweetTracker.class.getName());
 
-    // track the tweets being sent in the full duration
-    //protected final static Map<String, List<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
-    protected final Map<String, LuceneDMConnector> queryTweetTrackers;
+    private final TweetSimilarity similarityMeasure;
 
-    
+    protected final Map<String, LuceneDMConnector> queryRelativeScoreTracker;
 
     public SentTweetTracker(Map<String, LuceneDMConnector> tracker) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-        this.queryTweetTrackers = tracker;
+        this.queryRelativeScoreTracker = tracker;
+        this.similarityMeasure = new TweetStringSimilarity();
     }
 
     /**
@@ -40,40 +38,35 @@ public class SentTweetTracker {
      *
      * @param tweet
      * @param qidTweetSent
-     * @param queuelenlimit
      * @return
      */
-    protected double[] distFilter(QueryTweetPair tweet, Map<String, PriorityQueue<CandidateTweet>> qidTweetSent, int queuelenlimit) {
-        TDoubleList distances = new TDoubleArrayList();
+    protected double[] compare2SentTweetFilger(QueryTweetPair tweet, Map<String, PriorityQueue<CandidateTweet>> qidTweetSent) {
+        TDoubleList similarities = new TDoubleArrayList();
         String queryId = tweet.queryid;
         List<CandidateTweet> tweets;
-        double relativeDist;
-        Vector sentVector;
+        double similarity;
         try {
             if (qidTweetSent.containsKey(queryId)) {
                 tweets = new ArrayList(qidTweetSent.get(queryId));
-                Vector features = tweet.vectorizeMahout();
                 // the average distance among centroids as the metrics for the relative distance between tweets
-                double avgCentroidDistance = 1;
-                for (CandidateTweet ct : tweets) {
-                    sentVector = ct.getFeature();
-                    relativeDist = distanceMeasure.distance(sentVector, features) / avgCentroidDistance;
-                    if (relativeDist < Configuration.DM_DIST_FILTER) {
-                        ct.duplicateCount++;
+                for (CandidateTweet sentTeet : tweets) {
+                    similarity = similarityMeasure.similarity(sentTeet, tweet);
+                    if (similarity >= Configuration.DM_SIMILARITY_FILTER) {
+                        sentTeet.duplicateCount++;
                         return null;
                     }
-                    distances.add(relativeDist);
+                    similarities.add(similarity);
                 }
             }
         } catch (Exception ex) {
             logger.error("", ex);
         }
-        return distances.toArray();
+        return similarities.toArray();
     }
 
     protected void updateSentTracker(CandidateTweet resultTweet, Map<String, PriorityQueue<CandidateTweet>> qidTweetSent, int queuelenlimit) {
         if (resultTweet.rank > 0) {
-            String queryId = resultTweet.queryId;
+            String queryId = resultTweet.queryid;
             if (!qidTweetSent.containsKey(queryId)) {
                 qidTweetSent.put(queryId, new PriorityQueue<>(queuelenlimit, new SentTweetComparator()));
             }
@@ -87,7 +80,7 @@ public class SentTweetTracker {
     }
 
     protected void printoutReceivedNum(String task, double count) {
-        logger.info((int) count + " tweets on average [" + task + "] since start.");
+        logger.info((int) count + " tweets on average [" + task + "]");
     }
 
     protected class SentTweetComparator implements Comparator<CandidateTweet> {

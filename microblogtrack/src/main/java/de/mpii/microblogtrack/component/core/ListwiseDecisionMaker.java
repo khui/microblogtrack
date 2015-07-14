@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.component.core;
 
-import de.mpii.lowcosteval.maxrep.MaxRep;
+import de.mpii.lowcosteval.maxrep.MaxReponSimilarity;
 import de.mpii.microblogtrack.component.SentTweetTracker;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
@@ -21,7 +21,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.stream.IntStream;
 import org.apache.log4j.Logger;
-import org.apache.mahout.math.Centroid;
 
 /**
  * collect tweets from lucene, thereafter return top-100 list at the end of day.
@@ -35,27 +34,28 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
 
     static Logger logger = Logger.getLogger(ListwiseDecisionMaker.class.getName());
 
-    private final static Map<String, PriorityQueue<CandidateTweet>> qidTweetSent = Collections.synchronizedMap(new HashMap<>());
+    private final static Map<String, PriorityQueue<CandidateTweet>> qidSentTweetQueues = Collections.synchronizedMap(new HashMap<>());
 
-    private final BlockingQueue<QueryTweetPair> tweetqueue;
+    private final BlockingQueue<QueryTweetPair> qtpQueue2Process;
 
     private final ResultPrinter resultprinter;
 
     public ListwiseDecisionMaker(Map<String, LuceneDMConnector> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         super(tracker);
-        this.tweetqueue = tweetqueue;
+        this.qtpQueue2Process = tweetqueue;
         this.resultprinter = resultprinter;
     }
 
     @Override
     public void run() {
-        TObjectIntMap<String> qid_tweetnum = new TObjectIntHashMap<>();
-        TObjectIntMap<String> num_filtered_distance = new TObjectIntHashMap<>();
-        Map<String, PriorityBlockingQueue<QueryTweetPair>> qidQueue = new HashMap<>(250);
+        TObjectIntMap<String> qid_tweetnum_received = new TObjectIntHashMap<>();
+        TObjectIntMap<String> num_filteredby_similarity = new TObjectIntHashMap<>();
+        Map<String, PriorityBlockingQueue<QueryTweetPair>> PriorityQueue4FurtherProcessing = new HashMap<>(250);
         logger.info("LW-DM started");
-        for (String qid : queryTweetTrackers.keySet()) {
-            if (!queryTweetTrackers.get(qid).whetherOffer2LWQueue()) {
-                queryTweetTrackers.get(qid).offer2LWQueue();
+        for (String qid : queryRelativeScoreTracker.keySet()) {
+            // to notify the lucene components to put the retrieved tweets into the queue
+            if (!queryRelativeScoreTracker.get(qid).whetherOffer2LWQueue()) {
+                queryRelativeScoreTracker.get(qid).offer2LWQueue();
             }
         }
         /**
@@ -65,76 +65,75 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
          */
         while (true) {
             if (Thread.interrupted()) {
-                printoutReceivedNum("received in LW-DM", IntStream.of(qid_tweetnum.values()).average().getAsDouble());
                 try {
-                    int[] dists = num_filtered_distance.values();
+                    printoutReceivedNum("received in LW-DM " + PriorityQueue4FurtherProcessing.size(), IntStream.of(qid_tweetnum_received.values()).average().getAsDouble());
+                    int[] dists = num_filteredby_similarity.values();
                     if (dists.length > 0) {
-                        printoutReceivedNum("filtered by distance in LW-DM", IntStream.of(dists).average().getAsDouble());
+                        printoutReceivedNum("filtered by similarity in LW-DM", IntStream.of(dists).average().getAsDouble());
                     } else {
-                        printoutReceivedNum("filtered by distance in LW-DM", 0);
+                        printoutReceivedNum("filtered by similarity in LW-DM", 0);
                     }
                 } catch (Exception ex) {
                     logger.error("", ex);
                 }
                 try {
                     TObjectIntMap<String> qid_pasttomaxrep = new TObjectIntHashMap<>();
-                    for (String qid : qidQueue.keySet()) {
-                        qid_pasttomaxrep.put(qid, qidQueue.get(qid).size());
-                        List<CandidateTweet> tweets = decisionMakeMaxRep(qidQueue.get(qid));
+                    for (String qid : PriorityQueue4FurtherProcessing.keySet()) {
+                        qid_pasttomaxrep.put(qid, PriorityQueue4FurtherProcessing.get(qid).size());
+                        List<CandidateTweet> tweets = decisionMakeMaxRep(PriorityQueue4FurtherProcessing.get(qid), qid);
 
                         if (tweets == null) {
+                            logger.error("none tweets selected in LW-DM for " + qid);
                             continue;
                         }
                         for (CandidateTweet tweet : tweets) {
                             resultprinter.println(qid, tweet.forDebugToString(""));
-                            resultprinter.printlog(qid, tweet.getTweetStr(), tweet.absoluteScore, tweet.relativeScore);
+                            resultprinter.printlog(qid, tweet.getTweetText(), tweet.getAbsScore(), tweet.getRelScore());
                         }
                     }
+                    resultprinter.flush();
                     int[] passed_tweet_num = qid_pasttomaxrep.values();
                     if (passed_tweet_num.length > 0) {
                         printoutReceivedNum("passed to maxrep in LW-DM", IntStream.of(passed_tweet_num).average().getAsDouble());
                     } else {
                         printoutReceivedNum("passed to maxrep in LW-DM", 0);
                     }
-                    resultprinter.flush();
                 } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | FileNotFoundException | ParseException ex) {
                     logger.error("", ex);
+                } catch (Exception ex) {
+                    logger.error("", ex);
                 }
+
                 return;
             }
 
             try {
                 // we simply collect top-LW_DM_QUEUE_LEN tweets with highest prediction score
                 // for each query
-                QueryTweetPair qtp = tweetqueue.poll();
+                QueryTweetPair qtp = qtpQueue2Process.poll();
 
                 // if fetch no tweet from the queue
                 if (qtp == null) {
                     continue;
                 }
-                qid_tweetnum.adjustOrPutValue(qtp.queryid, 1, 1);
+                String qid = qtp.queryid;
+                qid_tweetnum_received.adjustOrPutValue(qid, 1, 1);
 
-                double relativeScore = qtp.getRelScore();
-                if (relativeScore == 0) {
-                    logger.error("LW-DW, relativeScore:" + relativeScore);
-                }
-
-                synchronized (qidTweetSent) {
+                synchronized (qidSentTweetQueues) {
                     // if the tweet is too similar with one of the already sent tweet
-                    if (distFilter(qtp, qidTweetSent, Configuration.LW_DM_DIST_SENTTWEET_LEN) == null) {
-                        num_filtered_distance.adjustOrPutValue(qtp.queryid, 1, 1);
+                    if (compare2SentTweetFilger(qtp, qidSentTweetQueues) == null) {
+                        num_filteredby_similarity.adjustOrPutValue(qid, 1, 1);
                         continue;
                     }
                 }
 
-                String qid = qtp.queryid;
-                if (!qidQueue.containsKey(qid)) {
-                    qidQueue.put(qid, getPriorityQueue());
+                if (!PriorityQueue4FurtherProcessing.containsKey(qid)) {
+                    PriorityQueue4FurtherProcessing.put(qid, getPriorityQueue());
                 }
 
-                qidQueue.get(qid).offer(new QueryTweetPair(qtp));
-                if (qidQueue.get(qid).size() > Configuration.LW_DM_QUEUE_LEN) {
-                    qidQueue.get(qid).poll();
+                PriorityQueue4FurtherProcessing.get(qid).offer(new QueryTweetPair(qtp));
+                if (PriorityQueue4FurtherProcessing.get(qid).size() > Configuration.LW_DM_QUEUE2PROCESS_LEN) {
+                    PriorityQueue4FurtherProcessing.get(qid).poll();
                 }
             } catch (Exception ex) {
                 logger.error("", ex);
@@ -143,53 +142,26 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
         }
     }
 
-    private List<CandidateTweet> decisionMakeMaxRep(PriorityBlockingQueue<QueryTweetPair> queue) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    private List<CandidateTweet> decisionMakeMaxRep(PriorityBlockingQueue<QueryTweetPair> queue, String qid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         List<QueryTweetPair> candidateTweets = new ArrayList<>();
         int tweetnum = queue.drainTo(candidateTweets);
         if (tweetnum <= 0) {
             logger.error("The candidate tweet list is empty");
             return null;
         }
-        List<Centroid> points2select = new ArrayList<>(tweetnum);
-        // pick up the maximum and minimum absolute score
-        double maxAbsoluteScore = Double.MIN_VALUE;
-        double minAbsoluteScore = Double.MAX_VALUE;
-        for (QueryTweetPair candidateTweet : candidateTweets) {
-            double absolutescore = candidateTweet.getAbsScore();
-            if (absolutescore > maxAbsoluteScore) {
-                maxAbsoluteScore = absolutescore;
-            }
-            if (absolutescore < minAbsoluteScore) {
-                minAbsoluteScore = absolutescore;
-            }
+        for (QueryTweetPair qtp : candidateTweets) {
+            qtp.setPredictScore(Configuration.PRED_RELATIVESCORE, queryRelativeScoreTracker.get(qid).relativeScore(qtp.getAbsScore()));
         }
-        double difference = maxAbsoluteScore - minAbsoluteScore;
-        double weight;
-        for (int i = 0; i < candidateTweets.size(); i++) {
-            if (difference > 0) {
-                weight = Configuration.LW_DM_WEIGHT_MINW + (1 - Configuration.LW_DM_WEIGHT_MINW)
-                        * (candidateTweets.get(i).getAbsScore() - minAbsoluteScore) / difference;
-            } else {
-                weight = 1;
-            }
-            points2select.add(new Centroid(i, candidateTweets.get(i).vectorizeMahout(), weight));
-        }
-        MaxRep selector = new MaxRep(points2select);
+        MaxReponSimilarity selector = new MaxReponSimilarity(candidateTweets);
         int[] selectedIndex = selector.selectMaxRep(Configuration.LW_DM_SELECTNUM);
         List<CandidateTweet> selectedQTPs = new ArrayList<>();
         int rank = 1;
         for (int index : selectedIndex) {
-            selectedQTPs.add(new CandidateTweet(candidateTweets.get(index).tweetid,
-                    candidateTweets.get(index).getAbsScore(),
-                    candidateTweets.get(index).getRelScore(),
-                    rank++,
-                    candidateTweets.get(index).queryid,
-                    candidateTweets.get(index).vectorizeMahout()));
-            selectedQTPs.get(selectedQTPs.size() - 1).setTweetStr(candidateTweets.get(index).getStatus().getText());
+            selectedQTPs.add(new CandidateTweet(candidateTweets.get(index), rank++));
         }
         for (CandidateTweet resultTweet : selectedQTPs) {
-            synchronized (qidTweetSent) {
-                updateSentTracker(resultTweet, qidTweetSent, Configuration.LW_DM_DIST_SENTTWEET_LEN);
+            synchronized (qidSentTweetQueues) {
+                updateSentTracker(resultTweet, qidSentTweetQueues, Configuration.LW_DM_SENT_QUEUETRACKER_LENLIMIT);
             }
         }
         return selectedQTPs;
@@ -202,7 +174,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
      * @return
      */
     public static PriorityBlockingQueue<QueryTweetPair> getPriorityQueue() {
-        int size = Configuration.LW_DM_QUEUE_LEN * 2;
+        int size = Configuration.LW_DM_QUEUE2PROCESS_LEN;
         PriorityBlockingQueue<QueryTweetPair> queue
                 = new PriorityBlockingQueue<>(size, new Comparator<QueryTweetPair>() {
                     /**

@@ -76,7 +76,6 @@ public class TrecQuery {
             res.put(qq.getQueryID(), new HashMap<>());
             res.get(qq.getQueryID()).put(Configuration.TWEET_CONTENT, qb.createBooleanQuery(Configuration.TWEET_CONTENT, querystr, BooleanClause.Occur.SHOULD));
             res.get(qq.getQueryID()).put(Configuration.TWEET_URL_TITLE, qb.createBooleanQuery(Configuration.TWEET_URL_TITLE, querystr, BooleanClause.Occur.SHOULD));
-            return res;
         }
         logger.info("In total, read in queries: " + res.size());
         return res;

@@ -20,16 +20,11 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.apache.lucene.queryparser.classic.ParseException;
 import twitter4j.StatusListener;
-import twitter4j.TwitterException;
 
 /**
  * based on com.twitter.hbc.example.Twitter4jSampleStreamExample
@@ -105,7 +100,7 @@ public class OnlineProcessor extends Processor {
 
     @Override
     protected void receiveStatus(LuceneScorer lscorer, String keydir, int numProcessingThreads) {
-        BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>();
+        BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>(2000);
         StatusListener listener = new HbcT4jListener(lscorer);
         String[] apikey = null;
         try {

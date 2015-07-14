@@ -5,7 +5,7 @@ import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.core.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
-import de.mpii.microblogtrack.component.predictor.PointwiseScorerArregate;
+import de.mpii.microblogtrack.component.predictor.PointwiseScorerSumRetrievalScores;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.LoadProperties;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
@@ -70,21 +70,20 @@ public abstract class Processor {
      */
     public void start(String datadir, String indexdir, String queryfile, String expandqueryfile, String outdir, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
         // communication between lucene search results and pointwise decision maker
-        BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>();
-        BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>();
+        BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>(2000);
+        BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>(2000);
         Map<String, LuceneDMConnector> queryTrackers = new HashMap<>(250);
-        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorerArregate());
+        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorerSumRetrievalScores());
         receiveStatus(lscorer, datadir, 1);
         lscorer.multiQuerySearch(queryfile, expandqueryfile, queueLucene2PointwiseDM, queueLucene2ListwiseDM);
         // set up output writer to print out the notification task results
         ResultPrinter resultprinterpw = new ResultPrinter(outdir + "/pointwise");
         ResultPrinter resultprinterlw = new ResultPrinter(outdir + "/listwise");
-        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW-DM", 3);
-        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 3);
-        ScheduledExecutorService schedulerpw = Executors.newScheduledThreadPool(2);
-        ScheduledExecutorService schedulerlw = Executors.newScheduledThreadPool(2);
-        schedulerpw.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
-        schedulerlw.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, TimeUnit.MINUTES);
+        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW-DM", 2);
+        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 2);
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+        scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
+        scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, TimeUnit.MINUTES);
     }
 
     protected abstract void receiveStatus(LuceneScorer lscorer, String dataORkeydir, int numProcessingThreads);
@@ -136,17 +135,20 @@ public abstract class Processor {
         indexdir = rootdir + "/index";
         queryfile = rootdir + "/queries/fusion";
         expandqueryfile = rootdir + "/queries/queryexpansion.res";
-        //data_key_dir = rootdir + "/tweetzipklein";
-        data_key_dir = rootdir + "/twitterkeys";
+        data_key_dir = rootdir + "/tweetzipklein";
+        //data_key_dir = rootdir + "/twitterkeys";
         scalefile = rootdir + "/scale_file/scale_meanstd";
         outputdir = rootdir + "/outputdir";
         log4jconf = "src/main/java/log4j.xml";
-        propertyfile = rootdir + "/debug-property.config";
+        //propertyfile = rootdir + "/online-debug-property.config";
+        propertyfile = rootdir + "/local-debug-property.config";
+
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         LoadProperties.load(propertyfile);
         logger.info("online process start.");
-        Processor op = new OnlineProcessor();
+        //Processor op = new OnlineProcessor();
+        Processor op = new OfflineProcessor();
         op.start(data_key_dir, indexdir, queryfile, expandqueryfile, outputdir, scalefile);
 
     }

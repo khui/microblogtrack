@@ -9,7 +9,7 @@ import java.util.List;
  */
 public class Configuration {
 
-    public final static String RUN_ID = "myTest";
+    public static String RUN_ID = "myTest";
 
     /**
      * fields name used for retrieval of tweets
@@ -70,7 +70,11 @@ public class Configuration {
     // every time invertal, we retrieve top_n tweets for each query for further processin from lucene
     public static int LUCENE_TOP_N_SEARCH = 50;
     // number of threads we use to conduct multiquery search
-    public final static int LUCENE_SEARCH_THREADNUM = 12;
+    public static int LUCENE_SEARCH_THREADNUM = 12;
+
+    public static int LUCENE_WRITE_JSOUP_TIMEOUT = 500;
+
+    public static int LUCENE_SEARCH_JSOUP_TIMEOUT = 500;
     /**
      * pointwise decision maker parameters for mobile notification task
      */
@@ -82,9 +86,9 @@ public class Configuration {
     public final static double PW_DM_FIRSTPOPUP_SCORETHRESD = 0.999;
     // filter out the tweets that are too similar with at least one of the pop-up tweet, the number is relative to 
     // average distance among centroids
-    public static double DM_DIST_FILTER = 0.1;
+    public static double DM_SIMILARITY_FILTER = 0.7;
     // the number of sent tweets to be compared for duplication filter when a new tweet comes in
-    public final static int PW_DM_DIST_SENTTWEET_LEN = 20;
+    public static int PW_DM_SENT_QUEUETRACKER_LENLIMIT = 20;
     // start delay for the decision maker in minutes 
     public static int PW_DM_START_DELAY = 60;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
@@ -97,11 +101,11 @@ public class Configuration {
      * listwise decision maker for e-mail digest task
      */
     // the number of sent tweets to be compared for duplication filter when a new tweet comes in
-    public final static int LW_DM_DIST_SENTTWEET_LEN = 100;
+    public static int LW_DM_SENT_QUEUETRACKER_LENLIMIT = 100;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
     public static int LW_DM_PERIOD = 60;//60 * 24;
     // the length of the priority queue: tracking at most n tweets with highest pointwise prediction score
-    public final static int LW_DM_QUEUE_LEN = 2000;
+    public static int LW_DM_QUEUE2PROCESS_LEN = 2000;
 
     public static int LW_DM_SELECTNUM = 100;
 
@@ -115,7 +119,7 @@ public class Configuration {
     /**
      * parameter for maxrep
      */
-    public final static double MAXREP_SIMI_THRESHOLD = 0.8;
+    public static double MAXREP_SIMI_THRESHOLD = 0.1;
 
     public final static String MAXREP_DISTANT_MEASURE = "org.apache.mahout.common.distance.CosineDistanceMeasure";
     /**
@@ -211,5 +215,5 @@ public class Configuration {
      * other parameters
      */
     // number of thread we use to listen the api, 1 is enough
-    public final static int LISTENER_THREADNUM = 1;
+    public static int LISTENER_THREADNUM = 1;
 }

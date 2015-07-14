@@ -15,9 +15,9 @@ import org.apache.mahout.math.Centroid;
  *
  * @author khui
  */
-public class MaxRep {
+public class MaxRepMahoutVector {
 
-    static Logger logger = Logger.getLogger(MaxRep.class.getName());
+    static Logger logger = Logger.getLogger(MaxRepMahoutVector.class.getName());
 
     private final List<Centroid> datapoints;
 
@@ -33,7 +33,7 @@ public class MaxRep {
 
     private final double similarityThreshold = Configuration.MAXREP_SIMI_THRESHOLD;
 
-    public MaxRep(List<Centroid> datapoints) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    public MaxRepMahoutVector(List<Centroid> datapoints) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.datapoints = datapoints;
         this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.MAXREP_DISTANT_MEASURE).newInstance();
         this.n = datapoints.size();

@@ -13,9 +13,9 @@ import org.apache.log4j.Logger;
  *
  * @author khui
  */
-public class PointwiseScorerArregate implements PointwiseScorer {
+public class PointwiseScorerSumRetrievalScores implements PointwiseScorer {
 
-    static Logger logger = Logger.getLogger(PointwiseScorerArregate.class);
+    static Logger logger = Logger.getLogger(PointwiseScorerSumRetrievalScores.class);
 
     private final TObjectDoubleMap<String> feature_min = TCollections.synchronizedMap(new TObjectDoubleHashMap<>());
 
@@ -23,7 +23,7 @@ public class PointwiseScorerArregate implements PointwiseScorer {
 
     private final String[] models;
 
-    public PointwiseScorerArregate() {
+    public PointwiseScorerSumRetrievalScores() {
         for (String querytype : Configuration.QUERY_TYPES) {
             for (String model : Configuration.FEATURES_RETRIVEMODELS) {
                 String featurename = QueryTweetPair.concatModelQuerytypeFeature(model, querytype);
@@ -44,10 +44,10 @@ public class PointwiseScorerArregate implements PointwiseScorer {
                 double value = featureValues.get(model);
                 synchronized (feature_max) {
                     if (value > feature_max.get(model)) {
-                        feature_max.adjustValue(model, value);
+                        feature_max.put(model, value);
                         sum += 1;
                     } else if (value < feature_min.get(model)) {
-                        feature_min.adjustValue(model, value);
+                        feature_min.put(model, value);
                         sum += 0;
                     } else {
                         value = (value - feature_min.get(model)) / (feature_max.get(model) - feature_min.get(model));

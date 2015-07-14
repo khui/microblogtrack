@@ -24,19 +24,19 @@ public class QueryTweetPair {
 
     static Logger logger = Logger.getLogger(QueryTweetPair.class.getName());
 
-    private final TObjectDoubleMap<String> featureValues = new TObjectDoubleHashMap<>();
+    protected final TObjectDoubleMap<String> featureValues = new TObjectDoubleHashMap<>();
 
-    private final TObjectDoubleMap<String> predictorResults = new TObjectDoubleHashMap<>();
+    protected final TObjectDoubleMap<String> predictorResults = new TObjectDoubleHashMap<>();
 
-    private static String[] featureNames = null;
+    protected static String[] featureNames = null;
 
-    private Map<String, String> contentString = new HashMap<>();
+    protected Map<String, String> contentString = new HashMap<>();
 
     public final long tweetid;
 
     public final String queryid;
 
-    private svm_node[] vectorLibsvm = null;
+    protected svm_node[] vectorLibsvm = null;
 
     public QueryTweetPair(long tweetid, String queryid, Status status, String urltitle) {
         this.tweetid = tweetid;
