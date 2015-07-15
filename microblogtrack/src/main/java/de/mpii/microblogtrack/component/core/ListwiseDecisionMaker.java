@@ -66,8 +66,13 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
         while (true) {
             if (Thread.interrupted()) {
                 try {
-                    printoutReceivedNum("received in LW-DM " + PriorityQueue4FurtherProcessing.size(), IntStream.of(qid_tweetnum_received.values()).average().getAsDouble());
-                    int[] dists = num_filteredby_similarity.values();
+                    int[] dists = qid_tweetnum_received.values();
+                    if (dists.length > 0) {
+                        printoutReceivedNum("received in LW-DM ", IntStream.of(dists).average().getAsDouble());
+                    } else {
+                        printoutReceivedNum("received in LW-DM ", 0);
+                    }
+                    dists = num_filteredby_similarity.values();
                     if (dists.length > 0) {
                         printoutReceivedNum("filtered by similarity in LW-DM", IntStream.of(dists).average().getAsDouble());
                     } else {
@@ -80,15 +85,16 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                     TObjectIntMap<String> qid_pasttomaxrep = new TObjectIntHashMap<>();
                     for (String qid : PriorityQueue4FurtherProcessing.keySet()) {
                         qid_pasttomaxrep.put(qid, PriorityQueue4FurtherProcessing.get(qid).size());
-                        List<CandidateTweet> tweets = decisionMakeMaxRep(PriorityQueue4FurtherProcessing.get(qid), qid);
+                        List<CandidateTweet> resultTweets = decisionMakeMaxRep(PriorityQueue4FurtherProcessing.get(qid), qid);
 
-                        if (tweets == null) {
+                        if (resultTweets == null) {
                             logger.error("none tweets selected in LW-DM for " + qid);
                             continue;
                         }
-                        for (CandidateTweet tweet : tweets) {
-                            resultprinter.println(qid, tweet.forDebugToString(""));
-                            resultprinter.printlog(qid, tweet.getTweetText(), tweet.getAbsScore(), tweet.getRelScore());
+                        for (int rank = 1; rank <= resultTweets.size(); rank++) {
+                            CandidateTweet tweet = resultTweets.get(rank - 1);
+                            resultprinter.printResult(qid, tweet.digestOutput(rank));
+                            resultprinter.printlog(qid, tweet.getTweetText(), tweet.getUrlTitleText(), tweet.getAbsScore(), tweet.getRelScore());
                         }
                     }
                     resultprinter.flush();
@@ -103,7 +109,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                 } catch (Exception ex) {
                     logger.error("", ex);
                 }
-
+                logger.info("LW-DM: finished and get out");
                 return;
             }
 
@@ -159,6 +165,14 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
         for (int index : selectedIndex) {
             selectedQTPs.add(new CandidateTweet(candidateTweets.get(index), rank++));
         }
+        // decreasing order
+        Collections.sort(selectedQTPs, (CandidateTweet o1, CandidateTweet o2) -> {
+            if (o1.getAbsScore() > o2.getAbsScore()) {
+                return -1;
+            } else {
+                return 1;
+            }
+        });
         for (CandidateTweet resultTweet : selectedQTPs) {
             synchronized (qidSentTweetQueues) {
                 updateSentTracker(resultTweet, qidSentTweetQueues, Configuration.LW_DM_SENT_QUEUETRACKER_LENLIMIT);

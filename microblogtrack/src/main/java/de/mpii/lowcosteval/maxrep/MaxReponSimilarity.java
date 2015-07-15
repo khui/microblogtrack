@@ -71,7 +71,7 @@ public class MaxReponSimilarity {
                 selectedL.add(max_simigain_index);
                 updateMaxRepVector(max_simigain_index);
             } else {
-                logger.error("max_ind is negative: " + max_simigain_index);
+                logger.error("max_ind is negative: " + max_simigain_index + " " + datapoints.get(0).queryid + " " + selectedL.size());
                 break;
             }
         }

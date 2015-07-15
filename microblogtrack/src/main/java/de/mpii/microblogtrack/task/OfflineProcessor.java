@@ -72,7 +72,7 @@ public class OfflineProcessor extends Processor {
                             br.close();
                             inputtweetcount++;
                             if (inputtweetcount % 8000 == 0) {
-                                Thread.sleep(1000 * 60);
+                                Thread.sleep(1000 * 20);
                             }
                         }
                         zipf.close();

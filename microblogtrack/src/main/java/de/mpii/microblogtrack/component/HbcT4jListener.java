@@ -50,4 +50,5 @@ public class HbcT4jListener implements StatusListener {
     @Override
     public void onException(Exception e) {
     }
+
 }

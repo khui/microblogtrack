@@ -66,12 +66,13 @@ public class SentTweetTracker {
 
     protected void updateSentTracker(CandidateTweet resultTweet, Map<String, PriorityQueue<CandidateTweet>> qidTweetSent, int queuelenlimit) {
         if (resultTweet.rank > 0) {
+            resultTweet.setTimeStamp();
             String queryId = resultTweet.queryid;
             if (!qidTweetSent.containsKey(queryId)) {
                 qidTweetSent.put(queryId, new PriorityQueue<>(queuelenlimit, new SentTweetComparator()));
             }
             // record the time that sent tweets are being added
-            qidTweetSent.get(queryId).add(new CandidateTweet(resultTweet, System.currentTimeMillis()));
+            qidTweetSent.get(queryId).add(new CandidateTweet(resultTweet));
             // only retain the top sent tweets in the queue
             while (qidTweetSent.get(queryId).size() > queuelenlimit) {
                 qidTweetSent.get(queryId).poll();
@@ -94,7 +95,7 @@ public class SentTweetTracker {
             } else if (t1.duplicateCount < t2.duplicateCount) {
                 return -1;
                 // prefer newer tweets
-            } else if (t1.sentTimeStamp > t2.sentTimeStamp) {
+            } else if (t1.millis_send_timestamp > t2.millis_send_timestamp) {
                 return 1;
             } else {
                 return -1;

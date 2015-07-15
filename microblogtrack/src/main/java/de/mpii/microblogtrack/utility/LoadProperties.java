@@ -37,9 +37,13 @@ public class LoadProperties {
                         Configuration.LISTENER_THREADNUM = Integer.parseInt(value);
                         logger.info("LISTENER_THREADNUM: " + value);
                         break;
-                    case "LUCENE_URLEXTRACT_JSOUP_TIMEOUT":
-                        Configuration.LUCENE_WRITE_JSOUP_TIMEOUT = Integer.parseInt(value);
-                        logger.info("LUCENE_URLEXTRACT_JSOUP_TIMEOUT: " + value);
+                    case "LUCENE_DOWNLOAD_URL_TIMEOUT":
+                        Configuration.LUCENE_DOWNLOAD_URL_TIMEOUT = Integer.parseInt(value);
+                        logger.info("LUCENE_DOWNLOAD_URL_TIMEOUT: " + value);
+                        break;
+                    case "LUCENE_DOWNLOAD_URL_THREADNUM":
+                        Configuration.LUCENE_DOWNLOAD_URL_THREADNUM = Integer.parseInt(value);
+                        logger.info("LUCENE_DOWNLOAD_URL_THREADNUM: " + value);
                         break;
                     case "LUCENE_SEARCH_THREADNUM":
                         Configuration.LUCENE_SEARCH_THREADNUM = Integer.parseInt(value);

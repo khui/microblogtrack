@@ -114,7 +114,7 @@ public class ConstructLuceneIndex {
             BufferedReader br;
             StringBuilder sb;
             zipf = new ZipFile(zipfile);
-            ExtractTweetText textextractor = new ExtractTweetText(Configuration.LUCENE_WRITE_JSOUP_TIMEOUT);
+            ExtractTweetText textextractor = new ExtractTweetText(Configuration.LUCENE_DOWNLOAD_URL_TIMEOUT);
             Enumeration<? extends ZipEntry> entries = zipf.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry ze = (ZipEntry) entries.nextElement();

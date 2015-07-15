@@ -6,6 +6,7 @@ import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.core.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorerSumRetrievalScores;
+import static de.mpii.microblogtrack.task.OnlineProcessor.logger;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.LoadProperties;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
@@ -18,7 +19,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -36,6 +36,8 @@ import twitter4j.TwitterException;
 public abstract class Processor {
 
     static Logger logger = Logger.getLogger(Processor.class.getName());
+
+    protected final BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>(2000);
 
     /**
      * for notification task: 1) search the results and retain top-k per minute
@@ -82,8 +84,18 @@ public abstract class Processor {
         DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW-DM", 2);
         DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 2);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-        scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, TimeUnit.MINUTES);
-        scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, TimeUnit.MINUTES);
+
+        scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, Configuration.TIMEUNIT);
+        scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, Configuration.TIMEUNIT);
+        while (!Thread.interrupted()) {
+            if (api2indexqueue.size() >= 2000) {
+                logger.error("api2indexqueue is full: " + api2indexqueue.size());
+                try {
+                    Thread.sleep(1000 * 30);
+                } catch (InterruptedException ex) {
+                }
+            }
+        }
     }
 
     protected abstract void receiveStatus(LuceneScorer lscorer, String dataORkeydir, int numProcessingThreads);
@@ -131,24 +143,24 @@ public abstract class Processor {
         /**
          * for local test
          */
-        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        indexdir = rootdir + "/index";
-        queryfile = rootdir + "/queries/fusion";
-        expandqueryfile = rootdir + "/queries/queryexpansion.res";
-        data_key_dir = rootdir + "/tweetzipklein";
-        //data_key_dir = rootdir + "/twitterkeys";
-        scalefile = rootdir + "/scale_file/scale_meanstd";
-        outputdir = rootdir + "/outputdir";
-        log4jconf = "src/main/java/log4j.xml";
-        //propertyfile = rootdir + "/online-debug-property.config";
-        propertyfile = rootdir + "/local-debug-property.config";
+//        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+//        indexdir = rootdir + "/index";
+//        queryfile = rootdir + "/queries/fusion";
+//        expandqueryfile = rootdir + "/queries/queryexpansion.res";
+//        //data_key_dir = rootdir + "/tweetzipklein";
+//        data_key_dir = rootdir + "/twitterkeys";
+//        scalefile = rootdir + "/scale_file/scale_meanstd";
+//        outputdir = rootdir + "/outputdir";
+//        log4jconf = "src/main/java/log4j.xml";
+//        propertyfile = rootdir + "/online-debug-property.config";
+//        //propertyfile = rootdir + "/local-debug-property.config";
 
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         LoadProperties.load(propertyfile);
-        logger.info("online process start.");
-        //Processor op = new OnlineProcessor();
-        Processor op = new OfflineProcessor();
+        logger.info("online proecss start.");
+        Processor op = new OnlineProcessor();
+        //Processor op = new OfflineProcessor();
         op.start(data_key_dir, indexdir, queryfile, expandqueryfile, outputdir, scalefile);
 
     }

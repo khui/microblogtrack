@@ -1,6 +1,5 @@
 package de.mpii.microblogtrack.component;
 
-import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import info.debatty.java.stringsimilarity.Jaccard;
 import info.debatty.java.stringsimilarity.NormalizedLevenshtein;
@@ -26,6 +25,11 @@ public class TweetStringSimilarity implements TweetSimilarity {
         this(1);
     }
 
+    public static double strJarcard(String urltitle, String query) {
+        Jaccard j1 = new Jaccard(1);
+        return j1.similarity(urltitle, query);
+    }
+
     private double similarity(String content0, String content1, String urltitle0, String urltitle1) {
         double contentsimilarity = 0;
         double contentlen = content0.length() + content1.length() + 0.9;
@@ -43,9 +47,9 @@ public class TweetStringSimilarity implements TweetSimilarity {
         }
         double totallen = contentlen + urltitlelen;
         similarity = (contentlen / totallen) * contentsimilarity + (urltitlelen / totallen) * urltitlesimilarity;
-        if (similarity > Configuration.DM_SIMILARITY_FILTER) {
-            logger.info(contentsimilarity + "\t" + urltitlesimilarity + "\t" + content0 + "\t" + content1 + "\t" + urltitle0 + "\t" + urltitle1);
-        }
+//        if (similarity > Configuration.DM_SIMILARITY_FILTER) {
+//            logger.info(contentsimilarity + "\t" + urltitlesimilarity + "\t" + content0 + "\t" + content1 + "\t" + urltitle0 + "\t" + urltitle1);
+//        }
         return similarity;
     }
 

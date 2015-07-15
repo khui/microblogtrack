@@ -2,6 +2,7 @@ package de.mpii.microblogtrack.utility;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -9,7 +10,9 @@ import java.util.List;
  */
 public class Configuration {
 
-    public static String RUN_ID = "myTest";
+    public static String RUN_ID = "MPII";
+    // for debug
+    public static TimeUnit TIMEUNIT = TimeUnit.MINUTES;
 
     /**
      * fields name used for retrieval of tweets
@@ -41,7 +44,6 @@ public class Configuration {
      */
     public final static String RES_RANK = "rank";
 
-    public final static String RES_RUNINFO = "runinfo";
     /**
      * different types of queries:expansion, original query, and different
      * fields to search
@@ -54,7 +56,7 @@ public class Configuration {
     public final static String QE_TWEETURL = "qe_tweeturl";
 
     // all these query will generate features
-    public final static String[] QUERY_TYPES = new String[]{Q_TWEET, Q_TWEETURL, QE_TWEET, QE_TWEETURL};
+    public final static String[] QUERY_TYPES = new String[]{Q_TWEET, QE_TWEET};
 
     public static int QUERY_EXPANSION_TERMNUM = 10;
 
@@ -70,11 +72,12 @@ public class Configuration {
     // every time invertal, we retrieve top_n tweets for each query for further processin from lucene
     public static int LUCENE_TOP_N_SEARCH = 50;
     // number of threads we use to conduct multiquery search
-    public static int LUCENE_SEARCH_THREADNUM = 12;
+    public static int LUCENE_SEARCH_THREADNUM = 2;
 
-    public static int LUCENE_WRITE_JSOUP_TIMEOUT = 500;
+    public static int LUCENE_DOWNLOAD_URL_TIMEOUT = 5000;
+    
+    public static int LUCENE_DOWNLOAD_URL_THREADNUM = 3;
 
-    public static int LUCENE_SEARCH_JSOUP_TIMEOUT = 500;
     /**
      * pointwise decision maker parameters for mobile notification task
      */

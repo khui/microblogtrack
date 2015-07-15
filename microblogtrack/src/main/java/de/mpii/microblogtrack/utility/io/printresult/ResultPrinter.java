@@ -44,18 +44,18 @@ public class ResultPrinter {
         return timestamp;
     }
 
-    public synchronized void println(String qid, String line) throws FileNotFoundException, ParseException {
+    public synchronized void printResult(String qid, String line) throws FileNotFoundException, ParseException {
         if (!qidPs.containsKey(qid)) {
             qidPs.put(qid, new PrintStream(new File(directory, qid + ".trec")));
         }
-        qidPs.get(qid).println(line + " " + getTimeStamp());
+        qidPs.get(qid).println(line);
     }
 
-    public synchronized void printlog(String qid, String tweet, double absscore, double relscore) throws FileNotFoundException, ParseException {
+    public synchronized void printlog(String qid, String tweet, String urlString, double absscore, double relscore) throws FileNotFoundException, ParseException {
         if (!qidlogPs.containsKey(qid)) {
             qidlogPs.put(qid, new PrintStream(new File(directory, qid + ".log")));
         }
-        qidlogPs.get(qid).println(tweet + "\t" + df.format(absscore) + "\t" + df.format(relscore));
+        qidlogPs.get(qid).println(tweet + "\t" + urlString + "\t" + df.format(absscore) + "\t" + df.format(relscore));
         qidlogPs.get(qid).println();
     }
 

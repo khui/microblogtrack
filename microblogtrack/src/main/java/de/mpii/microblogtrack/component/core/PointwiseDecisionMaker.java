@@ -27,27 +27,31 @@ import org.apache.log4j.Logger;
  * @author khui
  */
 public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable {
-    
+
     static Logger logger = Logger.getLogger(PointwiseDecisionMaker.class);
-    
+
     private final static Map<String, PriorityQueue<CandidateTweet>> qidSentTweetQueues = Collections.synchronizedMap(new HashMap<>());
-    
+
     private final BlockingQueue<QueryTweetPair> qtpQueue2Process;
-    
+
     private final TObjectDoubleMap<String> qidAbsThreshold2SentTweet = new TObjectDoubleHashMap<>(250);
     // dynamic threshold for the initial qtp, avoiding the most relevant tweets never come
     private final TObjectDoubleMap<String> qidInitRelativeThread2SentFirstTweet = new TObjectDoubleHashMap<>(250);
-    
+
     private final ResultPrinter resultprinter;
-    
+
     public PointwiseDecisionMaker(Map<String, LuceneDMConnector> tracker, BlockingQueue<QueryTweetPair> incomingQtpQueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException, FileNotFoundException {
         super(tracker);
         this.qtpQueue2Process = incomingQtpQueue;
         this.resultprinter = resultprinter;
     }
-    
+
     @Override
     public void run() {
+        TObjectIntMap<String> qidNotificationNumTracker = new TObjectIntHashMap<>(250);
+        Set<String> finishNotificationQidTracker = new HashSet<>(250);
+        QueryTweetPair qtp;
+        String queryid;
         // only after receiving enough tweets, the tweets will be considered to 
         // be reported
         TObjectIntMap<String> qid_tweetnum_received = new TObjectIntHashMap<>();
@@ -59,10 +63,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             }
         }
         logger.info("PW-DM started");
-        TObjectIntMap<String> qidNotificationNumTracker = new TObjectIntHashMap<>(250);
-        Set<String> finishNotificationQidTracker = new HashSet<>(250);
-        QueryTweetPair qtp;
-        String queryid;
+
         /**
          * check the interrupt flag in each loop, since this is how we terminate
          * the decision maker from the timer if after one day, there still exist
@@ -72,8 +73,13 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             if (Thread.interrupted()) {
                 try {
                     clear();
-                    printoutReceivedNum("received in PW-DM", IntStream.of(qid_tweetnum_received.values()).average().getAsDouble());
-                    int[] dists = num_filteredby_similarity.values();
+                    int[] dists = qid_tweetnum_received.values();
+                    if (dists.length > 0) {
+                        printoutReceivedNum("received in PW-DM", IntStream.of(dists).average().getAsDouble());
+                    } else {
+                        printoutReceivedNum("received in PW-DM", 0);
+                    }
+                    dists = num_filteredby_similarity.values();
                     if (dists.length > 0) {
                         printoutReceivedNum("filtered by similarity in PW-DM", IntStream.of(dists).average().getAsDouble());
                     } else {
@@ -89,58 +95,64 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
                 continue;
             }
             qid_tweetnum_received.adjustOrPutValue(qtp.queryid, 1, 1);
-            
             try {
                 // make decision until we have receive enough tweets for each query
                 if (IntStream.of(qid_tweetnum_received.values()).average().getAsDouble() < Configuration.PW_DW_CUMULATECOUNT_DELAY) {
                     continue;
                 }
             } catch (Exception ex) {
-                logger.info("", ex);
+                logger.error("", ex);
                 continue;
             }
-            if (qidNotificationNumTracker.get(qtp.queryid) < Configuration.PW_DM_SELECTNUM) {
-                queryid = qtp.queryid;
-                if (scoreFilter(qtp)) {
-                    double[] similarity;
-                    synchronized (qidSentTweetQueues) {
-                        similarity = compare2SentTweetFilger(qtp, qidSentTweetQueues);
-                    }
-                    if (similarity != null) {
-                        CandidateTweet resultTweet = decisionMake(qtp, similarity, qidNotificationNumTracker);
-                        if (resultTweet.rank > 0) {
-                            try {
-                                // write down the tweets that are notified
-                                resultprinter.println(queryid, resultTweet.forDebugToString(""));
-                                resultprinter.printlog(queryid, qtp.getTweetText(), resultTweet.getAbsScore(), resultTweet.getRelScore());
-                            } catch (FileNotFoundException | ParseException ex) {
-                                logger.error("", ex);
+            queryid = qtp.queryid;
+            try {
+                if (!qidNotificationNumTracker.containsKey(queryid)) {
+                    qidNotificationNumTracker.put(queryid, 0);
+                }
+                if (qidNotificationNumTracker.get(queryid) < Configuration.PW_DM_SELECTNUM) {
+                    if (scoreFilter(qtp)) {
+                        double[] similarity;
+                        synchronized (qidSentTweetQueues) {
+                            similarity = compare2SentTweetFilger(qtp, qidSentTweetQueues);
+                        }
+                        if (similarity != null) {
+                            CandidateTweet resultTweet = decisionMake(qtp, similarity, qidNotificationNumTracker);
+                            if (resultTweet.rank > 0) {
+                                try {
+                                    // write down the tweets that are notified
+                                    resultprinter.printResult(queryid, resultTweet.notificationOutput());
+                                    resultprinter.printlog(queryid, qtp.getTweetText(), qtp.getUrlTitleText(), resultTweet.getAbsScore(), resultTweet.getRelScore());
+                                } catch (FileNotFoundException | ParseException ex) {
+                                    logger.error("", ex);
+                                }
+                                qidNotificationNumTracker.adjustOrPutValue(queryid, 1, 1);
+                                //logger.info(qidNotificationNumTracker.get(queryid) + " " + resultTweet.toString() + " " + qtp.getStatus().getText() + " " + qtpQueue2Process.size());
+                            } else {
+                                //logger.info("qtp has not been selected: " + qtp.getRelScore() + "  " + qtp.getAbsScore() + " " + qidAbsThreshold2SentTweet.get(qtp.queryid));
                             }
-                            qidNotificationNumTracker.adjustOrPutValue(queryid, 1, 1);
-                            //logger.info(qidNotificationNumTracker.get(queryid) + " " + resultTweet.toString() + " " + qtp.getStatus().getText() + " " + qtpQueue2Process.size());
                         } else {
-                            //logger.info("qtp has not been selected: " + qtp.getRelScore() + "  " + qtp.getAbsScore() + " " + qidAbsThreshold2SentTweet.get(qtp.queryid));
+                            num_filteredby_similarity.adjustOrPutValue(queryid, 1, 1);
+                            //logger.info("filter out the qtp by distance: " + qidSentTweetQueues.get(qtp.queryid).size());
                         }
                     } else {
-                        num_filteredby_similarity.adjustOrPutValue(queryid, 1, 1);
-                        //logger.info("filter out the qtp by distance: " + qidSentTweetQueues.get(qtp.queryid).size());
+                        //logger.info("filter out the qtp by score: " + qtp.getRelScore());
                     }
                 } else {
-                    //logger.info("filter out the qtp by score: " + qtp.getRelScore());
+                    //logger.info("Finished: " + qtp.queryid + " " + qidNotificationNumTracker.get(qtp.queryid));
+                    finishNotificationQidTracker.add(qtp.queryid);
+                    if (finishNotificationQidTracker.size() >= queryRelativeScoreTracker.size()) {
+                        logger.info("Finished all in PW-DM in this round: " + finishNotificationQidTracker.size());
+                        clear();
+                        break;
+                    }
                 }
-            } else {
-                //logger.info("Finished: " + qtp.queryid + " " + qidNotificationNumTracker.get(qtp.queryid));
-                finishNotificationQidTracker.add(qtp.queryid);
-                if (finishNotificationQidTracker.size() >= qidNotificationNumTracker.size()) {
-                    logger.info("Finished all in PW-DM in this round: " + finishNotificationQidTracker.size());
-                    clear();
-                    break;
-                }
+            } catch (Exception ex) {
+                logger.error("", ex);
             }
         }
-        
+
     }
-    
+
     private void clear() {
         resultprinter.flush();
         for (String qid : queryRelativeScoreTracker.keySet()) {
@@ -187,7 +199,7 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
     protected CandidateTweet decisionMake(QueryTweetPair tweet, double[] similarities, TObjectIntMap<String> queryNumberCount) {
         double absoluteScore = tweet.getAbsScore();
         String queryId = tweet.queryid;
-        
+
         double avggain = 0;
         CandidateTweet resultTweet = new CandidateTweet(tweet);
         // the similarities w.r.t. all popped up tweets
@@ -264,5 +276,5 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
         qidAbsThreshold2SentTweet.put(queryId, threshold);
         return result;
     }
-    
+
 }

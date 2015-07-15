@@ -21,7 +21,7 @@ public class PointwiseScorerSumRetrievalScores implements PointwiseScorer {
 
     private final TObjectDoubleMap<String> feature_max = TCollections.synchronizedMap(new TObjectDoubleHashMap<>());
 
-    private final String[] models;
+    private final String[] featurenames;
 
     public PointwiseScorerSumRetrievalScores() {
         for (String querytype : Configuration.QUERY_TYPES) {
@@ -31,7 +31,9 @@ public class PointwiseScorerSumRetrievalScores implements PointwiseScorer {
                 feature_max.put(featurename, -Double.MAX_VALUE);
             }
         }
-        models = feature_max.keys(new String[0]);
+        feature_min.put(Configuration.TWEET_URL_TITLE, Double.MAX_VALUE);
+        feature_max.put(Configuration.TWEET_URL_TITLE, -Double.MAX_VALUE);
+        featurenames = feature_max.keys(new String[0]);
     }
 
     @Override
@@ -39,9 +41,13 @@ public class PointwiseScorerSumRetrievalScores implements PointwiseScorer {
         TObjectDoubleMap<String> featureValues = qtr.getFeatures();
         double sum = 0;
         // update the min/max for each features
-        for (String model : models) {
+        for (String model : featurenames) {
             if (featureValues.containsKey(model)) {
                 double value = featureValues.get(model);
+                if (value == Double.NaN) {
+                    logger.error(model + " returns feature value " + value);
+                    continue;
+                }
                 synchronized (feature_max) {
                     if (value > feature_max.get(model)) {
                         feature_max.put(model, value);
@@ -50,13 +56,20 @@ public class PointwiseScorerSumRetrievalScores implements PointwiseScorer {
                         feature_min.put(model, value);
                         sum += 0;
                     } else {
-                        value = (value - feature_min.get(model)) / (feature_max.get(model) - feature_min.get(model));
+                        if (feature_min.get(model) != feature_max.get(model)) {
+                            value = (value - feature_min.get(model)) / (feature_max.get(model) - feature_min.get(model));
+                        } else {
+                            value = 0;
+                        }
                         sum += value;
                     }
                 }
+            } else {
+                logger.error(model + " is not included in feature map");
             }
         }
-        sum /= models.length;
+        sum /= featurenames.length;
+
         qtr.setPredictScore(Configuration.PRED_ABSOLUTESCORE, sum);
         return sum;
     }

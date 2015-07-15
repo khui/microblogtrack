@@ -100,7 +100,6 @@ public class OnlineProcessor extends Processor {
 
     @Override
     protected void receiveStatus(LuceneScorer lscorer, String keydir, int numProcessingThreads) {
-        BlockingQueue<String> api2indexqueue = new LinkedBlockingQueue<>(2000);
         StatusListener listener = new HbcT4jListener(lscorer);
         String[] apikey = null;
         try {
@@ -139,7 +138,6 @@ public class OnlineProcessor extends Processor {
             t4jClient.process();
         }
         logger.info("Connected to the API.");
-
     }
 
     public void close() {

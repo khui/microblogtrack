@@ -1,9 +1,6 @@
 package de.mpii.microblogtrack.component;
 
-import de.mpii.microblogtrack.utility.Configuration;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import org.apache.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -26,35 +23,35 @@ public class ExtractTweetText {
 
     private Document extracturl(String url) throws IOException {
         Document doc = null;
-        URL u = new URL(url);
-        HttpURLConnection huc = (HttpURLConnection) u.openConnection();
-        huc.setRequestMethod("GET");
-       // System.out.println(huc.);
-        for (String key : huc.getHeaderFields().keySet()){
-            System.out.println(key);
+        try {
+            doc = Jsoup.connect(url).timeout(timeout).get();
+        } catch (Exception ex) {
+            // do nothing, just keep silence if the url is invalid
         }
-        
-
-//        try {
-//            doc = Jsoup.connect(url).timeout(timeout).get();
-//        } catch (Exception ex) {
-//            // do nothing, just keep silence if the url is invalid
-//        }
         return doc;
     }
-    
-    public static void main(String[] args) throws IOException{
-        ExtractTweetText ett = new ExtractTweetText(100);
-        ett.extracturl("http://stackoverflow.com/questions/11656064/how-to-get-page-meta-title-description-images-like-facebook-attach-url-using");
-    }
 
-    private String getUrlTitle(String url) throws IOException {
+    public String getUrlTitle(String url) throws IOException {
         Document doc = extracturl(url);
         String title = "";
         if (doc != null) {
             title = doc.title();
         }
         return title;
+    }
+
+    public TweetidUrl getUrlTitle(TweetidUrl tweetidUrl) throws IOException {
+        Document doc = extracturl(tweetidUrl.url);
+        String title;
+        if (doc != null) {
+            title = doc.title();
+            tweetidUrl.urltitle = title;
+            tweetidUrl.isAvailable = true;
+        } else {
+            tweetidUrl.isAvailable = false;
+        }
+        tweetidUrl.url = null;
+        return tweetidUrl;
     }
 
     private String getUrlContent(String url) throws IOException {
@@ -74,8 +71,10 @@ public class ExtractTweetText {
     public String getUrlTitle(Status status) throws IOException {
         URLEntity[] urls = status.getURLEntities();
         StringBuilder sb = new StringBuilder();
-        for (URLEntity url : urls) {
-            sb.append(getUrlTitle(url.getURL())).append(" ");
+        if (urls.length > 0) {
+            // only crawl the first url's title
+            URLEntity url = urls[0];
+            sb.append(getUrlTitle(url.getURL()));
         }
         return sb.toString();
     }
@@ -98,5 +97,19 @@ public class ExtractTweetText {
         }
         mergedtext = String.join(" ", new String[]{tweettext, urltext});
         return mergedtext;
+    }
+
+    public class TweetidUrl {
+
+        public long tweetid;
+        public String url;
+        public String urltitle;
+        public boolean isAvailable;
+        public double similarity = -1;
+
+        public TweetidUrl(long tweetid, String url) {
+            this.url = url;
+            this.tweetid = tweetid;
+        }
     }
 }

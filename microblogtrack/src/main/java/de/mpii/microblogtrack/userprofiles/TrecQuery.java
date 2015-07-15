@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
 import de.mpii.microblogtrack.utility.Configuration;
 import org.apache.log4j.Logger;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.search.BooleanClause;
 
 /**
@@ -79,5 +80,18 @@ public class TrecQuery {
         }
         logger.info("In total, read in queries: " + res.size());
         return res;
+    }
+
+    public static void main(String[] args) throws IOException, ParseException {
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        String queryfile = rootdir + "/queries/fusion";
+        TrecQuery tq = new TrecQuery();
+        Map<String, Query> qidquery = tq.readInQueries(queryfile, new EnglishAnalyzer(), Configuration.TWEET_CONTENT);
+        for (String qid : qidquery.keySet()) {
+            Query query = qidquery.get(qid);
+            String rawstr = query.toString();
+            String str = rawstr.replaceAll("[^A-Za-z ]", "");
+            System.out.println(qid + "\t" + rawstr + "\t" + str);
+        }
     }
 }

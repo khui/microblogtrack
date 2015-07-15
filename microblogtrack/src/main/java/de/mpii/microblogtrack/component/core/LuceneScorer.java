@@ -1,7 +1,9 @@
 package de.mpii.microblogtrack.component.core;
 
 import de.mpii.microblogtrack.component.ExtractTweetText;
+import de.mpii.microblogtrack.component.ExtractTweetText.TweetidUrl;
 import de.mpii.microblogtrack.component.IndexTracker;
+import de.mpii.microblogtrack.component.TweetStringSimilarity;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
@@ -42,7 +44,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -62,6 +63,7 @@ import org.apache.lucene.search.similarities.Normalization;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import twitter4j.Status;
+import twitter4j.URLEntity;
 
 /**
  * core class: index the incoming tweet, and periodically retrieve top tweets
@@ -75,34 +77,34 @@ import twitter4j.Status;
  * @author khui
  */
 public class LuceneScorer {
-    
+
     static Logger logger = Logger.getLogger(LuceneScorer.class.getName());
-    
+
     static final FieldType TEXT_OPTIONS = new FieldType();
-    
+
     static {
         TEXT_OPTIONS.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         TEXT_OPTIONS.setStored(true);
         TEXT_OPTIONS.setTokenized(true);
     }
-    
+
     private final IndexWriter writer;
-    
+
     private DirectoryReader directoryReader;
-    
+
     private final Analyzer analyzer;
 
     // track duplicate tweet and allocate unique tweetCountId to each received tweet
     private final IndexTracker indexTracker;
-    
+
     private final ExtractTweetText textextractor;
     // language filter, retaining english tweets
     private final Filter langfilter;
-    
+
     private final Map<String, LuceneDMConnector> relativeScoreTracker;
-    
+
     private final PointwiseScorer pwScorer;
-    
+
     public LuceneScorer(String indexdir, Map<String, LuceneDMConnector> queryTweetList, PointwiseScorerSumRetrievalScores pwScorer) throws IOException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         this.analyzer = new EnglishAnalyzer();
@@ -111,17 +113,17 @@ public class LuceneScorer {
         iwc.setRAMBufferSizeMB(Configuration.LUCENE_MEM_SIZE);
         this.writer = new IndexWriter(dir, iwc);
         this.directoryReader = DirectoryReader.open(writer, false);
-        this.textextractor = new ExtractTweetText(Configuration.LUCENE_WRITE_JSOUP_TIMEOUT);
+        this.textextractor = new ExtractTweetText(Configuration.LUCENE_DOWNLOAD_URL_TIMEOUT);
         this.indexTracker = new IndexTracker();
         this.langfilter = new LangFilterTW();
         this.relativeScoreTracker = queryTweetList;
         this.pwScorer = pwScorer;
     }
-    
+
     public void multiQuerySearch(String queryfile, String expandqueryfile, BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) throws IOException, InterruptedException, ExecutionException, ParseException {
         Map<String, Map<String, Query>> qidFieldQuery = prepareQuery(queryfile);
         Map<String, Map<String, Query>> eqidFieldQuery = prepareExpandedQuery(expandqueryfile);
-        logger.info("read in query and expanded query sizes: " + qidFieldQuery.size() + " " + eqidFieldQuery.size());
+        logger.info("read in query and expanded query sizes/types: " + qidFieldQuery.size());
         // initialize trackers: track the centroids, the relative score
         for (String queryid : qidFieldQuery.keySet()) {
             if (!relativeScoreTracker.containsKey(queryid)) {
@@ -135,13 +137,13 @@ public class LuceneScorer {
             sercherHandler.cancel(true);
         }, 12, TimeUnit.DAYS);
     }
-    
+
     private Map<String, Map<String, Query>> prepareQuery(String queryfile) throws IOException, ParseException {
         TrecQuery tq = new TrecQuery();
         Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries(queryfile, analyzer);
         return qidFieldQuery;
     }
-    
+
     private Map<String, Map<String, Query>> prepareExpandedQuery(String expandfile) throws IOException {
         Map<String, Map<String, Query>> qidFieldQuery = ExpandQueryWithWiki.readExpandedFieldQueries(expandfile, analyzer, Configuration.QUERY_EXPANSION_TERMNUM);
         return qidFieldQuery;
@@ -165,11 +167,11 @@ public class LuceneScorer {
         sb.append(" ").append(qtp.getTweetText());
         return sb.toString();
     }
-    
+
     public void closeWriter() throws IOException {
         writer.close();
     }
-    
+
     public long write2Index(Status tweet) throws IOException {
         boolean isEng = langfilter.isRetain(null, null, tweet);
         if (isEng) {
@@ -188,46 +190,48 @@ public class LuceneScorer {
         }
         return -1;
     }
-    
+
     private HashMap<String, String> status2Fields(Status status) throws IOException {
         HashMap<String, String> fieldnameStr = new HashMap<>();
         String tweetcontent = textextractor.getTweet(status);
-        String tweeturltitle = textextractor.getUrlTitle(status);
+        // String tweeturltitle = textextractor.getUrlTitle(status);
         fieldnameStr.put(Configuration.TWEET_CONTENT, tweetcontent);
-        fieldnameStr.put(Configuration.TWEET_URL_TITLE, tweeturltitle);
+        //fieldnameStr.put(Configuration.TWEET_URL_TITLE, tweeturltitle);
         return fieldnameStr;
-        
+
     }
-    
+
     private class MultiQuerySearcher implements Runnable {
-        
+
         private final Map<String, Map<String, Query>> qidFieldQuery;
-        
+
         private final Map<String, Map<String, Query>> eqidFieldQuery;
-        
+
         private int threadnum = Configuration.LUCENE_SEARCH_THREADNUM;
-        
+
         private final BlockingQueue<QueryTweetPair> queue2offer4PW;
-        
+
         private final BlockingQueue<QueryTweetPair> queue2offer4LW;
+
+        private final Executor downloadURLExcutor = Executors.newFixedThreadPool(Configuration.LUCENE_DOWNLOAD_URL_THREADNUM);
 
         /**
          * to report how many tweets we received in last period
          */
         private int count_runningtime = 0;
         private int count_tweets = 0;
-        
+
         public MultiQuerySearcher(final Map<String, Map<String, Query>> qidFieldQuery, final Map<String, Map<String, Query>> expandQueries, BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) {
             this.qidFieldQuery = qidFieldQuery;
             this.eqidFieldQuery = expandQueries;
             this.queue2offer4PW = queue2offer4PW;
             this.queue2offer4LW = queue2offer4LW;
         }
-        
+
         public void setThreadNum(int threadnum) {
             this.threadnum = threadnum;
         }
-        
+
         private Map<String, Query> generateQuery(long[] minmax, String queryId) {
             Map<String, Query> querytypeQuery = new HashMap<>();
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
@@ -263,7 +267,7 @@ public class LuceneScorer {
             }
             return querytypeQuery;
         }
-        
+
         @Override
         public void run() {
             if (Thread.interrupted()) {
@@ -275,7 +279,7 @@ public class LuceneScorer {
                 }
                 System.exit(0);
             }
-            
+
             int topk = Configuration.LUCENE_TOP_N_SEARCH;
             Map<String, Query> querytypeQuery;
             Executor excutor = Executors.newFixedThreadPool(threadnum);
@@ -307,7 +311,7 @@ public class LuceneScorer {
                 directoryReader = reopenedReader;
                 for (String queryid : qidFieldQuery.keySet()) {
                     querytypeQuery = generateQuery(minmax, queryid);
-                    completeservice.submit(new UniqQuerySearcher(querytypeQuery, queryid, directoryReader, topk));
+                    completeservice.submit(new UniqQuerySearcher(querytypeQuery, queryid, directoryReader, downloadURLExcutor, topk));
                 }
                 int resultnum = qidFieldQuery.size();
                 UniqQuerySearchResult queryranking;
@@ -330,7 +334,7 @@ public class LuceneScorer {
                         } else {
                             logger.error("queryranking is null.");
                         }
-                        
+
                     } catch (ExecutionException | InterruptedException ex) {
                         logger.error("Write into the queue for DM", ex);
                     }
@@ -339,34 +343,37 @@ public class LuceneScorer {
                 logger.warn("Nothing added to the index since last open of reader.");
             }
         }
-        
+
     }
-    
+
     private class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
-        
+
         private final int topN;
-        
+
         private final String queryid;
-        
+
         private final Map<String, Query> querytypeQuery;
-        
+
         private final DirectoryReader reader;
-        
-        public UniqQuerySearcher(Map<String, Query> querytypeQuery, String queryId, DirectoryReader reader, int topk) {
+
+        private final Executor downloadURLExcutor;
+
+        public UniqQuerySearcher(Map<String, Query> querytypeQuery, String queryId, DirectoryReader reader, Executor downloadURLExcutor, int topk) {
             this.querytypeQuery = querytypeQuery;
             this.queryid = queryId;
             this.reader = reader;
             this.topN = topk;
+            this.downloadURLExcutor = downloadURLExcutor;
         }
-        
+
         private UniqQuerySearchResult mutliScorers(IndexReader reader, Map<String, Query> querytypeQuery, String queryId, int topN) throws IOException {
+            CompletionService<TweetidUrl> urldownloader = new ExecutorCompletionService<>(downloadURLExcutor);
             TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
             IndexSearcher searcherInUse;
             ScoreDoc[] hits;
             Document tweet;
+            int urldownloadSubmissionCount = 0;
             long tweetid;
-            IndexableField tweeturltitle;
-            String tweeturltitlestr;
             for (String querytype : Configuration.QUERY_TYPES) {
                 for (String model : Configuration.FEATURES_RETRIVEMODELS) {
                     searcherInUse = new IndexSearcher(reader);
@@ -394,77 +401,126 @@ public class LuceneScorer {
                         tweet = searcherInUse.doc(hit.doc);
                         tweetid = Long.parseLong(tweet.get(Configuration.TWEET_ID));
                         if (!searchresults.containsKey(tweetid)) {
-                            tweeturltitle = tweet.getField(Configuration.TWEET_URL_TITLE);
-                            if (tweeturltitle != null) {
-                                logger.info(tweeturltitle);
-                                tweeturltitlestr = tweeturltitle.stringValue();
-                                if (tweeturltitlestr.length() > 0) {
-                                    searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid), tweeturltitlestr));
-                                } else {
-                                    searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
+                            searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
+                            URLEntity[] urlentity = indexTracker.getStatus(tweetid).getURLEntities();
+                            if (urlentity != null) {
+                                if (urlentity.length > 0) {
+                                    String url = urlentity[0].getURL();
+                                    final TweetidUrl turl = textextractor.new TweetidUrl(tweetid, url);
+                                    urldownloader.submit(new Callable() {
+
+                                        @Override
+                                        public TweetidUrl call() throws Exception {
+                                            double similarity = 0;
+                                            textextractor.getUrlTitle(turl);
+                                            if (turl.isAvailable) {
+                                                similarity = TweetStringSimilarity.strJarcard(turl.urltitle,
+                                                        querytypeQuery.get(Configuration.QE_TWEET).toString(Configuration.TWEET_CONTENT));
+                                            }
+                                            turl.similarity = similarity;
+                                            return turl;
+                                        }
+                                    });
+                                    urldownloadSubmissionCount++;
                                 }
-                            } else {
-                                logger.error("tweeturltitle: " + tweeturltitle);
                             }
+                            // to make sure all qtp pairs have the same feature number
+                            searchresults.get(tweetid).updateFeatures(Configuration.TWEET_URL_TITLE, 0);
                         }
-                        searchresults.get(tweetid).updateFeatures(QueryTweetPair.concatModelQuerytypeFeature(model, querytype), hit.score);
+                        if (!Double.isNaN(hit.score)) {
+                            searchresults.get(tweetid).updateFeatures(QueryTweetPair.concatModelQuerytypeFeature(model, querytype), hit.score);
+                        } else {
+                            logger.error("lucene returned score: " + hit.score);
+                        }
                     }
                 }
             }
+            /**
+             * pick up the urltitle-query similarity score from completion
+             * service
+             */
+            long start = System.currentTimeMillis();
+            try {
+                for (int t = 0; t < urldownloadSubmissionCount; t++) {
+                    Future<TweetidUrl> f = urldownloader.take();
+                    TweetidUrl turl = f.get();
+                    if (turl != null) {
+                        long tid = turl.tweetid;
+                        double similarity = turl.similarity;
+                        if (Double.isNaN(similarity)) {
+                            logger.error("lucene returned score: " + similarity);
+                            continue;
+                        }
+                        if (similarity >= 0) {
+                            searchresults.get(tid).updateFeatures(Configuration.TWEET_URL_TITLE, similarity);
+                            searchresults.get(tid).setURLTileString(turl.urltitle);
+                        } else {
+                            logger.error("similarity is " + similarity);
+                        }
+                    } else {
+                        logger.error("turl is " + turl);
+                    }
+                }
+            } catch (Exception ex) {
+                logger.error("", ex);
+            }
+            long end = System.currentTimeMillis();
+            logger.info("download url took: " + (end - start) + " for " + urldownloadSubmissionCount);
+
             /**
              * conduct pointwise prediction
              */
             for (QueryTweetPair qtp : searchresults.valueCollection()) {
                 pwScorer.predictor(qtp);
             }
-            
+
             UniqQuerySearchResult uqsr = new UniqQuerySearchResult(queryid, searchresults.valueCollection());
             return uqsr;
         }
-        
+
         @Override
         public UniqQuerySearchResult call() throws Exception {
             UniqQuerySearchResult qtpairs = mutliScorers(this.reader, this.querytypeQuery, this.queryid, this.topN);
             return qtpairs;
         }
-        
+
     }
-    
+
     private class UniqQuerySearchResult {
-        
+
         public final String queryid;
         public final Collection<QueryTweetPair> results;
-        
+
         private UniqQuerySearchResult(String queryid, Collection<QueryTweetPair> results) {
             this.queryid = queryid;
             this.results = results;
         }
-        
+
         private void offer2queue(BlockingQueue<QueryTweetPair> queue2offer4LW) throws InterruptedException {
             for (QueryTweetPair qtp : results) {
                 // offer to the blocking queue for the decision maker
                 boolean isSucceed = queue2offer4LW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
                 if (!isSucceed) {
-                    logger.error("offer to queue2offer4LW failed.");
+                    logger.error("offer to queue2offer4LW failed: " + queue2offer4LW.size());
                 }
             }
         }
-        
+
         private void offer2queue(BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) throws InterruptedException {
             for (QueryTweetPair qtp : results) {
                 // offer to the blocking queue for the pointwise decision maker
                 boolean isSucceed = queue2offer4PW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
                 if (!isSucceed) {
-                    logger.error("offer to queue2offer4PW failed.");
+                    logger.error("offer to queue2offer4PW failed: " + queue2offer4PW.size());
                 }
                 // offer to the blocking queue for the decision maker
                 isSucceed = queue2offer4LW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
                 if (!isSucceed) {
-                    logger.error("offer to queue2offer4LW failed.");
+                    logger.error("offer to queue2offer4LW failed: " + queue2offer4LW.size());
                 }
             }
         }
-        
+
     }
-    
+
 }

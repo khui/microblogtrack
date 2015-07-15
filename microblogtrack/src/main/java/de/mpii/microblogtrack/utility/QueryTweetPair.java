@@ -95,6 +95,10 @@ public class QueryTweetPair {
         return contentString;
     }
 
+    public void setURLTileString(String str) {
+        contentString.put(Configuration.TWEET_URL_TITLE, str);
+    }
+
     public void setPredictScore(String predictresultname, double predictscore) {
         this.predictorResults.put(predictresultname, predictscore);
     }
