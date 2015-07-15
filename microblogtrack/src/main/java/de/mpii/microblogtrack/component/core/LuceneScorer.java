@@ -130,17 +130,25 @@ public class LuceneScorer {
                 relativeScoreTracker.put(queryid, new LuceneDMConnector(queryid));
             }
         }
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        final ScheduledFuture<?> sercherHandler = scheduler.scheduleAtFixedRate(new MultiQuerySearcher(qidFieldQuery, eqidFieldQuery, queue2offer4PW, queue2offer4LW), Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.LUCENE_SEARCH_FREQUENCY, TimeUnit.SECONDS);
-        // the task will be canceled after running certain days automatically
-        scheduler.schedule(() -> {
-            sercherHandler.cancel(true);
-        }, 12, TimeUnit.DAYS);
+        Executor downloadURLExcutor = Executors.newFixedThreadPool(Configuration.LUCENE_DOWNLOAD_URL_THREADNUM);
+        Executor uniqquerysearchExecutor = Executors.newFixedThreadPool(Configuration.LUCENE_SEARCH_THREADNUM);
+
+        ScheduledExecutorService multiqueryScheduler = Executors.newScheduledThreadPool(1);
+        MultiQuerySearcher mqs = new MultiQuerySearcher(qidFieldQuery, eqidFieldQuery, queue2offer4PW, queue2offer4LW, downloadURLExcutor, uniqquerysearchExecutor);
+        final ScheduledFuture<?> sercherHandler = multiqueryScheduler.scheduleAtFixedRate(mqs, Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.TIMEUNIT);
+
+//        // the task will be canceled after running certain days automatically
+//        multiqueryScheduler.schedule(
+//                () -> {
+//                    sercherHandler.cancel(true);
+//                }, 12, TimeUnit.DAYS
+//        );
     }
 
     private Map<String, Map<String, Query>> prepareQuery(String queryfile) throws IOException, ParseException {
         TrecQuery tq = new TrecQuery();
-        Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries(queryfile, analyzer);
+//        Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries(queryfile, analyzer);
+        Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries15(queryfile, analyzer);
         return qidFieldQuery;
     }
 
@@ -201,35 +209,42 @@ public class LuceneScorer {
 
     }
 
+    /**
+     * periodically called, each time we only have one thread for
+     * multiquerysearcher. It further splits the task and great thread for each
+     * <query, search field> combination
+     *
+     */
     private class MultiQuerySearcher implements Runnable {
 
         private final Map<String, Map<String, Query>> qidFieldQuery;
 
         private final Map<String, Map<String, Query>> eqidFieldQuery;
 
-        private int threadnum = Configuration.LUCENE_SEARCH_THREADNUM;
-
         private final BlockingQueue<QueryTweetPair> queue2offer4PW;
 
         private final BlockingQueue<QueryTweetPair> queue2offer4LW;
 
-        private final Executor downloadURLExcutor = Executors.newFixedThreadPool(Configuration.LUCENE_DOWNLOAD_URL_THREADNUM);
+        private final Executor downloadURLExcutor;
 
+        private final Executor uniqquerysearchExecutor;
         /**
          * to report how many tweets we received in last period
          */
         private int count_runningtime = 0;
         private int count_tweets = 0;
 
-        public MultiQuerySearcher(final Map<String, Map<String, Query>> qidFieldQuery, final Map<String, Map<String, Query>> expandQueries, BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) {
+        public MultiQuerySearcher(final Map<String, Map<String, Query>> qidFieldQuery,
+                final Map<String, Map<String, Query>> expandQueries,
+                BlockingQueue<QueryTweetPair> queue2offer4PW,
+                BlockingQueue<QueryTweetPair> queue2offer4LW, Executor downloadURLExcutor,
+                Executor uniqquerysearchExecutor) {
             this.qidFieldQuery = qidFieldQuery;
             this.eqidFieldQuery = expandQueries;
             this.queue2offer4PW = queue2offer4PW;
             this.queue2offer4LW = queue2offer4LW;
-        }
-
-        public void setThreadNum(int threadnum) {
-            this.threadnum = threadnum;
+            this.downloadURLExcutor = downloadURLExcutor;
+            this.uniqquerysearchExecutor = uniqquerysearchExecutor;
         }
 
         private Map<String, Query> generateQuery(long[] minmax, String queryId) {
@@ -242,26 +257,23 @@ public class LuceneScorer {
                 combinedQuery = new BooleanQuery();
                 combinedQuery.add(rangeQuery, Occur.MUST);
                 switch (querytype) {
-                    case Configuration.Q_TWEET:
-                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.TWEET_CONTENT), Occur.SHOULD);
+                    case Configuration.QUERY_STR:
+                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.QUERY_STR), Occur.SHOULD);
                         break;
-                    case Configuration.Q_URL:
-                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.TWEET_URL_TITLE), Occur.SHOULD);
+                    case Configuration.QUERY_TITLE:
+                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.QUERY_TITLE), Occur.SHOULD);
                         break;
-                    case Configuration.Q_TWEETURL:
-                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.TWEET_CONTENT), Occur.SHOULD);
-                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.TWEET_URL_TITLE), Occur.SHOULD);
+                    case Configuration.QUERY_DESC:
+                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.QUERY_DESC), Occur.SHOULD);
                         break;
-                    case Configuration.QE_TWEET:
-                        combinedQuery.add(eqidFieldQuery.get(queryId).get(Configuration.TWEET_CONTENT), Occur.SHOULD);
+                    case Configuration.QUERY_NARR:
+                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.QUERY_NARR), Occur.SHOULD);
                         break;
-                    case Configuration.QE_URL:
-                        combinedQuery.add(eqidFieldQuery.get(queryId).get(Configuration.TWEET_URL_TITLE), Occur.SHOULD);
+                    case Configuration.QUERY_EXPAN:
+                        combinedQuery.add(eqidFieldQuery.get(queryId).get(Configuration.QUERY_EXPAN), Occur.SHOULD);
                         break;
-                    case Configuration.QE_TWEETURL:
-                        combinedQuery.add(eqidFieldQuery.get(queryId).get(Configuration.TWEET_CONTENT), Occur.SHOULD);
-                        combinedQuery.add(eqidFieldQuery.get(queryId).get(Configuration.TWEET_URL_TITLE), Occur.SHOULD);
-                        break;
+                    default:
+                        logger.error(querytype + " is not available");
                 }
                 querytypeQuery.put(querytype, combinedQuery.clone());
             }
@@ -280,16 +292,14 @@ public class LuceneScorer {
                 System.exit(0);
             }
 
-            int topk = Configuration.LUCENE_TOP_N_SEARCH;
             Map<String, Query> querytypeQuery;
-            Executor excutor = Executors.newFixedThreadPool(threadnum);
-            CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(excutor);
+            CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(uniqquerysearchExecutor);
             long[] minmax = indexTracker.minMaxTweetCountInTimeInterval();
             ////////////////////////////
             /// report number of tweets received in the latest period
             count_runningtime++;
             count_tweets += (minmax[1] - minmax[0]);
-            if (count_runningtime == Configuration.LW_DM_PERIOD) {
+            if (count_runningtime >= Configuration.LW_DM_PERIOD / Configuration.LUCENE_SEARCH_FREQUENCY) {
                 logger.info(count_tweets + " tweets are written to Lucene index in past " + Configuration.LW_DM_PERIOD + " miniutes.");
                 count_runningtime = 0;
                 count_tweets = 0;
@@ -299,21 +309,34 @@ public class LuceneScorer {
             DirectoryReader reopenedReader = null;
             try {
                 reopenedReader = DirectoryReader.openIfChanged(directoryReader);
-            } catch (IOException ex) {
+            } catch (Exception ex) {
                 logger.error("", ex);
             }
             if (reopenedReader != null) {
                 try {
                     directoryReader.close();
-                } catch (IOException ex) {
+                } catch (Exception ex) {
                     logger.error("", ex);
                 }
                 directoryReader = reopenedReader;
-                for (String queryid : qidFieldQuery.keySet()) {
-                    querytypeQuery = generateQuery(minmax, queryid);
-                    completeservice.submit(new UniqQuerySearcher(querytypeQuery, queryid, directoryReader, downloadURLExcutor, topk));
+                /**
+                 * submit each query (query or expanded query, on tweetcontent)
+                 * as a job to completion service
+                 */
+                int resultnum = 0;
+                try {
+
+                    for (String queryid : qidFieldQuery.keySet()) {
+                        querytypeQuery = generateQuery(minmax, queryid);
+                        completeservice.submit(new UniqQuerySearcher(querytypeQuery, queryid, directoryReader, downloadURLExcutor));
+                        resultnum++;
+                    }
+                } catch (Exception ex) {
+                    logger.error("", ex);
                 }
-                int resultnum = qidFieldQuery.size();
+                /**
+                 * pick up the returned results as UniqQuerySearchResult
+                 */
                 UniqQuerySearchResult queryranking;
                 for (int i = 0; i < resultnum; ++i) {
                     try {
@@ -348,7 +371,7 @@ public class LuceneScorer {
 
     private class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
 
-        private final int topN;
+        private final int topN = Configuration.LUCENE_TOP_N_SEARCH;
 
         private final String queryid;
 
@@ -358,15 +381,14 @@ public class LuceneScorer {
 
         private final Executor downloadURLExcutor;
 
-        public UniqQuerySearcher(Map<String, Query> querytypeQuery, String queryId, DirectoryReader reader, Executor downloadURLExcutor, int topk) {
+        public UniqQuerySearcher(Map<String, Query> querytypeQuery, String queryId, DirectoryReader reader, Executor downloadURLExcutor) {
             this.querytypeQuery = querytypeQuery;
             this.queryid = queryId;
             this.reader = reader;
-            this.topN = topk;
             this.downloadURLExcutor = downloadURLExcutor;
         }
 
-        private UniqQuerySearchResult mutliScorers(IndexReader reader, Map<String, Query> querytypeQuery, String queryId, int topN) throws IOException {
+        private UniqQuerySearchResult mutliScorers(IndexReader reader, Map<String, Query> querytypeQuery, String queryId) throws Exception {
             CompletionService<TweetidUrl> urldownloader = new ExecutorCompletionService<>(downloadURLExcutor);
             TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
             IndexSearcher searcherInUse;
@@ -415,7 +437,7 @@ public class LuceneScorer {
                                             textextractor.getUrlTitle(turl);
                                             if (turl.isAvailable) {
                                                 similarity = TweetStringSimilarity.strJarcard(turl.urltitle,
-                                                        querytypeQuery.get(Configuration.QE_TWEET).toString(Configuration.TWEET_CONTENT));
+                                                        querytypeQuery.get(Configuration.QUERY_STR).toString(Configuration.TWEET_CONTENT));
                                             }
                                             turl.similarity = similarity;
                                             return turl;
@@ -443,17 +465,17 @@ public class LuceneScorer {
             try {
                 for (int t = 0; t < urldownloadSubmissionCount; t++) {
                     Future<TweetidUrl> f = urldownloader.take();
-                    TweetidUrl turl = f.get();
+                    TweetidUrl turl = f.get(Configuration.LUCENE_DOWNLOAD_URL_TIMEOUT, TimeUnit.MILLISECONDS);
                     if (turl != null) {
                         long tid = turl.tweetid;
                         double similarity = turl.similarity;
                         if (Double.isNaN(similarity)) {
-                            logger.error("lucene returned score: " + similarity);
+                            logger.error("urltitle similarity score: " + similarity);
                             continue;
                         }
                         if (similarity >= 0) {
                             searchresults.get(tid).updateFeatures(Configuration.TWEET_URL_TITLE, similarity);
-                            searchresults.get(tid).setURLTileString(turl.urltitle);
+                            searchresults.get(tid).setURLTitle(turl.urltitle);
                         } else {
                             logger.error("similarity is " + similarity);
                         }
@@ -473,14 +495,13 @@ public class LuceneScorer {
             for (QueryTweetPair qtp : searchresults.valueCollection()) {
                 pwScorer.predictor(qtp);
             }
-
             UniqQuerySearchResult uqsr = new UniqQuerySearchResult(queryid, searchresults.valueCollection());
             return uqsr;
         }
 
         @Override
         public UniqQuerySearchResult call() throws Exception {
-            UniqQuerySearchResult qtpairs = mutliScorers(this.reader, this.querytypeQuery, this.queryid, this.topN);
+            UniqQuerySearchResult qtpairs = mutliScorers(this.reader, this.querytypeQuery, this.queryid);
             return qtpairs;
         }
 

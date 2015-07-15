@@ -35,7 +35,7 @@ public class MaxRepMahoutVector {
 
     public MaxRepMahoutVector(List<Centroid> datapoints) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.datapoints = datapoints;
-        this.distanceMeasure = (DistanceMeasure) Class.forName(Configuration.MAXREP_DISTANT_MEASURE).newInstance();
+        this.distanceMeasure = (DistanceMeasure) Class.forName("org.apache.mahout.common.distance.CosineDistanceMeasure").newInstance();
         this.n = datapoints.size();
         this.maxRepInSelectedsetVector = new double[n];
         this.similarityMatrix = new double[n][];

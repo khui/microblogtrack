@@ -95,7 +95,7 @@ public class QueryTweetPair {
         return contentString;
     }
 
-    public void setURLTileString(String str) {
+    public void setURLTitle(String str) {
         contentString.put(Configuration.TWEET_URL_TITLE, str);
     }
 

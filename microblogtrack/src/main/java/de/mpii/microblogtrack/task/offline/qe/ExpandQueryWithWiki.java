@@ -2,7 +2,7 @@ package de.mpii.microblogtrack.task.offline.qe;
 
 import de.mpii.microblogtrack.component.thirdparty.QueryExpansion;
 import de.mpii.microblogtrack.utility.Configuration;
-import de.mpii.microblogtrack.userprofiles.TrecQuery;
+import de.mpii.microblogtrack.userprofiles.TrecTopicsReader;
 import gnu.trove.map.TIntObjectMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import java.io.BufferedReader;
@@ -52,7 +52,7 @@ public class ExpandQueryWithWiki {
 
     private final DirectoryReader directoryReader;
 
-    private float alpha = 0.8f, beta = 0.4f, decay = 0f;
+    private float alpha = 1f, beta = 0.5f, decay = 0f;
 
     public ExpandQueryWithWiki(String fieldname, String indexPath) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException {
         analyzer = (Analyzer) Class.forName(Configuration.LUCENE_ANALYZER).newInstance();
@@ -125,7 +125,6 @@ public class ExpandQueryWithWiki {
         tweetcontentParser.setDefaultOperator(Occur.SHOULD);
         tweeturlParser.setDefaultOperator(Occur.SHOULD);
         BooleanQuery tweetcontentQuery;
-        BooleanQuery tweeturlQuery;
         PriorityQueue<ReadInQuery> queue;
         while (br.ready()) {
             String line = br.readLine();
@@ -141,14 +140,11 @@ public class ExpandQueryWithWiki {
                 while (queue.size() > topk) {
                     queue.poll();
                 }
-                tweeturlQuery = new BooleanQuery();
                 tweetcontentQuery = new BooleanQuery();
                 for (ReadInQuery q : queue) {
                     tweetcontentQuery.add(q.tweetContentQuery, Occur.SHOULD);
-                    tweeturlQuery.add(q.tweetUrlQuery, Occur.SHOULD);
                 }
-                res.get(qid).put(Configuration.TWEET_CONTENT, tweetcontentQuery.clone());
-                res.get(qid).put(Configuration.TWEET_URL_TITLE, tweeturlQuery.clone());
+                res.get(qid).put(Configuration.QUERY_EXPAN, tweetcontentQuery.clone());
             }
         }
         br.close();
@@ -232,15 +228,23 @@ public class ExpandQueryWithWiki {
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         ExpandQueryWithWiki eqww = new ExpandQueryWithWiki("title", indexdir);
-        eqww.setQEParameter(1, 0.8f, 0.1f);
-        TrecQuery tq = new TrecQuery();
-        QualityQuery[] qqs = tq.readTrecQuery(queryfile);
+        eqww.setQEParameter(1, 0.8f, 0f);
+        /**
+         * for microblog track 11-14
+         */
+        //TrecQuery tq = new TrecQuery();
+        //QualityQuery[] qqs = tq.readTrecQuery(queryfile);
+        /**
+         * for microblog track 15
+         */
+        TrecTopicsReader ttr = new TrecTopicsReader();
+        QualityQuery[] qqs = ttr.readQueries(new BufferedReader(new InputStreamReader(new FileInputStream(new File(queryfile)))));
         String expandedQ;
         try (PrintStream ps = new PrintStream(outputf)) {
             for (QualityQuery qq : qqs) {
                 String qid = qq.getQueryID();
-                String query = qq.getValue("query");
-                expandedQ = eqww.queryExpansion(query, 15, 10);
+                String query = qq.getValue(Configuration.QUERY_TITLE);
+                expandedQ = eqww.queryExpansion(query, 20, 10);
                 ps.println(qid + " " + expandedQ);
             }
             ps.close();

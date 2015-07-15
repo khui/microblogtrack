@@ -104,7 +104,7 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
                     } else {
                         printoutReceivedNum("passed to maxrep in LW-DM", 0);
                     }
-                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | FileNotFoundException | ParseException ex) {
+                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | FileNotFoundException | ParseException | IllegalArgumentException ex) {
                     logger.error("", ex);
                 } catch (Exception ex) {
                     logger.error("", ex);
@@ -168,6 +168,10 @@ public class ListwiseDecisionMaker extends SentTweetTracker implements Runnable 
         // decreasing order
         Collections.sort(selectedQTPs, (CandidateTweet o1, CandidateTweet o2) -> {
             if (o1.getAbsScore() > o2.getAbsScore()) {
+                return -1;
+            } else if (o1.getAbsScore() < o2.getAbsScore()) {
+                return 1;
+            } else if (o1.tweetid > o2.tweetid) {
                 return -1;
             } else {
                 return 1;

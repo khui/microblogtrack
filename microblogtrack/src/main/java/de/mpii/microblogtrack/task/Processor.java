@@ -6,7 +6,6 @@ import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.core.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorerSumRetrievalScores;
-import static de.mpii.microblogtrack.task.OnlineProcessor.logger;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.LoadProperties;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
@@ -30,6 +29,9 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import twitter4j.TwitterException;
 
 /**
+ * entrance for the whole project, there are two subclass implements different
+ * user case: online and offline. online is dealing with the live api stream,
+ * whereas offline processor is to process stream from a local file
  *
  * @author khui
  */
@@ -87,6 +89,9 @@ public abstract class Processor {
 
         scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, Configuration.TIMEUNIT);
         scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, Configuration.TIMEUNIT);
+        /**
+         * for debug, check whether the hbc output queue get stuck
+         */
         while (!Thread.interrupted()) {
             if (api2indexqueue.size() >= 2000) {
                 logger.error("api2indexqueue is full: " + api2indexqueue.size());
@@ -143,18 +148,19 @@ public abstract class Processor {
         /**
          * for local test
          */
-//        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-//        indexdir = rootdir + "/index";
-//        queryfile = rootdir + "/queries/fusion";
-//        expandqueryfile = rootdir + "/queries/queryexpansion.res";
-//        //data_key_dir = rootdir + "/tweetzipklein";
-//        data_key_dir = rootdir + "/twitterkeys";
-//        scalefile = rootdir + "/scale_file/scale_meanstd";
-//        outputdir = rootdir + "/outputdir";
-//        log4jconf = "src/main/java/log4j.xml";
-//        propertyfile = rootdir + "/online-debug-property.config";
-//        //propertyfile = rootdir + "/local-debug-property.config";
-
+        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
+        indexdir = rootdir + "/index";
+        queryfile = rootdir + "/queries/TREC2015-MB-testtopics.txt";
+                //rootdir + "/queries/fusion";
+        expandqueryfile = rootdir + "/queries/queryexpansion15.res";
+                //rootdir + "/queries/queryexpansion.res";
+        //data_key_dir = rootdir + "/tweetzipklein";
+        data_key_dir = rootdir + "/twitterkeys";
+        scalefile = rootdir + "/scale_file/scale_meanstd";
+        outputdir = rootdir + "/outputdir";
+        log4jconf = "src/main/java/log4j.xml";
+        propertyfile = rootdir + "/online-debug-property.config";
+        //propertyfile = rootdir + "/local-debug-property.config";
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         LoadProperties.load(propertyfile);

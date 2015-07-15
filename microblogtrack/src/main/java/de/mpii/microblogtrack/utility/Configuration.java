@@ -5,13 +5,23 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * suggested strategies: since we are supposed to return top-100 and top-10
+ * tweets respectively for the notification task and email digest task, the
+ * ultimate candidates tweets should be around 1000. Thus, each hour we'd better
+ * return 40 tweets/user, it means we want 10 tweets/quarter. In total, we have
+ * 96 quarters for each day, and the notification should start after half of
+ * that, i.e, starting popping up in afternoon.
+ *
+ * most of the parameters should be set thru the property files, here is only
+ * one example, we supposed the machine have 16 cores and more than 40 G main
+ * memory
  *
  * @author khui
  */
 public class Configuration {
 
     public static String RUN_ID = "MPII";
-    // for debug
+    // for debug, default is miniute
     public static TimeUnit TIMEUNIT = TimeUnit.MINUTES;
 
     /**
@@ -34,29 +44,23 @@ public class Configuration {
 
     public final static String QUERY_STR = "query";
 
+    public final static String QUERY_TITLE = "title";
+
     public final static String QUERY_DESC = "description";
 
     public final static String QUERY_NARR = "narrative";
+
+    public final static String QUERY_EXPAN = "expanded";
     // used to tune the system
-    public final static String QUERY_QUERYTWEETTIME = "narrative";
+    public final static String QUERY_QUERYTWEETTIME = "querytweettime";
+
     /**
      * additional field names for result printer
      */
     public final static String RES_RANK = "rank";
 
-    /**
-     * different types of queries:expansion, original query, and different
-     * fields to search
-     */
-    public final static String Q_TWEET = "q_tweet";
-    public final static String Q_URL = "q_url";
-    public final static String Q_TWEETURL = "q_tweeturl";
-    public final static String QE_TWEET = "qe_tweet";
-    public final static String QE_URL = "qe_url";
-    public final static String QE_TWEETURL = "qe_tweeturl";
-
     // all these query will generate features
-    public final static String[] QUERY_TYPES = new String[]{Q_TWEET, QE_TWEET};
+    public final static String[] QUERY_TYPES = new String[]{QUERY_STR, QUERY_EXPAN};
 
     public static int QUERY_EXPANSION_TERMNUM = 10;
 
@@ -64,19 +68,21 @@ public class Configuration {
      * parameters for lucene systems
      */
     // the size of the in-memory index, determining how often the writer dump the index to the disk
-    public final static double LUCENE_MEM_SIZE = 1024.0 * 5;
+    public final static double LUCENE_MEM_SIZE = 1024.0 * 10;
 
     public final static String LUCENE_ANALYZER = "org.apache.lucene.analysis.en.EnglishAnalyzer";
     // lucene perform search per LUCENE_SEARCH_FREQUENCY seconds
-    public final static int LUCENE_SEARCH_FREQUENCY = 60;
+    public final static int LUCENE_SEARCH_FREQUENCY = 15;
     // every time invertal, we retrieve top_n tweets for each query for further processin from lucene
-    public static int LUCENE_TOP_N_SEARCH = 50;
+    public static int LUCENE_TOP_N_SEARCH = 10;
     // number of threads we use to conduct multiquery search
     public static int LUCENE_SEARCH_THREADNUM = 2;
+    // the setting timeout for the url download depends on how
+    // many threads we have for that, in general, when 10 threads
+    // are used, 3.5 seconds should be safe
+    public static int LUCENE_DOWNLOAD_URL_TIMEOUT = 3500;
 
-    public static int LUCENE_DOWNLOAD_URL_TIMEOUT = 5000;
-    
-    public static int LUCENE_DOWNLOAD_URL_THREADNUM = 3;
+    public static int LUCENE_DOWNLOAD_URL_THREADNUM = 10;
 
     /**
      * pointwise decision maker parameters for mobile notification task
@@ -87,59 +93,48 @@ public class Configuration {
     public final static double PW_DM_SCORE_FILTER = 0.95;
     // if it is the first tweet to pop-up, we require a relative high threshold
     public final static double PW_DM_FIRSTPOPUP_SCORETHRESD = 0.999;
-    // filter out the tweets that are too similar with at least one of the pop-up tweet, the number is relative to 
-    // average distance among centroids
-    public static double DM_SIMILARITY_FILTER = 0.7;
+    // filter out the tweets that are too similar with at least one of the pop-up tweet
+    // the parameter setting depends on which type of similarity we used
+    public static double DM_SIMILARITY_FILTER = 0.6;
     // the number of sent tweets to be compared for duplication filter when a new tweet comes in
-    public static int PW_DM_SENT_QUEUETRACKER_LENLIMIT = 20;
+    // since this is expensive iteration for each incoming tweets, we set up a queue to track latest
+    // most suspicious sent tweets
+    public static int PW_DM_SENT_QUEUETRACKER_LENLIMIT = 30;
     // start delay for the decision maker in minutes 
     public static int PW_DM_START_DELAY = 60;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public static int PW_DM_PERIOD = 60;
-
+    public static int PW_DM_PERIOD = 1440;
+    // top-k to report for one day, in notification tasks we at most report 10
     public static int PW_DM_SELECTNUM = 10;
     // make decision untill we have receive enough tweets
-    public static int PW_DW_CUMULATECOUNT_DELAY = 1000;
+    public static int PW_DW_CUMULATECOUNT_DELAY = LUCENE_TOP_N_SEARCH * 10;
     /**
      * listwise decision maker for e-mail digest task
      */
     // the number of sent tweets to be compared for duplication filter when a new tweet comes in
-    public static int LW_DM_SENT_QUEUETRACKER_LENLIMIT = 100;
+    public static int LW_DM_SENT_QUEUETRACKER_LENLIMIT = 200;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
-    public static int LW_DM_PERIOD = 60;//60 * 24;
+    public static int LW_DM_PERIOD = 60 * 24;
     // the length of the priority queue: tracking at most n tweets with highest pointwise prediction score
-    public static int LW_DM_QUEUE2PROCESS_LEN = 2000;
-
+    // governing on how many tweets we want to conduct rerank
+    public static int LW_DM_QUEUE2PROCESS_LEN = 500;
+    // top-k to return for email digest task, the upper bound is 100
     public static int LW_DM_SELECTNUM = 100;
-
+    // start delay for listwise decision maker
     public static int LW_DM_START_DELAY = 60;
-    // for each query, we keep recording the top-LW_DM_QUEUE_LEN tweets with
-    // highest scores, afterward conduct maxrep, where the weight for each tweet
-    // is the min-max normalized prediction score. this parameter is to govern the
-    // lower bound of the min-max, the upper bound is 1. 
-    public final static double LW_DM_WEIGHT_MINW = 0.5;
 
     /**
      * parameter for maxrep
      */
+    // depends on what type of similarity we used
     public static double MAXREP_SIMI_THRESHOLD = 0.1;
 
-    public final static String MAXREP_DISTANT_MEASURE = "org.apache.mahout.common.distance.CosineDistanceMeasure";
+    public final static String MAXREP_DISTANT_MEASURE = "";
     /**
      * tweet tracker parameters: track both relative score and tweet clustering
      * centroids
      */
-    // parameter required in ball kmean algorithm, the maximum times of iteration
-    public final static int TRACKER_BALLKMEAN_MAX_ITERATE = 3;
-    // the computation for the upper bound of cluster numbers is computed as #desired cluster * log(#data number)
-    // we estimate the expected tweet number for 10 hours
-    public final static int TRACKER_SKMEAN_CLUSTERNUM_UPBOUND = 500;
-    // the clustering distance measure for the clustering algorithm
-    // SquaredEuclideanDistanceMeasure, CosineDistanceMeasure, EuclideanDistanceMeasure etc..
-    public final static String TRACKER_DISTANT_MEASURE = "org.apache.mahout.common.distance.CosineDistanceMeasure";
-    // every x minutes, we update the average distance among centroids, by re-clustering the existing centroids
-    // from streaming k-mean, which is relative expensive
-    public final static int TRACKER_AVGDIST_UPDATE_TWEETNUM = 5000;
+
     // when we convert the absolute pointwise predict score to relative score,
     // we only convert the top-p% for effiency reason
     public final static double TRACKER_CUMULATIVE_TOPPERC = 0.5;
