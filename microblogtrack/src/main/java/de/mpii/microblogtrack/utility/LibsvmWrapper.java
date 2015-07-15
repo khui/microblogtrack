@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.utility;
 
-import de.mpii.microblogtrack.task.offline.libsvm.PointwiseTrain.LabeledTweet;
+import de.mpii.microblogtrack.task.offline.libsvm.PrintoutFeatures.LabeledTweet;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.map.TIntDoubleMap;

@@ -49,8 +49,12 @@ public class Configuration {
     public final static String QUERY_DESC = "description";
 
     public final static String QUERY_NARR = "narrative";
-
+    // expand with 10 terms
     public final static String QUERY_EXPAN = "expanded";
+    // expand with 15 terms, substitute the narrative
+    public final static String QUERY_EXPAN_15 = "expanded15";
+    // expand with 5 terms, substitute the description
+    public final static String QUERY_EXPAN_5 = "expanded5";
     // used to tune the system
     public final static String QUERY_QUERYTWEETTIME = "querytweettime";
 
@@ -60,7 +64,9 @@ public class Configuration {
     public final static String RES_RANK = "rank";
 
     // all these query will generate features
-    public final static String[] QUERY_TYPES = new String[]{QUERY_STR, QUERY_EXPAN};
+    public final static String[] QUERY_TYPES = new String[]{QUERY_TITLE, QUERY_DESC, QUERY_NARR, QUERY_EXPAN};
+
+    public final static String[] QUERY_TRAIN_TYPES = new String[]{QUERY_STR, QUERY_EXPAN, QUERY_EXPAN_15, QUERY_EXPAN_5};
 
     public static int QUERY_EXPANSION_TERMNUM = 10;
 
