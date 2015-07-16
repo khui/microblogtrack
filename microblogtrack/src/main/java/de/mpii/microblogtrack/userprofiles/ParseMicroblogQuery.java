@@ -27,8 +27,9 @@ public class ParseMicroblogQuery {
 
         ArrayList<QualityQuery> res = new ArrayList<>();
         StringBuilder sb;
-        String[] tags = new String[]{"<query>", "<querytime>", "<querytweettime>"};
-        String[] tagnames = new String[]{"query", "querytime", "querytweettime"};
+        // original is query, to align with microblog track 15, we convert it to title
+        String[] tags = new String[]{"<title>", "<querytime>", "<querytweettime>"};
+        String[] tagnames = new String[]{Configuration.QUERY_STR, "querytime", Configuration.QUERY_QUERYTWEETTIME};
 
         try {
             while (null != (sb = read(reader, "<top>", null, false, false))) {
@@ -62,7 +63,7 @@ public class ParseMicroblogQuery {
 
         ArrayList<QualityQuery> res = new ArrayList<>();
         StringBuilder sb;
-        String[] tags = new String[]{"<query>", "<querytime>", "<querytweettime>"};
+        String[] tags = new String[]{"<title>", "<querytime>", "<querytweettime>"};
         String[] tagnames = new String[]{Configuration.QUERY_STR, "querytime", Configuration.QUERY_QUERYTWEETTIME};
 
         try {

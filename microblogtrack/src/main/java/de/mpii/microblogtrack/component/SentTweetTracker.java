@@ -95,7 +95,7 @@ public class SentTweetTracker {
             } else if (t1.duplicateCount < t2.duplicateCount) {
                 return -1;
                 // prefer newer tweets
-            } else if (t1.millis_send_timestamp > t2.millis_send_timestamp) {
+            } else if (t1.second_send_timestamp > t2.second_send_timestamp) {
                 return 1;
             } else {
                 return -1;

@@ -35,14 +35,14 @@ public class Configuration {
 
     public final static String TWEET_URL_CONTENT = "langdingpagecontent";
 
-    public final static String TWEET_URL_TITLE = "langdingpagetitle";
+    public final static String TWEET_URL_TITLE = "S_langdingpagetitle";
 
     /**
      * fields name for query
      */
     public final static String QUERY_ID = "queryId";
 
-    public final static String QUERY_STR = "query";
+    public final static String QUERY_STR = "title";
 
     public final static String QUERY_TITLE = "title";
 
@@ -52,9 +52,9 @@ public class Configuration {
     // expand with 10 terms
     public final static String QUERY_EXPAN = "expanded";
     // expand with 15 terms, substitute the narrative
-    public final static String QUERY_EXPAN_15 = "expanded15";
+    public final static String QUERY_EXPAN_15 = "narrative";
     // expand with 5 terms, substitute the description
-    public final static String QUERY_EXPAN_5 = "expanded5";
+    public final static String QUERY_EXPAN_5 = "description";
     // used to tune the system
     public final static String QUERY_QUERYTWEETTIME = "querytweettime";
 
@@ -157,55 +157,55 @@ public class Configuration {
     /**
      * feature names and parameters
      */
-    public final static String FEATURE_S_BM25 = "bm25";
+    public final static String FEATURE_S_BM25 = "S_bm25";
 
     public final static float FEATURE_S_BM25_b = 0f;
 
     public final static float FEATURE_S_BM25_k1 = 1.2f;
 
-    public final static String FEATURE_S_TFIDF = "tfidf";
+    public final static String FEATURE_S_TFIDF = "S_tfidf";
 
-    public final static String FEATURE_S_LMD = "lmDirichlet";
+    public final static String FEATURE_S_LMD = "S_lmDirichlet";
 
     public final static int FEATURE_S_LMD_mu = 140;
 
-    public final static String FEATURE_S_LMJM = "lmJelinekMercer";
+    public final static String FEATURE_S_LMJM = "S_lmJelinekMercer";
 
     public final static float FEATURE_S_LMJM_Lambda = 0.1f;
 
-    public final static String FEATURE_S_DFR_BE_B = "dfr_ibe_b";
+    public final static String FEATURE_S_DFR_BE_B = "S_dfr_ibe_b";
 
-    public final static String FEATURE_S_DFR_IF_L = "dfr_if_l";
+    public final static String FEATURE_S_DFR_IF_L = "S_dfr_if_l";
 
-    public final static String FEATURE_T_RETWEETNUM = "tweet_retweet_count";
+    public final static String FEATURE_T_RETWEETNUM = "T_retweet_count";
 
-    public final static String FEATURE_T_FAVORITENUM = "tweet_favorite_count";
+    public final static String FEATURE_T_FAVORITENUM = "T_favorite_count";
 
-    public final static String FEATURE_T_HASHTAGNUM = "tweet_hashtag_count";
+    public final static String FEATURE_T_HASHTAGNUM = "T_hashtag_count";
 
-    public final static String FEATURE_T_URLNUM = "tweet_url_count";
+    public final static String FEATURE_T_URLNUM = "T_url_count";
 
-    public final static String FEATURE_T_USERMENTIONNUM = "tweet_usermention_count";
+    public final static String FEATURE_T_USERMENTIONNUM = "T_usermention_count";
 
-    public final static String FEATURE_T_MEDIANUM = "tweet_media_count";
+    public final static String FEATURE_T_MEDIANUM = "T_media_count";
 
-    public final static String FEATURE_U_FOLLOWERNUM = "user_follower_count";
+    public final static String FEATURE_U_FOLLOWERNUM = "U_follower_count";
 
-    public final static String FEATURE_U_DESC_LEN = "user_description_length";
+    public final static String FEATURE_U_DESC_LEN = "U_description_length";
 
-    public final static String FEATURE_U_DESC_URLNUM = "user_descriptionurl_count";
+    public final static String FEATURE_U_DESC_URLNUM = "U_descriptionurl_count";
 
-    public final static String FEATURE_U_FAVORITENUM = "user_favorite_count";
+    public final static String FEATURE_U_FAVORITENUM = "U_favorite_count";
 
-    public final static String FEATURE_U_FRIENDNUM = "user_friend_count";
+    public final static String FEATURE_U_FRIENDNUM = "U_friend_count";
 
-    public final static String FEATURE_U_LISTNUM = "user_inlist_count";
+    public final static String FEATURE_U_LISTNUM = "U_inlist_count";
 
-    public final static String FEATURE_U_STATUSNUM = "user_status_count";
+    public final static String FEATURE_U_STATUSNUM = "U_status_count";
 
-    public final static String FEATURE_U_ISCELEBRITY = "user_iscelebrity";
+    public final static String FEATURE_U_ISCELEBRITY = "U_iscelebrity";
 
-    public final static String FEATURE_U_ISDEFAULT_ICON = "user_isdefault_profileimage";
+    public final static String FEATURE_U_ISDEFAULT_ICON = "U_isdefault_profileimage";
     // feature name array to categorize above features into four classes
     public final static String[] FEATURES_RETRIVEMODELS = new String[]{FEATURE_S_TFIDF, FEATURE_S_BM25, FEATURE_S_LMD,
         FEATURE_S_LMJM, FEATURE_S_DFR_BE_B, FEATURE_S_DFR_IF_L};

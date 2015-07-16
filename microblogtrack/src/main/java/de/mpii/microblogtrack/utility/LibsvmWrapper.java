@@ -33,15 +33,15 @@ import org.apache.log4j.Logger;
  * @author khui
  */
 public class LibsvmWrapper {
-    
+
     static Logger logger = Logger.getLogger(LibsvmWrapper.class);
-    
+
     public class LocalTrainTest {
-        
+
         public svm_problem train_prob;
-        
+
         public List<svm_node[]> testdata;
-        
+
         public double[] test_true_labels;
 
         // each item corrsponds to each test data point in testdata, including the probability 
@@ -49,9 +49,9 @@ public class LibsvmWrapper {
         private final double[][] test_pred_prob;
         // each item corrsponds to each test data point in testdata
         private final double[] test_pred_labels;
-        
+
         private int TP, TN, FP, FN;
-        
+
         public LocalTrainTest(List<svm_node[]> traindata, double[] trainlabel, List<svm_node[]> testdata, double[] testlabel) {
             this.train_prob = new svm_problem();
             this.train_prob.l = trainlabel.length;
@@ -62,7 +62,7 @@ public class LibsvmWrapper {
             this.test_pred_prob = new double[testdata.size()][];
             this.test_pred_labels = new double[testdata.size()];
         }
-        
+
         public void addPredictResult(int index, double[] pred_prob) {
             this.test_pred_prob[index] = pred_prob;
             this.test_pred_labels[index] = pred_prob[0];
@@ -86,28 +86,28 @@ public class LibsvmWrapper {
             labelWeight.put(-1, 1d / npercent);
             return labelWeight;
         }
-        
+
         public double getPrecision() {
             return this.TP / (double) (this.TP + this.FP);
         }
-        
+
         public double getRecall() {
             return this.TP / (double) (this.TP + this.FN);
         }
-        
+
         public double getAccuracy() {
             return (this.TP + this.TN) / (double) this.test_true_labels.length;
         }
-        
+
         public double getFScore(double beta) {
             return ((beta * beta + 1) * this.getPrecision() * this.getRecall())
                     / (beta * beta * this.getPrecision() + this.getRecall());
         }
-        
+
         public double getF1() {
             return this.getFScore(1);
         }
-        
+
         public void computeTPTNFPFN() {
             for (int i = 0; i < test_true_labels.length; i++) {
                 if (test_pred_labels[i] == 1 && test_true_labels[i] == 1) {
@@ -128,100 +128,7 @@ public class LibsvmWrapper {
             sb.append(", FN: ").append(FN);
             logger.info(sb.toString());
         }
-        
-    }
 
-    /**
-     * output the scaler file, generated on training data, used in online
-     * prediction to re-scale feature values. each line represents a feature,
-     * featurename:mean value:standard derivation
-     *
-     * @param outfile
-     * @param featureMeanStd
-     * @throws FileNotFoundException
-     */
-    public static void writeScaler(String outfile, Map<String, double[]> featureMeanStd) throws FileNotFoundException {
-        try (PrintStream ps = new PrintStream(outfile)) {
-            StringBuilder sb;
-            for (String feature : featureMeanStd.keySet()) {
-                sb = new StringBuilder();
-                sb.append(feature).append(":");
-                double[] meanstd = featureMeanStd.get(feature);
-                sb.append(meanstd[0]).append(":").append(meanstd[1]);
-                ps.println(sb.toString());
-            }
-            ps.close();
-        }
-    }
-    
-    public static Map<String, double[]> readScaler(String infile) throws FileNotFoundException, IOException {
-        BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(infile))));
-        Map<String, double[]> featureMeanStd = new HashMap<>();
-        String feature;
-        double mean, std;
-        while (br.ready()) {
-            String line = br.readLine();
-            String[] cols = line.split(":");
-            if (cols.length == 3) {
-                feature = cols[0];
-                mean = Double.parseDouble(cols[1]);
-                std = Double.parseDouble(cols[2]);
-                featureMeanStd.put(feature, new double[]{mean, std});
-            } else {
-                logger.error("input scaler column number is wrong: " + cols.length);
-            }
-        }
-        return featureMeanStd;
-    }
-
-    /**
-     * compute scaler for each feature, and output to the given file. This
-     * scaler will be used in both off-line training and online prediction to
-     * normalize the features
-     *
-     * @param qid_range
-     * @param searchresults
-     * @param featureMeanStd
-     */
-    public static void computeScaler(int[] qid_range, TLongObjectMap<LabeledTweet> searchresults, Map<String, double[]> featureMeanStd) {
-        Collection<LabeledTweet> datapoints = searchresults.valueCollection();
-        Map<String, TDoubleList> featureValues = new HashMap<>();
-        for (LabeledTweet datapoint : datapoints) {
-            if (datapoint.qidint >= qid_range[0] && datapoint.qidint <= qid_range[1]) {
-                accumulateFeatureValues(datapoint, featureValues);
-            }
-        }
-        double mean, std;
-        for (String feature : featureValues.keySet()) {
-            if (Configuration.FEATURES_NO_SCALE.contains(feature)) {
-                continue;
-            }
-            double[] featurevalues = featureValues.get(feature).toArray();
-            if (featurevalues.length > 0) {
-                mean = StatUtils.mean(featurevalues);
-                std = Math.sqrt(StatUtils.variance(featurevalues));
-                featureMeanStd.put(feature, new double[]{mean, std});
-            } else {
-                logger.error("feature length is zero for " + feature);
-            }
-        }
-    }
-
-    /**
-     * directly copied from ResultTrackerKMean.accumulateFeatureValues
-     *
-     * @param qtp
-     */
-    private static void accumulateFeatureValues(QueryTweetPair qtp, Map<String, TDoubleList> featureAllVs) {
-        TObjectDoubleMap<String> featureValues = qtp.getFeatures();
-        double value;
-        for (String feature : featureValues.keySet()) {
-            value = featureValues.get(feature);
-            if (!featureAllVs.containsKey(feature)) {
-                featureAllVs.put(feature, new TDoubleArrayList());
-            }
-            featureAllVs.get(feature).add(value);
-        }
     }
 
     /**
@@ -257,28 +164,7 @@ public class LibsvmWrapper {
         logger.info("training data points: " + traindata.size() + "  test data points: " + testdata.size());
         return new LocalTrainTest(traindata, trainlabel.toArray(), testdata, testlabel.toArray());
     }
-    
-    public void printFeatures(Collection<LabeledTweet> datapoints, int[] qidrange, String outfile) throws FileNotFoundException {
-        PrintStream ps = new PrintStream(outfile);
-        StringBuilder sb;
-        for (LabeledTweet lt : datapoints) {
-            if (lt.qidint >= qidrange[0] && lt.qidint <= qidrange[1]) {
-                svm_node[] featureV = lt.vectorizeLibsvm();
-                if (featureV.length > 0) {
-                    int label = lt.binaryjudge;
-                    sb = new StringBuilder();
-                    sb.append(label).append(" ");
-                    for (svm_node feature : featureV) {
-                        sb.append(feature.index).append(":").append(String.format("%.4f", feature.value)).append(" ");
-                    }
-                    ps.println(sb.toString());
-                }
-            }
-        }
-        ps.close();
-        logger.info("Print out finished for: " + qidrange[0] + " to " + qidrange[1]);
-    }
-    
+
     private svm_parameter setupParameters() {
         // set up problem parameters
         svm_parameter param = new svm_parameter();
@@ -301,11 +187,11 @@ public class LibsvmWrapper {
         });
         return param;
     }
-    
+
     public LocalTrainTest splitTrainTestData(Collection<LabeledTweet> datapoints, int[] qidrange2Train) {
         return splitTrainTestData(datapoints, qidrange2Train, new int[]{Math.max(qidrange2Train[1] + 1, 171), 225});
     }
-    
+
     private void do_cross_validation(svm_problem prob, svm_parameter param, int nr_fold) {
         int i;
         int total_correct = 0;
@@ -359,7 +245,7 @@ public class LibsvmWrapper {
         logger.info("start test.");
         double[] prob_estimates = null;
         double[] pred_prob;
-        
+
         svm_model model = svm.svm_load_model(model_file);
         int nr_class = svm.svm_get_nr_class(model);
         if (model == null) {
@@ -376,7 +262,7 @@ public class LibsvmWrapper {
                 logger.info("Model supports probability estimates, but disabled in prediction.\n");
             }
         }
-        
+
         if (predict_probability == 1) {
             int[] labels = new int[nr_class];
             svm.svm_get_labels(model, labels);
@@ -384,7 +270,7 @@ public class LibsvmWrapper {
         }
         List<svm_node[]> xs = traintestdata.testdata;
         double[] true_labels = traintestdata.test_true_labels;
-        
+
         for (int i = 0; i < true_labels.length; i++) {
             double v;
             pred_prob = new double[3];

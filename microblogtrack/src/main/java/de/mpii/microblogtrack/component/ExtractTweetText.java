@@ -4,6 +4,7 @@ import java.io.IOException;
 import org.apache.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import twitter4j.Status;
 import twitter4j.URLEntity;
 
@@ -58,7 +59,10 @@ public class ExtractTweetText {
         Document doc = extracturl(url);
         String title = "";
         if (doc != null) {
-            title = doc.body().text();
+            Element element = doc.body();
+            if (element != null) {
+                title = doc.body().text();
+            }
         }
         return title;
     }

@@ -24,17 +24,17 @@ public class CandidateTweet extends QueryTweetPair {
     // the time stamp when this tweets are sent
     private String utc_send_timestamp = null;
 
-    public long millis_send_timestamp = 0;
+    public long second_send_timestamp = 0;
     // count how many tweets are similar to this tweet after it being sent; 
     public volatile int duplicateCount = 0;
 
-    private final DecimalFormat df = new DecimalFormat("#.#####");
+    private final DecimalFormat df = new DecimalFormat("#.#######");
 
     private CandidateTweet(QueryTweetPair tweet, int rank, String timestamp, long ltimestamp) {
         super(tweet);
         this.rank = rank;
         this.utc_send_timestamp = timestamp;
-        this.millis_send_timestamp = ltimestamp;
+        this.second_send_timestamp = ltimestamp;
     }
 
     public CandidateTweet(QueryTweetPair tweet, int rank) {
@@ -49,11 +49,11 @@ public class CandidateTweet extends QueryTweetPair {
         super(candidatetweet);
         this.utc_send_timestamp = timestamp;
         this.rank = candidatetweet.rank;
-        this.millis_send_timestamp = ltimestamp;
+        this.second_send_timestamp = ltimestamp;
     }
 
     public CandidateTweet(CandidateTweet candidatetweet) {
-        this(candidatetweet, candidatetweet.utc_send_timestamp, candidatetweet.millis_send_timestamp);
+        this(candidatetweet, candidatetweet.utc_send_timestamp, candidatetweet.second_send_timestamp);
     }
 
     public void setDist(double dist) {
@@ -62,26 +62,38 @@ public class CandidateTweet extends QueryTweetPair {
 
     public void setTimeStamp() {
         DateTime nowUtc = DateTime.now(DateTimeZone.UTC);
-        DateTimeFormatter dfjoda = DateTimeFormat.forPattern("EEEE, MMMM dd, Y, HH:mm:ss z").withZoneUTC();
+        DateTimeFormatter dfjoda = DateTimeFormat.forPattern("YYYYMMdd").withZoneUTC();
+        //"EEEE, MMMM dd, Y, HH:mm:ss z"
         //ISODateTimeFormat.dateTime().withZoneUTC();
-        this.millis_send_timestamp = nowUtc.getMillis();
+        this.second_send_timestamp = nowUtc.getMillis() / 1000;
         this.utc_send_timestamp = dfjoda.print(nowUtc);
     }
 
+    /**
+     * topic_id tweet_id delivery_time runtag
+     *
+     * @return
+     * @throws ParseException
+     */
     public String notificationOutput() throws ParseException {
         StringBuilder sb = new StringBuilder();
         sb.append(queryid).append(" ");
-        sb.append("Q0").append(" ");
         sb.append(tweetid).append(" ");
-        sb.append(rank).append(" ");
-        sb.append(df.format(getAbsScore())).append(" ");
-        sb.append(utc_send_timestamp).append(" ");
+        sb.append(second_send_timestamp).append(" ");
         sb.append(Configuration.RUN_ID);
         return sb.toString();
     }
 
+    /**
+     * YYYYMMDD topic_id Q0 tweet_id rank score runtag
+     *
+     * @param rank
+     * @return
+     * @throws ParseException
+     */
     public String digestOutput(int rank) throws ParseException {
         StringBuilder sb = new StringBuilder();
+        sb.append(utc_send_timestamp).append(" ");
         sb.append(queryid).append(" ");
         sb.append("Q0").append(" ");
         sb.append(tweetid).append(" ");

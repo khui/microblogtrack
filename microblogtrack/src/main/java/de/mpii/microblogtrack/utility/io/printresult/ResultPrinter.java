@@ -3,14 +3,12 @@ package de.mpii.microblogtrack.utility.io.printresult;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
-import java.sql.Timestamp;
 import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import org.apache.log4j.Logger;
 
 /**

@@ -127,14 +127,14 @@ public class ConstructLuceneIndex {
                 jsonstr = sb.toString();
                 status = TwitterObjectFactory.createStatus(jsonstr);
                 tweetstr = textextractor.getTweet(status);
-                urltitle = textextractor.getUrlTitle(status);
-                urlcontent = textextractor.getUrlContent(status);
+                //urltitle = textextractor.getUrlTitle(status);
+                //urlcontent = textextractor.getUrlContent(status);
                 if (!status.isRetweet()) {
                     doc = new Document();
                     doc.add(new LongField(Configuration.TWEET_ID, status.getId(), Field.Store.YES));
                     doc.add(new Field(Configuration.TWEET_CONTENT, tweetstr, TEXT_OPTIONS));
-                    doc.add(new Field(Configuration.TWEET_URL_TITLE, urltitle, TEXT_OPTIONS));
-                    doc.add(new Field(Configuration.TWEET_URL_CONTENT, urlcontent, TEXT_OPTIONS));
+                   // doc.add(new Field(Configuration.TWEET_URL_TITLE, urltitle, TEXT_OPTIONS));
+                   // doc.add(new Field(Configuration.TWEET_URL_CONTENT, urlcontent, TEXT_OPTIONS));
                     writer.addDocument(doc);
                 }
                 br.close();
@@ -180,9 +180,9 @@ public class ConstructLuceneIndex {
          * for local test
          */
 //        String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-//        indexdir = rootdir + "/index_url";
+//        indexdir = rootdir + "/index";
 //        datadirsBYCommas = rootdir + "/tweetzip";
-//        threadnum = 2;
+//        threadnum = 4;
 //        log4jconf = "src/main/java/log4j.xml";
 
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);

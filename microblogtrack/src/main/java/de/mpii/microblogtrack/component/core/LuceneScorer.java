@@ -257,9 +257,6 @@ public class LuceneScorer {
                 combinedQuery = new BooleanQuery();
                 combinedQuery.add(rangeQuery, Occur.MUST);
                 switch (querytype) {
-                    case Configuration.QUERY_STR:
-                        combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.QUERY_STR), Occur.SHOULD);
-                        break;
                     case Configuration.QUERY_TITLE:
                         combinedQuery.add(qidFieldQuery.get(queryId).get(Configuration.QUERY_TITLE), Occur.SHOULD);
                         break;
@@ -437,7 +434,7 @@ public class LuceneScorer {
                                             textextractor.getUrlTitle(turl);
                                             if (turl.isAvailable) {
                                                 similarity = TweetStringSimilarity.strJarcard(turl.urltitle,
-                                                        querytypeQuery.get(Configuration.QUERY_STR).toString(Configuration.TWEET_CONTENT));
+                                                        querytypeQuery.get(Configuration.QUERY_TITLE).toString(Configuration.TWEET_CONTENT));
                                             }
                                             turl.similarity = similarity;
                                             return turl;
@@ -461,7 +458,7 @@ public class LuceneScorer {
              * pick up the urltitle-query similarity score from completion
              * service
              */
-            long start = System.currentTimeMillis();
+           // long start = System.currentTimeMillis();
             try {
                 for (int t = 0; t < urldownloadSubmissionCount; t++) {
                     Future<TweetidUrl> f = urldownloader.take();
@@ -486,8 +483,8 @@ public class LuceneScorer {
             } catch (Exception ex) {
                 logger.error("", ex);
             }
-            long end = System.currentTimeMillis();
-            logger.info("download url took: " + (end - start) + " for " + urldownloadSubmissionCount);
+          //  long end = System.currentTimeMillis();
+         //   logger.info("download url took: " + (end - start) + " for " + urldownloadSubmissionCount);
 
             /**
              * conduct pointwise prediction

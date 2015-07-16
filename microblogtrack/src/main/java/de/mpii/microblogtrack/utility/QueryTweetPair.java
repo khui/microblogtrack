@@ -38,6 +38,11 @@ public class QueryTweetPair {
 
     protected svm_node[] vectorLibsvm = null;
 
+    protected QueryTweetPair(long tweetid, String queryid){
+        this.tweetid = tweetid;
+        this.queryid = queryid;
+    }
+    
     public QueryTweetPair(long tweetid, String queryid, Status status, String urltitle) {
         this.tweetid = tweetid;
         this.queryid = queryid;
@@ -153,6 +158,10 @@ public class QueryTweetPair {
         return vectorLibsvm;
     }
 
+    public static String[] getFeatureNames() {
+        return featureNames;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -172,7 +181,7 @@ public class QueryTweetPair {
      *
      * @param featureMeanStd
      */
-    public void rescaleFeatures(Map<String, double[]> featureMeanStd) {
+    public void rescaleFeaturesMeanStd(Map<String, double[]> featureMeanStd) {
         double std, mean, r_value, n_value;
         String[] features = featureValues.keySet().toArray(new String[0]);
         for (String feature : features) {
@@ -189,6 +198,39 @@ public class QueryTweetPair {
                     featureValues.put(feature, n_value);
                 } else {
                     logger.error("std is zero for " + feature);
+                }
+            }
+        }
+        if (vectorLibsvm != null) {
+            vectorLibsvm = null;
+            vectorizeLibsvm();
+        }
+    }
+
+    /**
+     * min/max scaling method, rescale each feature to [0, 1], afterward the
+     * vector representations are rebuilt. The min/max value for each feature
+     * comes from off-line computation
+     *
+     * @param featureMinMax
+     */
+    public void rescaleFeaturesMinMax(Map<String, double[]> featureMinMax) {
+        double max, min, difference, r_value, n_value;
+        String[] features = featureValues.keySet().toArray(new String[0]);
+        for (String feature : features) {
+            if (Configuration.FEATURES_NO_SCALE.contains(feature)) {
+                continue;
+            }
+            if (featureMinMax.containsKey(feature)) {
+                r_value = featureValues.get(feature);
+                min = featureMinMax.get(feature)[0];
+                max = featureMinMax.get(feature)[1];
+                if (min < max) {
+                    difference = max - min;
+                    n_value = (r_value - min) / difference;
+                    featureValues.put(feature, n_value);
+                } else {
+                    logger.error("min lte max for " + feature + " : " + min + " " + max);
                 }
             }
         }

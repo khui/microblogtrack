@@ -25,9 +25,9 @@ import org.apache.lucene.search.BooleanClause;
  * @author khui
  */
 public class TrecQuery {
-    
+
     static Logger logger = Logger.getLogger(TrecQuery.class.getName());
-    
+
     public QualityQuery[] readTrecQuery(String queryfile) throws IOException {
         //TrecTopicsReader ttr = new TrecTopicsReader();
         ParseMicroblogQuery ttr = new ParseMicroblogQuery();
@@ -38,7 +38,7 @@ public class TrecQuery {
         }
         return queries;
     }
-    
+
     public QualityQuery[] readTrecQueryIntQID(String queryfile) throws IOException {
         //TrecTopicsReader ttr = new TrecTopicsReader();
         ParseMicroblogQuery ttr = new ParseMicroblogQuery();
@@ -48,13 +48,13 @@ public class TrecQuery {
         }
         return queries;
     }
-    
+
     public QualityQuery[] readMQTrecQuery(String queryfile) throws IOException {
         Trec1MQReader ttr = new Trec1MQReader("topic");
         QualityQuery[] queries = ttr.readQueries(new BufferedReader(new InputStreamReader(new FileInputStream(new File(queryfile)))));
         return queries;
     }
-    
+
     public Map<String, Query> readInQueries(String queryfile, Analyzer analyzer, String field) throws IOException, ParseException {
         QualityQuery[] qqs = readTrecQuery(queryfile);
         QueryBuilder qb = new QueryBuilder(analyzer);
@@ -62,13 +62,12 @@ public class TrecQuery {
         Map<String, Query> res = new HashMap<>();
         for (QualityQuery qq : qqs) {
             querystr = qq.getValue(Configuration.QUERY_STR);
-            
             res.put(qq.getQueryID(), qb.createBooleanQuery(field, querystr));
         }
         logger.info("In total, read in queries: " + res.size());
         return res;
     }
-    
+
     public Map<String, Map<String, Query>> readFieldQueries(String queryfile, Analyzer analyzer) throws IOException, ParseException {
         QualityQuery[] qqs = readTrecQuery(queryfile);
         QueryBuilder qb = new QueryBuilder(analyzer);
@@ -82,7 +81,7 @@ public class TrecQuery {
         logger.info("In total, read in queries: " + res.size());
         return res;
     }
-    
+
     public Map<String, Map<String, Query>> readFieldQueries15(String queryfile, Analyzer analyzer) throws FileNotFoundException, IOException {
         BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(queryfile))));
         TrecTopicsReader ttr = new TrecTopicsReader();
@@ -102,13 +101,13 @@ public class TrecQuery {
         logger.info("In total, read in queries: " + res.size());
         return res;
     }
-    
+
     public static void main(String[] args) throws IOException, ParseException {
         String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
         String queryfile = rootdir + "/queries/TREC2015-MB-testtopics.txt";
         TrecQuery tq = new TrecQuery();
         Map<String, Map<String, Query>> res = tq.readFieldQueries15(queryfile, new EnglishAnalyzer());
         logger.info(res.size());
-        
+
     }
 }
