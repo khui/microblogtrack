@@ -42,16 +42,15 @@ import twitter4j.TwitterStreamFactory;
 import twitter4j.conf.ConfigurationBuilder;
 
 public class SampleT4j {
-    // TODO: process ondelete, filter the tweets
 
     final Logger logger = Logger.getLogger(SampleT4j.class);
 
     // api-key and the time stamp recording the latest usage;
     // idealy we want to reuse the api-key after it has been freely for long
     // enough time
-    private TObjectLongHashMap<String> apikeyTimestamp = new TObjectLongHashMap<String>();
+    private final TObjectLongHashMap<String> apikeyTimestamp = new TObjectLongHashMap<>();
     // recorder for multiple api-keys, for the sake of robustness
-    private HashMap<String, ConfigurationBuilder> apikayConfBuilder = new HashMap<String, ConfigurationBuilder>();
+    private final HashMap<String, ConfigurationBuilder> apikayConfBuilder = new HashMap<>();
     // current established connection
     private TwitterStream currenttwitter;
     // current api-key name, corresponding to current established connection
