@@ -14,28 +14,22 @@ import org.apache.log4j.Logger;
  * @author khui
  */
 public class PointwiseScorerSumRetrievalScores implements PointwiseScorer {
-
+    
     static Logger logger = Logger.getLogger(PointwiseScorerSumRetrievalScores.class);
-
+    
     private final TObjectDoubleMap<String> feature_min = TCollections.synchronizedMap(new TObjectDoubleHashMap<>());
-
+    
     private final TObjectDoubleMap<String> feature_max = TCollections.synchronizedMap(new TObjectDoubleHashMap<>());
-
+    
     private final String[] featurenames;
-
+    
     public PointwiseScorerSumRetrievalScores() {
-        for (String querytype : Configuration.QUERY_TYPES) {
-            for (String model : Configuration.FEATURES_RETRIVEMODELS) {
-                String featurename = QueryTweetPair.concatModelQuerytypeFeature(model, querytype);
-                feature_min.put(featurename, Double.MAX_VALUE);
-                feature_max.put(featurename, -Double.MAX_VALUE);
-            }
+        featurenames = QueryTweetPair.getFeatureNames();
+        if (featurenames == null) {
+            logger.error("featurenames array is " + featurenames);
         }
-        feature_min.put(Configuration.TWEET_URL_TITLE, Double.MAX_VALUE);
-        feature_max.put(Configuration.TWEET_URL_TITLE, -Double.MAX_VALUE);
-        featurenames = feature_max.keys(new String[0]);
     }
-
+    
     @Override
     public double predictor(QueryTweetPair qtr) {
         TObjectDoubleMap<String> featureValues = qtr.getFeatures();
@@ -64,14 +58,12 @@ public class PointwiseScorerSumRetrievalScores implements PointwiseScorer {
                         sum += value;
                     }
                 }
-            } else {
-                logger.error(model + " is not included in feature map");
             }
         }
         sum /= featurenames.length;
-
+        
         qtr.setPredictScore(Configuration.PRED_ABSOLUTESCORE, sum);
         return sum;
     }
-
+    
 }

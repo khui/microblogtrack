@@ -22,7 +22,7 @@ public class Configuration {
 
     public static String RUN_ID = "MPII";
     // for debug, default is miniute
-    public static TimeUnit TIMEUNIT = TimeUnit.MINUTES;
+    public static TimeUnit TIMEUNIT = TimeUnit.SECONDS;
 
     /**
      * fields name used for retrieval of tweets

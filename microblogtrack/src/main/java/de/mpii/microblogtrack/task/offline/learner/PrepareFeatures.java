@@ -312,7 +312,6 @@ public class PrepareFeatures {
 //        Scaler.writeoutScaler(scale_file, featureV1V2);
 //        logger.info("scaler has been output to " + scale_file);
 //    }
-
 //    public void printFeatures(String outdir, String scaletype) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException, Exception {
 //        prepareScaler(scaletype);
 //        ExecutorService executorservice = Executors.newFixedThreadPool(4);
@@ -485,7 +484,6 @@ public class PrepareFeatures {
 //        logger.info("Print out finished for: " + qid_range[0] + " to " + qid_range[1]);
 //
 //    }
-
     /**
      * read in tweetid - status and store in tweetidStatus
      */
@@ -589,6 +587,7 @@ public class PrepareFeatures {
                                 int label = lt.binaryjudge;
                                 sb = new StringBuilder();
                                 sb.append(label).append(" ");
+                                sb.append("qid").append(":").append(lt.qidint).append(" ");
                                 for (svm_node feature : featureV) {
                                     if (Math.abs(feature.value) >= 0.000001) {
                                         sb.append(feature.index).append(":").append(String.format("%.6f", feature.value)).append(" ");
@@ -626,11 +625,10 @@ public class PrepareFeatures {
                     if (lt.qidint >= qid_range[0] && lt.qidint <= qid_range[1]) {
                         count++;
                         int label = lt.judge;
-                        String qid = lt.queryid;
                         featureV = lt.getFeatures();
                         sb = new StringBuilder();
                         sb.append(label).append(" ");
-                        sb.append(qid).append(" ");
+                        sb.append("qid").append(":").append(lt.qidint).append(" ");
                         for (int i = 0; i < featurenames.length; i++) {
                             String featurename = featurenames[i];
                             if (featureV.containsKey(featurename)) {

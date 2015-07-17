@@ -127,7 +127,7 @@ public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
                                                 similarity = TweetStringSimilarity.strJarcard(turl.urltitle,
                                                         querytypeQuery.get(Configuration.QUERY_TITLE).toString(Configuration.TWEET_CONTENT));
                                                 
-                                                logger.info(similarity + "\t" + querytypeQuery.get(Configuration.QUERY_TITLE).toString(Configuration.TWEET_CONTENT) + "\t" + turl.urltitle);
+                                                //logger.info(similarity + "\t" + querytypeQuery.get(Configuration.QUERY_TITLE).toString(Configuration.TWEET_CONTENT) + "\t" + turl.urltitle);
                                                 
                                             }
                                             turl.similarity = similarity;
