@@ -1,9 +1,12 @@
 package de.mpii.microblogtrack.utility;
 
+import de.bwaldvogel.liblinear.Feature;
+import de.bwaldvogel.liblinear.FeatureNode;
 import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +31,7 @@ public class QueryTweetPair {
 
     protected final TObjectDoubleMap<String> predictorResults = new TObjectDoubleHashMap<>();
 
-    protected static String[] featureNames = null;
+    protected static String[] featureNames = generateFeatureNameString();
 
     protected Map<String, String> contentString = new HashMap<>();
 
@@ -38,15 +41,17 @@ public class QueryTweetPair {
 
     protected svm_node[] vectorLibsvm = null;
 
-    protected QueryTweetPair(long tweetid, String queryid){
+    protected Feature[] vectorLiblinear = null;
+
+    protected QueryTweetPair(long tweetid, String queryid) {
         this.tweetid = tweetid;
         this.queryid = queryid;
     }
-    
+
     public QueryTweetPair(long tweetid, String queryid, Status status, String urltitle) {
         this.tweetid = tweetid;
         this.queryid = queryid;
-        updateFeatures(status, urltitle);
+        updateUserTweetFeatures(status, urltitle);
     }
 
     public QueryTweetPair(long tweetid, String queryid, Status status) {
@@ -78,6 +83,22 @@ public class QueryTweetPair {
 
     public static String concatModelQuerytypeFeature(String model, String querytype) {
         return model + "_" + querytype;
+    }
+
+    public static String[] generateFeatureNameString() {
+        List<String> featurenames = new ArrayList<>();
+        for (String querytype : Configuration.QUERY_TYPES) {
+            for (String model : Configuration.FEATURES_RETRIVEMODELS) {
+                String featurename = concatModelQuerytypeFeature(model, querytype);
+                featurenames.add(featurename);
+            }
+        }
+        featurenames.addAll(Arrays.asList(Configuration.FEATURES_TWEETQUALITY));
+        featurenames.addAll(Arrays.asList(Configuration.FEATURES_USERAUTHORITY));
+        Collections.sort(featurenames);
+        featureNames = featurenames.toArray(new String[0]);
+        logger.info("Generated feature name vector, we have " + featureNames.length + " features");
+        return featureNames;
     }
 
     public void updateFeatures(String name, double score) {
@@ -126,32 +147,48 @@ public class QueryTweetPair {
 
     /**
      * convert the feature map to the svm_node, the data format used in libsvm
-     * note that the libsvm supposes the feature index starts from 1
+     * note that the libsvm supposes the feature index starts from 1, with min
+     * max scale
      *
+     * @param featureMinMax
      * @return
      */
-    public svm_node[] vectorizeLibsvm() {
-        if (vectorLibsvm != null) {
-            return vectorLibsvm;
-        }
-        boolean regenerateFeatureNames = false;
-        if (featureNames == null) {
-            regenerateFeatureNames = true;
-        } else if (featureNames.length != featureValues.size()) {
-            regenerateFeatureNames = true;
-        }
-        if (regenerateFeatureNames) {
-            featureNames = featureValues.keys(new String[0]);
-            Arrays.sort(featureNames);
-        }
-
+    public svm_node[] vectorizeLibsvmMinMax(Map<String, double[]> featureMinMax) {
+        TObjectDoubleMap<String> scaledFeatureValues = rescaleFeaturesMinMax(featureMinMax);
         List<svm_node> nodes = new ArrayList<>();
         for (int i = 1; i <= featureNames.length; i++) {
-            double fvalue = featureValues.get(featureNames[i - 1]);
-            if (fvalue > 0) {
-                nodes.add(new svm_node());
-                nodes.get(nodes.size() - 1).index = i;
-                nodes.get(nodes.size() - 1).value = fvalue;
+            if (featureValues.containsKey(featureNames[i])) {
+                double fvalue = scaledFeatureValues.get(featureNames[i - 1]);
+                if (fvalue != 0) {
+                    nodes.add(new svm_node());
+                    nodes.get(nodes.size() - 1).index = i;
+                    nodes.get(nodes.size() - 1).value = fvalue;
+                }
+            }
+        }
+        vectorLibsvm = nodes.toArray(new svm_node[0]);
+        return vectorLibsvm;
+    }
+
+    /**
+     * convert the feature map to the svm_node, the data format used in libsvm
+     * note that the libsvm supposes the feature index starts from 1, with mean
+     * std scale
+     *
+     * @param featureMeanStd
+     * @return
+     */
+    public svm_node[] vectorizeLibsvmMeanStd(Map<String, double[]> featureMeanStd) {
+        TObjectDoubleMap<String> scaledFeatureValues = rescaleFeaturesMeanStd(featureMeanStd);
+        List<svm_node> nodes = new ArrayList<>();
+        for (int i = 1; i <= featureNames.length; i++) {
+            if (scaledFeatureValues.containsKey(featureNames[i - 1])) {
+                double fvalue = scaledFeatureValues.get(featureNames[i - 1]);
+                if (fvalue != 0) {
+                    nodes.add(new svm_node());
+                    nodes.get(nodes.size() - 1).index = i;
+                    nodes.get(nodes.size() - 1).value = fvalue;
+                }
             }
         }
         vectorLibsvm = nodes.toArray(new svm_node[0]);
@@ -160,6 +197,21 @@ public class QueryTweetPair {
 
     public static String[] getFeatureNames() {
         return featureNames;
+    }
+
+    public Feature[] vectorizeLiblinearMeanStd(Map<String, double[]> featureMeanStd) {
+        TObjectDoubleMap<String> scaledFeatureValues = rescaleFeaturesMeanStd(featureMeanStd);
+        List<Feature> nodes = new ArrayList<>();
+        for (int i = 1; i <= featureNames.length; i++) {
+            if (scaledFeatureValues.containsKey(featureNames[i])) {
+                double fvalue = scaledFeatureValues.get(featureNames[i - 1]);
+                if (fvalue != 0) {
+                    nodes.add(new FeatureNode(i, fvalue));
+                }
+            }
+        }
+        vectorLiblinear = nodes.toArray(new Feature[0]);
+        return vectorLiblinear;
     }
 
     @Override
@@ -180,31 +232,31 @@ public class QueryTweetPair {
      * each feature can either come from off-line computation
      *
      * @param featureMeanStd
+     * @return
      */
-    public void rescaleFeaturesMeanStd(Map<String, double[]> featureMeanStd) {
+    private TObjectDoubleMap<String> rescaleFeaturesMeanStd(Map<String, double[]> featureMeanStd) {
         double std, mean, r_value, n_value;
+        TObjectDoubleMap<String> scaledFeatureValues = new TObjectDoubleHashMap<>();
         String[] features = featureValues.keySet().toArray(new String[0]);
         for (String feature : features) {
+            r_value = featureValues.get(feature);
             if (Configuration.FEATURES_NO_SCALE.contains(feature)) {
+                scaledFeatureValues.put(feature, r_value);
                 continue;
             }
             if (featureMeanStd.containsKey(feature)) {
-                r_value = featureValues.get(feature);
                 mean = featureMeanStd.get(feature)[0];
                 std = featureMeanStd.get(feature)[1];
                 // we need to confirm the std is larger than zero
                 if (std > 0) {
                     n_value = (r_value - mean) / std;
-                    featureValues.put(feature, n_value);
+                    scaledFeatureValues.put(feature, n_value);
                 } else {
                     logger.error("std is zero for " + feature);
                 }
             }
         }
-        if (vectorLibsvm != null) {
-            vectorLibsvm = null;
-            vectorizeLibsvm();
-        }
+        return scaledFeatureValues;
     }
 
     /**
@@ -214,53 +266,39 @@ public class QueryTweetPair {
      *
      * @param featureMinMax
      */
-    public void rescaleFeaturesMinMax(Map<String, double[]> featureMinMax) {
+    private TObjectDoubleMap<String> rescaleFeaturesMinMax(Map<String, double[]> featureMinMax) {
         double max, min, difference, r_value, n_value;
+        TObjectDoubleMap<String> scaledFeatureValues = new TObjectDoubleHashMap<>();
+
         String[] features = featureValues.keySet().toArray(new String[0]);
         for (String feature : features) {
+            r_value = featureValues.get(feature);
             if (Configuration.FEATURES_NO_SCALE.contains(feature)) {
+                scaledFeatureValues.put(feature, r_value);
                 continue;
             }
             if (featureMinMax.containsKey(feature)) {
-                r_value = featureValues.get(feature);
+
                 min = featureMinMax.get(feature)[0];
                 max = featureMinMax.get(feature)[1];
                 if (min < max) {
                     difference = max - min;
                     n_value = (r_value - min) / difference;
-                    featureValues.put(feature, n_value);
+                    scaledFeatureValues.put(feature, n_value);
                 } else {
                     logger.error("min lte max for " + feature + " : " + min + " " + max);
                 }
             }
         }
-        if (vectorLibsvm != null) {
-            vectorLibsvm = null;
-            vectorizeLibsvm();
-        }
+        return scaledFeatureValues;
     }
 
-    protected final void updateFeatures(Status status, String urltitle) {
-        semanticFeatures();
+    protected final void updateUserTweetFeatures(Status status, String urltitle) {
         tweetFeatures(status);
         userFeatures(status);
         this.contentString.put(Configuration.TWEET_CONTENT, status.getText());
         if (urltitle != null) {
             this.contentString.put(Configuration.TWEET_URL_TITLE, urltitle);
-        }
-    }
-
-    /**
-     * semantic matching features
-     */
-    private void semanticFeatures() {
-        for (String querytype : Configuration.QUERY_TYPES) {
-            for (String model : Configuration.FEATURES_RETRIVEMODELS) {
-                String featurename = concatModelQuerytypeFeature(model, querytype);
-                if (!featureValues.containsKey(featurename)) {
-                    featureValues.put(featurename, 0);
-                }
-            }
         }
     }
 
@@ -306,11 +344,16 @@ public class QueryTweetPair {
                         }
                         featureV = mentionentity.length;
                         break;
+                    case Configuration.FEATURE_T_LENGTH:
+                        String content = status.getText();
+                        if (content == null) {
+                            break;
+                        }
+                        featureV = content.length();
+                        break;
                 }
                 if (featureV > 0) {
                     featureValues.put(feature, featureV);
-                } else {
-                    featureValues.put(feature, 0);
                 }
             }
         }
@@ -367,8 +410,6 @@ public class QueryTweetPair {
                 }
                 if (featureV > 0) {
                     featureValues.put(feature, featureV);
-                } else {
-                    featureValues.put(feature, 0);
                 }
             }
         }

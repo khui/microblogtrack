@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.utility;
 
-import de.mpii.microblogtrack.task.offline.libsvm.PrintoutFeatures.LabeledTweet;
+import de.mpii.microblogtrack.task.offline.learner.PrepareFeatures.LabeledTweet;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.map.TIntDoubleMap;
@@ -147,19 +147,19 @@ public class LibsvmWrapper {
         TDoubleList testlabel = new TDoubleArrayList();
         svm_node[] features;
         for (LabeledTweet lt : datapoints) {
-            if (lt.qidint >= qidrange2Train[0] && lt.qidint <= qidrange2Train[1]) {
-                features = lt.vectorizeLibsvm();
-                if (features.length > 0) {
-                    traindata.add(lt.vectorizeLibsvm());
-                    trainlabel.add(lt.binaryjudge);
-                }
-            } else if (lt.qidint >= qidrange2Test[0] && lt.qidint <= qidrange2Test[1]) {
-                features = lt.vectorizeLibsvm();
-                if (features.length > 0) {
-                    testdata.add(lt.vectorizeLibsvm());
-                    testlabel.add(lt.binaryjudge);
-                }
-            }
+//            if (lt.qidint >= qidrange2Train[0] && lt.qidint <= qidrange2Train[1]) {
+//                features = lt.vectorizeLibsvmMinMax();
+//                if (features.length > 0) {
+//                    traindata.add(lt.vectorizeLibsvmMinMax());
+//                    trainlabel.add(lt.binaryjudge);
+//                }
+//            } else if (lt.qidint >= qidrange2Test[0] && lt.qidint <= qidrange2Test[1]) {
+//                features = lt.vectorizeLibsvmMinMax();
+//                if (features.length > 0) {
+//                    testdata.add(lt.vectorizeLibsvmMinMax());
+//                    testlabel.add(lt.binaryjudge);
+//                }
+//            }
         }
         logger.info("training data points: " + traindata.size() + "  test data points: " + testdata.size());
         return new LocalTrainTest(traindata, trainlabel.toArray(), testdata, testlabel.toArray());

@@ -366,7 +366,7 @@ public class LuceneScorer {
 
     }
 
-    private class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
+    public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
 
         private final int topN = Configuration.LUCENE_TOP_N_SEARCH;
 
@@ -504,7 +504,7 @@ public class LuceneScorer {
 
     }
 
-    private class UniqQuerySearchResult {
+    public class UniqQuerySearchResult {
 
         public final String queryid;
         public final Collection<QueryTweetPair> results;

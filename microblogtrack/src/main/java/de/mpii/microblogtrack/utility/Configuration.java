@@ -188,6 +188,8 @@ public class Configuration {
     public final static String FEATURE_T_USERMENTIONNUM = "T_usermention_count";
 
     public final static String FEATURE_T_MEDIANUM = "T_media_count";
+    
+    public final static String FEATURE_T_LENGTH = "T_tweet_length";
 
     public final static String FEATURE_U_FOLLOWERNUM = "U_follower_count";
 
@@ -210,7 +212,7 @@ public class Configuration {
     public final static String[] FEATURES_RETRIVEMODELS = new String[]{FEATURE_S_TFIDF, FEATURE_S_BM25, FEATURE_S_LMD,
         FEATURE_S_LMJM, FEATURE_S_DFR_BE_B, FEATURE_S_DFR_IF_L};
 
-    public final static String[] FEATURES_TWEETQUALITY = new String[]{FEATURE_T_RETWEETNUM, FEATURE_T_FAVORITENUM, FEATURE_T_HASHTAGNUM, FEATURE_T_URLNUM, FEATURE_T_USERMENTIONNUM, FEATURE_T_MEDIANUM};
+    public final static String[] FEATURES_TWEETQUALITY = new String[]{FEATURE_T_RETWEETNUM, FEATURE_T_FAVORITENUM, FEATURE_T_HASHTAGNUM, FEATURE_T_URLNUM, FEATURE_T_USERMENTIONNUM, FEATURE_T_MEDIANUM, FEATURE_T_LENGTH};
 
     public final static String[] FEATURES_USERAUTHORITY = new String[]{FEATURE_U_FOLLOWERNUM, FEATURE_U_DESC_LEN, FEATURE_U_DESC_URLNUM, FEATURE_U_FAVORITENUM, FEATURE_U_FRIENDNUM, FEATURE_U_LISTNUM, FEATURE_U_STATUSNUM, FEATURE_U_ISCELEBRITY, FEATURE_U_ISDEFAULT_ICON};
     // for features that only have binary value, should not be scaled in feature normalization

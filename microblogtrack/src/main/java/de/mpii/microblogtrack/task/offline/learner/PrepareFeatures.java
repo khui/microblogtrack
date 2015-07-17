@@ -1,5 +1,8 @@
-package de.mpii.microblogtrack.task.offline.libsvm;
+package de.mpii.microblogtrack.task.offline.learner;
 
+import de.mpii.microblogtrack.component.core.LuceneScorer;
+import de.mpii.microblogtrack.component.core.LuceneScorer.UniqQuerySearchResult;
+import de.mpii.microblogtrack.component.core.LuceneScorer.UniqQuerySearcher;
 import de.mpii.microblogtrack.task.offline.qe.ExpandQueryWithWiki;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.Configuration;
@@ -7,6 +10,7 @@ import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.Scaler;
 import gnu.trove.map.TIntObjectMap;
 import gnu.trove.map.TLongObjectMap;
+import gnu.trove.map.TObjectDoubleMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.BufferedReader;
@@ -24,6 +28,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.zip.ZipEntry;
@@ -64,12 +71,11 @@ import twitter4j.TwitterObjectFactory;
  *
  * @author khui
  */
-public class PrintoutFeatures {
+public class PrepareFeatures {
 
-    static Logger logger = Logger.getLogger(PrintoutFeatures.class.getName());
+    static Logger logger = Logger.getLogger(PrepareFeatures.class.getName());
 
-    private final TLongObjectMap<Status> tweetidStatus = new TLongObjectHashMap<>();
-
+    //private final TLongObjectMap<Status> tweetidStatus = new TLongObjectHashMap<>();
     private final TLongObjectMap<LabeledTweet> searchresults = new TLongObjectHashMap<>();
 
     private final String indexdir, qrelf, queryfile, equeryfile;
@@ -80,7 +86,7 @@ public class PrintoutFeatures {
 
     private final String scale_file;
 
-    public PrintoutFeatures(String indexdir, String scale_file, String qrelf, String queryfile, String equeryfile, String[] zipfiles) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    public PrepareFeatures(String indexdir, String scale_file, String qrelf, String queryfile, String equeryfile, String[] zipfiles) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         this.indexdir = indexdir;
         this.qrelf = qrelf;
         this.queryfile = queryfile;
@@ -131,25 +137,155 @@ public class PrintoutFeatures {
         }
 
         public void updateStatus(Status status) {
-            updateFeatures(status, null);
+            updateUserTweetFeatures(status, null);
         }
     }
 
-    private void prepareScaler(String scaletype) throws Exception, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
+    /**
+     * graded labels, qid, features index:value
+     *
+     * @param outdir
+     * @throws java.io.IOException
+     * @throws org.apache.lucene.queryparser.classic.ParseException
+     * @throws java.io.FileNotFoundException
+     * @throws java.lang.ClassNotFoundException
+     * @throws java.lang.InstantiationException
+     * @throws java.lang.IllegalAccessException
+     */
+    public void printoutRawFeatures(String outdir) throws IOException, ParseException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         int[] full_qid_range = new int[]{0, 226};
-        Map<String, double[]> featureMinMax;
         // the field here is the query type: original query, expanded query etc..
         Map<String, Map<String, Query>> qidFieldQuery = prepareQuery(queryfile, equeryfile);
         // collect tweets for train/test, and compute scaler based on the training data
         collectTweets(indexdir, qrelf, qidFieldQuery, qrelTweetZipFiles, full_qid_range);
-        // construct min-max scaler
-        featureMinMax = Scaler.computeScalerMultiThread(full_qid_range, searchresults, scaletype, 16);
-        // output scaler
-        Scaler.writeoutScaler(scale_file, featureMinMax);
+        ExecutorService executorservice = Executors.newFixedThreadPool(4);
+        TIntObjectMap<int[]> yearQidrange = new TIntObjectHashMap<>();
+        yearQidrange.put(11, new int[]{1, 50});
+        yearQidrange.put(12, new int[]{51, 110});
+        yearQidrange.put(13, new int[]{111, 170});
+        yearQidrange.put(14, new int[]{171, 225});
+        for (int year : yearQidrange.keys()) {
+            logger.info(year + " submitted");
+            //printoutFeatures(yearQidrange.get(year), outdir + "/" + year);
+            executorservice.submit(new FeaturePrinter(null, yearQidrange.get(year), outdir + "/" + year));
+        }
+        executorservice.shutdown();
+        while (!executorservice.isTerminated()) {
+
+        }
+        logger.info("Raw feature print out is done");
+    }
+
+    /**
+     * search the constructed index with <query, label, tweetid> triple to get
+     * different retrieval score as features. In particular, read in labeled
+     * statuses, together with their judgment, generate list of LabeledTweet to
+     * further generate features.
+     *
+     * @param indexdir
+     * @param qrelf
+     * @param queryfile
+     * @param scalefile
+     * @param zipfiles
+     * @param out_model_file
+     * @param predict_probability
+     * @throws java.io.FileNotFoundException
+     * @throws org.apache.lucene.queryparser.classic.ParseException
+     * @throws java.lang.ClassNotFoundException
+     * @throws java.lang.InstantiationException
+     * @throws java.lang.IllegalAccessException
+     */
+    private void multiThreadCollectTweets(String indexdir, String qrelf, Map<String, Map<String, Query>> queries, String[] zipfiles, int[] qid_range) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
+        TLongObjectMap<Status> tweetidStatus = readInStatus(zipfiles);
+        ExecutorService uniqqueryExecutor = Executors.newFixedThreadPool(4);
+        Executor downloadURLExcutor = Executors.newFixedThreadPool(4);
+        int countNoStatus = 0;
+        List<LabeledTweet> labeledtweets = readinQueryQrel(qrelf, queries);
+        String[] searchModels = Configuration.FEATURES_RETRIVEMODELS;
+        DirectoryReader indexReader = DirectoryReader.open(FSDirectory.open(Paths.get(indexdir)));
+        IndexSearcher searcherInUse;
+        ScoreDoc[] hits;
+        long tweetid;
+        for (LabeledTweet ltweet : labeledtweets) {
+            if (!tweetidStatus.containsKey(ltweet.tweetid)) {
+                //logger.error(ltweet.tweetid + "  has not been read in for " + ltweet.queryid);
+                countNoStatus++;
+                continue;
+            }
+            if (ltweet.qidint > qid_range[1] || ltweet.qidint < qid_range[0]) {
+                continue;
+            }
+            Map<String, Query> querytypeQuery;
+            CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(uniqqueryExecutor);
+            int resultnum = 0;
+            try {
+                for (String queryid : queries.keySet()) {
+                    completeservice.submit(new LuceneScorer.UniqQuerySearcher(queries.get(queryid), queryid, indexReader, downloadURLExcutor));
+                    resultnum++;
+                }
+            } catch (Exception ex) {
+                logger.error("", ex);
+            }
+//         
+//          
+//           
+//                /**
+//                 * submit each query (query or expanded query, on tweetcontent)
+//                 * as a job to completion service
+//                 */
+//
+//                /**
+//                 * pick up the returned results as UniqQuerySearchResult
+//                 */
+//                LuceneScorer.UniqQuerySearchResult queryranking;
+//                for (int i = 0; i < resultnum; ++i) {
+//                    try {
+//                        final Future<LuceneScorer.UniqQuerySearchResult> futureQtpCollection = completeservice.take();
+//                        queryranking = futureQtpCollection.get();
+//                        if (queryranking != null) {
+//                            // update the result tracker
+//                            relativeScoreTracker.get(queryranking.queryid).addTweets(queryranking.results);
+//                            // after the pointwise decision maker start, we start to send 
+//                            // tweets to pw decision maker, before that, we only send to
+//                            // the listwise decision maker
+//                            if (relativeScoreTracker.get(queryranking.queryid).whetherOffer2LWQueue()
+//                                    && relativeScoreTracker.get(queryranking.queryid).whetherOffer2PWQueue()) {
+//                                queryranking.offer2queue(queue2offer4PW, queue2offer4LW);
+//                            } else if (relativeScoreTracker.get(queryranking.queryid).whetherOffer2LWQueue()) {
+//                                queryranking.offer2queue(queue2offer4LW);
+//                            }
+//                        } else {
+//                            logger.error("queryranking is null.");
+//                        }
+//
+//                    } catch (ExecutionException | InterruptedException ex) {
+//                        logger.error("Write into the queue for DM", ex);
+//                    }
+//                }
+//            } else {
+//                logger.warn("Nothing added to the index since last open of reader.");
+//            }
+//        }
+        }
+        logger.info("Successfully load tweets for training in total: " + searchresults.size() + ", judged tweets without status: " + countNoStatus);
+    }
+
+    private void prepareScaler(String scaletype) throws Exception, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
+        int[] full_qid_range = new int[]{0, 226};
+        Map<String, double[]> featureV1V2;
+        // the field here is the query type: original query, expanded query etc..
+        Map<String, Map<String, Query>> qidFieldQuery = prepareQuery(queryfile, equeryfile);
+        // collect tweets for train/test, and compute scaler based on the training data
+        collectTweets(indexdir, qrelf, qidFieldQuery, qrelTweetZipFiles, full_qid_range);
+
+        //construct min-max scaler
+        featureV1V2 = Scaler.computeScalerMultiThread(full_qid_range, searchresults, scaletype, 16);
+        //output scaler
+        Scaler.writeoutScaler(scale_file, featureV1V2);
         logger.info("scaler has been output to " + scale_file);
     }
 
-    public Void printFeatures(String outfile_prefix, String scaletype) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException, Exception {
+    public void printFeatures(String outdir, String scaletype) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException, Exception {
         prepareScaler(scaletype);
         ExecutorService executorservice = Executors.newFixedThreadPool(4);
         TIntObjectMap<int[]> yearQidrange = new TIntObjectHashMap<>();
@@ -158,14 +294,15 @@ public class PrintoutFeatures {
         yearQidrange.put(13, new int[]{111, 170});
         yearQidrange.put(14, new int[]{171, 225});
         for (int year : yearQidrange.keys()) {
-            executorservice.submit(new FeaturePrinter(this.scale_file, yearQidrange.get(year), outfile_prefix + "." + year));
+            logger.info(year + " submitted");
+            //printoutFeatures(yearQidrange.get(year), outdir + "/" + year);
+            executorservice.submit(new FeaturePrinter(this.scale_file, yearQidrange.get(year), outdir + "/" + year));
         }
         executorservice.shutdown();
         while (!executorservice.isTerminated()) {
 
         }
         logger.info("everything is done");
-        return null;
     }
 
     /**
@@ -222,7 +359,7 @@ public class PrintoutFeatures {
      * @throws java.lang.IllegalAccessException
      */
     private void collectTweets(String indexdir, String qrelf, Map<String, Map<String, Query>> queries, String[] zipfiles, int[] qid_range) throws IOException, FileNotFoundException, ClassNotFoundException, InstantiationException, IllegalAccessException, org.apache.lucene.queryparser.classic.ParseException {
-        readInStatus(zipfiles);
+        TLongObjectMap<Status> tweetidStatus = readInStatus(zipfiles);
         int countNoStatus = 0;
         List<LabeledTweet> labeledtweets = readinQueryQrel(qrelf, queries);
         String[] searchModels = Configuration.FEATURES_RETRIVEMODELS;
@@ -269,7 +406,7 @@ public class PrintoutFeatures {
                         logger.error("", ex);
                     }
                     if (topdocs == null) {
-                        logger.error(tweetidStatus.get(ltweet.tweetid) + " not in lucene index for: " + model + " " + querytype);
+                        // logger.error(tweetidStatus.get(ltweet.tweetid) + " not in lucene index for: " + model + " " + querytype);
                         continue;
                     }
                     hits = topdocs.scoreDocs;
@@ -291,10 +428,43 @@ public class PrintoutFeatures {
         logger.info("Successfully load tweets for training in total: " + searchresults.size() + ", judged tweets without status: " + countNoStatus);
     }
 
+    private void printoutFeatures(int[] qid_range, String outfile) throws Exception {
+        Collection<LabeledTweet> datapoints = searchresults.valueCollection();
+        Map<String, double[]> featureMeanStd = null;
+        try {
+            featureMeanStd = Scaler.readinScaler(scale_file);
+        } catch (Exception ex) {
+            logger.error("", ex);
+        }
+        logger.info("read in scaler successfully " + featureMeanStd.size());
+        PrintStream ps = new PrintStream(outfile);
+        StringBuilder sb;
+
+        logger.info("start printing " + outfile + " " + datapoints.size());
+        for (LabeledTweet lt : datapoints) {
+            if (lt.qidint >= qid_range[0] && lt.qidint <= qid_range[1]) {
+                svm_node[] featureV = lt.vectorizeLibsvmMeanStd(featureMeanStd);
+                if (featureV.length > 0) {
+                    int label = lt.binaryjudge;
+                    sb = new StringBuilder();
+                    sb.append(label).append(" ");
+                    for (svm_node feature : featureV) {
+                        sb.append(feature.index).append(":").append(String.format("%.4f", feature.value)).append(" ");
+                    }
+                    ps.println(sb.toString());
+                }
+            }
+        }
+        ps.close();
+        logger.info("Print out finished for: " + qid_range[0] + " to " + qid_range[1]);
+
+    }
+
     /**
      * read in tweetid - status and store in tweetidStatus
      */
-    private void readInStatus(String[] zipfiles) {
+    private TLongObjectMap<Status> readInStatus(String[] zipfiles) {
+        TLongObjectMap<Status> tweetidStatus = new TLongObjectHashMap<>();
         ZipFile zipf;
         String jsonstr;
         BufferedReader br;
@@ -325,6 +495,7 @@ public class PrintoutFeatures {
             }
         }
         logger.info("In total, we read in " + tweetidStatus.size() + " status.");
+        return tweetidStatus;
     }
 
     /**
@@ -363,12 +534,12 @@ public class PrintoutFeatures {
             this.outfile = outfile;
         }
 
-        private void printFeatures(Collection<LabeledTweet> datapoints, int[] qidrange, String outfile) throws FileNotFoundException {
+        private void printScaledFeatures(Collection<LabeledTweet> datapoints, int[] qidrange, String outfile, Map<String, double[]> featureMeanStd) throws FileNotFoundException, Exception {
             PrintStream ps = new PrintStream(outfile);
             StringBuilder sb;
             for (LabeledTweet lt : datapoints) {
                 if (lt.qidint >= qidrange[0] && lt.qidint <= qidrange[1]) {
-                    svm_node[] featureV = lt.vectorizeLibsvm();
+                    svm_node[] featureV = lt.vectorizeLibsvmMeanStd(featureMeanStd);
                     if (featureV.length > 0) {
                         int label = lt.binaryjudge;
                         sb = new StringBuilder();
@@ -384,23 +555,51 @@ public class PrintoutFeatures {
             logger.info("Print out finished for: " + qidrange[0] + " to " + qidrange[1]);
         }
 
-        @Override
-        public Void call() throws IOException {
-            Map<String, double[]> featureMinMax = Scaler.readinScaler(scale_file);
-            // rescale the features
-            for (long tweet : searchresults.keys()) {
-                searchresults.get(tweet).rescaleFeaturesMinMax(featureMinMax);
-            }
-            String[] featureNames = QueryTweetPair.getFeatureNames();
-            StringBuilder sb = new StringBuilder();
-            if (featureNames != null) {
-                for (String feature : featureNames) {
-                    sb.append(feature).append(" ");
+        /**
+         * graded label, qid, features
+         *
+         * @param datapoints
+         * @param qidrange
+         * @param outfile
+         * @throws FileNotFoundException
+         * @throws Exception
+         */
+        private void printRawFeatures(Collection<LabeledTweet> datapoints, int[] qidrange, String outfile) throws FileNotFoundException, Exception {
+            TObjectDoubleMap<String> featureV;
+            StringBuilder sb;
+            String[] featurenames = QueryTweetPair.getFeatureNames();
+            try (PrintStream ps = new PrintStream(outfile)) {
+                for (LabeledTweet lt : datapoints) {
+                    int label = lt.judge;
+                    String qid = lt.queryid;
+                    featureV = lt.getFeatures();
+                    sb = new StringBuilder();
+                    sb.append(label).append(" ");
+                    sb.append(qid).append(" ");
+                    for (int i = 0; i < featurenames.length; i++) {
+                        String featurename = featurenames[i];
+                        if (featureV.containsKey(featurename)) {
+                            if (featureV.get(featurename) != 0) {
+                                sb.append(i + 1).append(":").append(String.format("%.6f", featureV.get(featurename))).append(" ");
+                            }
+                        }
+                    }
+                    ps.println(sb.toString());
                 }
+                ps.close();
             }
-            logger.info("feature names: " + sb.toString());
-            // printout the features 
-            printFeatures(searchresults.valueCollection(), qid_range, outfile);
+            logger.info("Print out finished for: " + qidrange[0] + " to " + qidrange[1]);
+        }
+
+        @Override
+        public Void call() throws Exception {
+            if (scale_file != null) {
+                Map<String, double[]> featureMeanStd = Scaler.readinScaler(scale_file);
+                // printout the features 
+                printScaledFeatures(searchresults.valueCollection(), qid_range, outfile, featureMeanStd);
+            } else {
+                printRawFeatures(searchresults.valueCollection(), qid_range, outfile);
+            }
             return null;
         }
     }
@@ -453,17 +652,17 @@ public class PrintoutFeatures {
 //        indexdir = rootdir + "/index_noRT";
 //        queryfile = rootdir + "/queries/fusion.topic";
 //        expandqueryfile = rootdir + "/queries/queryexpansion.res";
-//        zipfiles = rootdir + "/tweetzip/tweet11-1.zip" + "," + rootdir + "/tweetzip/tweet13-1.zip";
+//        zipfiles = rootdir + "/tweetzip/tweet11-1.zip"; //+ "," + rootdir + "/tweetzip/tweet13-1.zip";
 //        modelfile = rootdir + "/model_file/libsvm_model";
-//        scalefile = rootdir + "/scale_file/scale_minmax";
-//        qrelf = rootdir + "/qrels/fusion";
+//        scalefile = rootdir + "/scale_file/scale_meanstd";
+//        qrelf = rootdir + "/qrels/test2000";     //fusion";
 //        outputdir = rootdir + "/feature_printout";
 //        log4jconf = "src/main/java/log4j.xml";
-        String scaletype = "MeanStd";
+        String scaletype = "meanstd";
         org.apache.log4j.PropertyConfigurator.configure(log4jconf);
         LogManager.getRootLogger().setLevel(Level.INFO);
         logger.info("off-line training: train and test locally:  " + Configuration.RUN_ID);
-        PrintoutFeatures ptrain = new PrintoutFeatures(indexdir, scalefile, qrelf, queryfile, expandqueryfile, zipfiles.split(","));
+        PrepareFeatures ptrain = new PrepareFeatures(indexdir, scalefile, qrelf, queryfile, expandqueryfile, zipfiles.split(","));
         ptrain.printFeatures(outputdir, scaletype);
     }
 

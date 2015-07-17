@@ -1,4 +1,4 @@
-package de.mpii.microblogtrack.task.offline.libsvm;
+package de.mpii.microblogtrack.task.offline.learner;
 
 /**
  *

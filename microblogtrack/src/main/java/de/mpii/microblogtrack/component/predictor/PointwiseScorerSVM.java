@@ -1,11 +1,13 @@
 package de.mpii.microblogtrack.component.predictor;
 
-import de.mpii.microblogtrack.utility.LibsvmWrapper;
+import de.bwaldvogel.liblinear.Feature;
+import de.bwaldvogel.liblinear.Linear;
+import de.bwaldvogel.liblinear.Model;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.Scaler;
+import java.io.File;
 import java.io.IOException;
 import java.util.Map;
-import libsvm.svm_node;
 import org.apache.log4j.Logger;
 
 /**
@@ -18,15 +20,18 @@ public class PointwiseScorerSVM implements PointwiseScorer {
 
     private final Map<String, double[]> featureMeanStd;
 
+    private final Model model;
+
     public PointwiseScorerSVM(String scalefile, String modelfile) throws IOException {
         this.featureMeanStd = Scaler.readinScaler(scalefile);
+        this.model = Model.load(new File(modelfile));
     }
 
     @Override
     public double predictor(QueryTweetPair qtr) {
-        qtr.rescaleFeaturesMinMax(featureMeanStd);
-        svm_node[] vectorLibsvm = qtr.vectorizeLibsvm();
-        return 0;
+        Feature[] instance = qtr.vectorizeLiblinearMeanStd(featureMeanStd);
+        double prediction = Linear.predict(model, instance);
+        return prediction;
     }
 
 }

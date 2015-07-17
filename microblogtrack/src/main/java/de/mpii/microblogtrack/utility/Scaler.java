@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.utility;
 
-import de.mpii.microblogtrack.task.offline.libsvm.PrintoutFeatures.LabeledTweet;
+import de.mpii.microblogtrack.task.offline.learner.PrepareFeatures.LabeledTweet;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.map.TLongObjectMap;
@@ -97,10 +97,10 @@ public class Scaler {
             final double[] featurevalues = featureValues.get(feature).toArray();
             executor.execute(() -> {
                 switch (task) {
-                    case "MinMax":
+                    case "minmax":
                         computeScalerMinMaxUniqFeature(feature, featurevalues, featureV1V2);
                         break;
-                    case "MeanStd":
+                    case "meanstd":
                         computeScalerMeanStdUniqFeature(feature, featurevalues, featureV1V2);
                         break;
                     default:
