@@ -97,10 +97,10 @@ public class Scaler {
             final double[] featurevalues = featureValues.get(feature).toArray();
             executor.execute(() -> {
                 switch (task) {
-                    case "minmax":
+                    case Configuration.SCALER_MINMAX:
                         computeScalerMinMaxUniqFeature(feature, featurevalues, featureV1V2);
                         break;
-                    case "meanstd":
+                    case Configuration.SCALER_MEANSTD:
                         computeScalerMeanStdUniqFeature(feature, featurevalues, featureV1V2);
                         break;
                     default:

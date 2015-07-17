@@ -1,6 +1,6 @@
 package de.mpii.microblogtrack.component;
 
-import de.mpii.microblogtrack.component.core.LuceneScorer;
+import de.mpii.microblogtrack.component.core.lucene.LuceneScorer;
 import java.io.IOException;
 import org.apache.log4j.Logger;
 import twitter4j.StallWarning;

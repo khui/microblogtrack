@@ -95,9 +95,16 @@ public class QueryTweetPair {
         }
         featurenames.addAll(Arrays.asList(Configuration.FEATURES_TWEETQUALITY));
         featurenames.addAll(Arrays.asList(Configuration.FEATURES_USERAUTHORITY));
+        featurenames.add(Configuration.TWEET_URL_TITLE);
         Collections.sort(featurenames);
         featureNames = featurenames.toArray(new String[0]);
-        logger.info("Generated feature name vector, we have " + featureNames.length + " features");
+        logger.info("Generated feature name array for " + featureNames.length + " features:");
+        StringBuilder sb;
+        for (int i = 0; i < featureNames.length; i++) {
+            sb = new StringBuilder();
+            System.out.println(sb.append(i+1).append(":").append(featureNames[i]));
+        }
+
         return featureNames;
     }
 
@@ -157,7 +164,7 @@ public class QueryTweetPair {
         TObjectDoubleMap<String> scaledFeatureValues = rescaleFeaturesMinMax(featureMinMax);
         List<svm_node> nodes = new ArrayList<>();
         for (int i = 1; i <= featureNames.length; i++) {
-            if (featureValues.containsKey(featureNames[i])) {
+            if (featureValues.containsKey(featureNames[i - 1])) {
                 double fvalue = scaledFeatureValues.get(featureNames[i - 1]);
                 if (fvalue != 0) {
                     nodes.add(new svm_node());
@@ -319,13 +326,6 @@ public class QueryTweetPair {
                             break;
                         }
                         featureV = hashtagentity.length;
-                        break;
-                    case Configuration.FEATURE_T_MEDIANUM:
-                        MediaEntity[] mediaentity = status.getMediaEntities();
-                        if (mediaentity == null) {
-                            break;
-                        }
-                        featureV = mediaentity.length;
                         break;
                     case Configuration.FEATURE_T_RETWEETNUM:
                         featureV = status.getRetweetCount();

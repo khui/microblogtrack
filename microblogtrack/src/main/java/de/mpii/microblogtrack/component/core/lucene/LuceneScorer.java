@@ -1,9 +1,8 @@
-package de.mpii.microblogtrack.component.core;
+package de.mpii.microblogtrack.component.core.lucene;
 
 import de.mpii.microblogtrack.component.ExtractTweetText;
-import de.mpii.microblogtrack.component.ExtractTweetText.TweetidUrl;
 import de.mpii.microblogtrack.component.IndexTracker;
-import de.mpii.microblogtrack.component.TweetStringSimilarity;
+import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
@@ -11,17 +10,13 @@ import de.mpii.microblogtrack.component.predictor.PointwiseScorerSumRetrievalSco
 import de.mpii.microblogtrack.task.offline.qe.ExpandQueryWithWiki;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
-import gnu.trove.map.TLongObjectMap;
 import de.mpii.microblogtrack.utility.Configuration;
-import gnu.trove.map.hash.TLongObjectHashMap;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -30,7 +25,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
@@ -40,30 +34,17 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.similarities.AfterEffectB;
-import org.apache.lucene.search.similarities.AfterEffectL;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BasicModelBE;
-import org.apache.lucene.search.similarities.BasicModelIF;
-import org.apache.lucene.search.similarities.DFRSimilarity;
-import org.apache.lucene.search.similarities.LMDirichletSimilarity;
-import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
-import org.apache.lucene.search.similarities.Normalization;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import twitter4j.Status;
-import twitter4j.URLEntity;
 
 /**
  * core class: index the incoming tweet, and periodically retrieve top tweets
@@ -325,7 +306,7 @@ public class LuceneScorer {
 
                     for (String queryid : qidFieldQuery.keySet()) {
                         querytypeQuery = generateQuery(minmax, queryid);
-                        completeservice.submit(new UniqQuerySearcher(querytypeQuery, queryid, directoryReader, downloadURLExcutor));
+                        completeservice.submit(new UniqQuerySearcher(querytypeQuery, queryid, directoryReader, downloadURLExcutor, indexTracker, textextractor, pwScorer));
                         resultnum++;
                     }
                 } catch (Exception ex) {
@@ -341,7 +322,7 @@ public class LuceneScorer {
                         queryranking = futureQtpCollection.get();
                         if (queryranking != null) {
                             // update the result tracker
-                            relativeScoreTracker.get(queryranking.queryid).addTweets(queryranking.results);
+                            relativeScoreTracker.get(queryranking.queryid).addTweets(queryranking.getSearchResults());
                             // after the pointwise decision maker start, we start to send 
                             // tweets to pw decision maker, before that, we only send to
                             // the listwise decision maker
@@ -361,181 +342,6 @@ public class LuceneScorer {
                 }
             } else {
                 logger.warn("Nothing added to the index since last open of reader.");
-            }
-        }
-
-    }
-
-    public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
-
-        private final int topN = Configuration.LUCENE_TOP_N_SEARCH;
-
-        private final String queryid;
-
-        private final Map<String, Query> querytypeQuery;
-
-        private final DirectoryReader reader;
-
-        private final Executor downloadURLExcutor;
-
-        public UniqQuerySearcher(Map<String, Query> querytypeQuery, String queryId, DirectoryReader reader, Executor downloadURLExcutor) {
-            this.querytypeQuery = querytypeQuery;
-            this.queryid = queryId;
-            this.reader = reader;
-            this.downloadURLExcutor = downloadURLExcutor;
-        }
-
-        private UniqQuerySearchResult mutliScorers(IndexReader reader, Map<String, Query> querytypeQuery, String queryId) throws Exception {
-            CompletionService<TweetidUrl> urldownloader = new ExecutorCompletionService<>(downloadURLExcutor);
-            TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
-            IndexSearcher searcherInUse;
-            ScoreDoc[] hits;
-            Document tweet;
-            int urldownloadSubmissionCount = 0;
-            long tweetid;
-            for (String querytype : Configuration.QUERY_TYPES) {
-                for (String model : Configuration.FEATURES_RETRIVEMODELS) {
-                    searcherInUse = new IndexSearcher(reader);
-                    switch (model) {
-                        case Configuration.FEATURE_S_TFIDF:
-                            break;
-                        case Configuration.FEATURE_S_BM25:
-                            searcherInUse.setSimilarity(new BM25Similarity(Configuration.FEATURE_S_BM25_k1, Configuration.FEATURE_S_BM25_b));
-                            break;
-                        case Configuration.FEATURE_S_LMD:
-                            searcherInUse.setSimilarity(new LMDirichletSimilarity(Configuration.FEATURE_S_LMD_mu));
-                            break;
-                        case Configuration.FEATURE_S_LMJM:
-                            searcherInUse.setSimilarity(new LMJelinekMercerSimilarity(Configuration.FEATURE_S_LMJM_Lambda));
-                            break;
-                        case Configuration.FEATURE_S_DFR_BE_B:
-                            searcherInUse.setSimilarity(new DFRSimilarity(new BasicModelBE(), new AfterEffectB(), new Normalization.NoNormalization()));
-                            break;
-                        case Configuration.FEATURE_S_DFR_IF_L:
-                            searcherInUse.setSimilarity(new DFRSimilarity(new BasicModelIF(), new AfterEffectL(), new Normalization.NoNormalization()));
-                            break;
-                    }
-                    hits = searcherInUse.search(querytypeQuery.get(querytype), topN).scoreDocs;
-                    for (ScoreDoc hit : hits) {
-                        tweet = searcherInUse.doc(hit.doc);
-                        tweetid = Long.parseLong(tweet.get(Configuration.TWEET_ID));
-                        if (!searchresults.containsKey(tweetid)) {
-                            searchresults.put(tweetid, new QueryTweetPair(tweetid, queryId, indexTracker.getStatus(tweetid)));
-                            URLEntity[] urlentity = indexTracker.getStatus(tweetid).getURLEntities();
-                            if (urlentity != null) {
-                                if (urlentity.length > 0) {
-                                    String url = urlentity[0].getURL();
-                                    final TweetidUrl turl = textextractor.new TweetidUrl(tweetid, url);
-                                    urldownloader.submit(new Callable() {
-
-                                        @Override
-                                        public TweetidUrl call() throws Exception {
-                                            double similarity = 0;
-                                            textextractor.getUrlTitle(turl);
-                                            if (turl.isAvailable) {
-                                                similarity = TweetStringSimilarity.strJarcard(turl.urltitle,
-                                                        querytypeQuery.get(Configuration.QUERY_TITLE).toString(Configuration.TWEET_CONTENT));
-                                            }
-                                            turl.similarity = similarity;
-                                            return turl;
-                                        }
-                                    });
-                                    urldownloadSubmissionCount++;
-                                }
-                            }
-                            // to make sure all qtp pairs have the same feature number
-                            searchresults.get(tweetid).updateFeatures(Configuration.TWEET_URL_TITLE, 0);
-                        }
-                        if (!Double.isNaN(hit.score)) {
-                            searchresults.get(tweetid).updateFeatures(QueryTweetPair.concatModelQuerytypeFeature(model, querytype), hit.score);
-                        } else {
-                            logger.error("lucene returned score: " + hit.score);
-                        }
-                    }
-                }
-            }
-            /**
-             * pick up the urltitle-query similarity score from completion
-             * service
-             */
-           // long start = System.currentTimeMillis();
-            try {
-                for (int t = 0; t < urldownloadSubmissionCount; t++) {
-                    Future<TweetidUrl> f = urldownloader.take();
-                    TweetidUrl turl = f.get(Configuration.LUCENE_DOWNLOAD_URL_TIMEOUT, TimeUnit.MILLISECONDS);
-                    if (turl != null) {
-                        long tid = turl.tweetid;
-                        double similarity = turl.similarity;
-                        if (Double.isNaN(similarity)) {
-                            logger.error("urltitle similarity score: " + similarity);
-                            continue;
-                        }
-                        if (similarity >= 0) {
-                            searchresults.get(tid).updateFeatures(Configuration.TWEET_URL_TITLE, similarity);
-                            searchresults.get(tid).setURLTitle(turl.urltitle);
-                        } else {
-                            logger.error("similarity is " + similarity);
-                        }
-                    } else {
-                        logger.error("turl is " + turl);
-                    }
-                }
-            } catch (Exception ex) {
-                logger.error("", ex);
-            }
-          //  long end = System.currentTimeMillis();
-         //   logger.info("download url took: " + (end - start) + " for " + urldownloadSubmissionCount);
-
-            /**
-             * conduct pointwise prediction
-             */
-            for (QueryTweetPair qtp : searchresults.valueCollection()) {
-                pwScorer.predictor(qtp);
-            }
-            UniqQuerySearchResult uqsr = new UniqQuerySearchResult(queryid, searchresults.valueCollection());
-            return uqsr;
-        }
-
-        @Override
-        public UniqQuerySearchResult call() throws Exception {
-            UniqQuerySearchResult qtpairs = mutliScorers(this.reader, this.querytypeQuery, this.queryid);
-            return qtpairs;
-        }
-
-    }
-
-    public class UniqQuerySearchResult {
-
-        public final String queryid;
-        public final Collection<QueryTweetPair> results;
-
-        private UniqQuerySearchResult(String queryid, Collection<QueryTweetPair> results) {
-            this.queryid = queryid;
-            this.results = results;
-        }
-
-        private void offer2queue(BlockingQueue<QueryTweetPair> queue2offer4LW) throws InterruptedException {
-            for (QueryTweetPair qtp : results) {
-                // offer to the blocking queue for the decision maker
-                boolean isSucceed = queue2offer4LW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
-                if (!isSucceed) {
-                    logger.error("offer to queue2offer4LW failed: " + queue2offer4LW.size());
-                }
-            }
-        }
-
-        private void offer2queue(BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) throws InterruptedException {
-            for (QueryTweetPair qtp : results) {
-                // offer to the blocking queue for the pointwise decision maker
-                boolean isSucceed = queue2offer4PW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
-                if (!isSucceed) {
-                    logger.error("offer to queue2offer4PW failed: " + queue2offer4PW.size());
-                }
-                // offer to the blocking queue for the decision maker
-                isSucceed = queue2offer4LW.offer(new QueryTweetPair(qtp), 1000, TimeUnit.MILLISECONDS);
-                if (!isSucceed) {
-                    logger.error("offer to queue2offer4LW failed: " + queue2offer4LW.size());
-                }
             }
         }
 

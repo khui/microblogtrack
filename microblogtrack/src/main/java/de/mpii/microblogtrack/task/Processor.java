@@ -3,7 +3,7 @@ package de.mpii.microblogtrack.task;
 import de.mpii.microblogtrack.component.DecisionMakerTimer;
 import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
-import de.mpii.microblogtrack.component.core.LuceneScorer;
+import de.mpii.microblogtrack.component.core.lucene.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorerSumRetrievalScores;
 import de.mpii.microblogtrack.utility.Configuration;

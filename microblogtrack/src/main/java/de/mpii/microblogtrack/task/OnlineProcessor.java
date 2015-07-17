@@ -9,7 +9,7 @@ import com.twitter.hbc.httpclient.BasicClient;
 import com.twitter.hbc.httpclient.auth.Authentication;
 import com.twitter.hbc.httpclient.auth.OAuth1;
 import com.twitter.hbc.twitter4j.Twitter4jStatusClient;
-import de.mpii.microblogtrack.component.core.LuceneScorer;
+import de.mpii.microblogtrack.component.core.lucene.LuceneScorer;
 import gnu.trove.map.hash.TLongObjectHashMap;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import de.mpii.microblogtrack.component.HbcT4jListener;
