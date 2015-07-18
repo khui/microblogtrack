@@ -89,6 +89,19 @@ public class Configuration {
     public static int LUCENE_DOWNLOAD_URL_TIMEOUT = 5000;
 
     public static int LUCENE_DOWNLOAD_URL_THREADNUM = 10;
+    /**
+     * pointwise predictor de.mpii.microblogtrack.component.predictor.
+     * PointwiseScorerCombine, PointwiseScorerSumRetrievalScores,
+     * PointwiseScorerSVM
+     */
+    public static String POINTWISE_PREDICTOR = "de.mpii.microblogtrack.component.predictor.PointwiseScorerCombine";
+    // for PointwiseScorerCombine, since the svm make so many FP, we tend to not trust its positive prediction
+    // and smooth its prediction over 0.5 with lucene output, this is the weight for svmscore that over 0.5
+    public static double POINTWISE_PREDICTOR_COMBINE_ALPHA = 0.3;
+
+    public static String POINTWISE_SVM_MODEL = "/home/khui/workspace/javaworkspace/twitter-localdebug/model_file/all.balance";
+
+    public static String POINTWISE_SVM_SCALE = "/home/khui/workspace/javaworkspace/twitter-localdebug/scale_file/scale.minmax";
 
     /**
      * pointwise decision maker parameters for mobile notification task
@@ -219,7 +232,7 @@ public class Configuration {
      * print features: different scaler name
      */
     public final static String SCALER_MINMAX = "minmax";
-    
+
     public final static String SCALER_MEANSTD = "meanstd";
 
     /**

@@ -13,7 +13,6 @@ import java.util.Map;
 import libsvm.svm_node;
 import org.apache.log4j.Logger;
 import twitter4j.HashtagEntity;
-import twitter4j.MediaEntity;
 import twitter4j.Status;
 import twitter4j.URLEntity;
 import twitter4j.User;
@@ -102,7 +101,7 @@ public class QueryTweetPair {
         StringBuilder sb;
         for (int i = 0; i < featureNames.length; i++) {
             sb = new StringBuilder();
-            System.out.println(sb.append(i+1).append(":").append(featureNames[i]));
+            System.out.println(sb.append(i + 1).append(":").append(featureNames[i]));
         }
 
         return featureNames;
@@ -175,6 +174,21 @@ public class QueryTweetPair {
         }
         vectorLibsvm = nodes.toArray(new svm_node[0]);
         return vectorLibsvm;
+    }
+
+    public Feature[] vectorizeLiblinearMinMax(Map<String, double[]> featureMinMax) {
+        TObjectDoubleMap<String> scaledFeatureValues = rescaleFeaturesMinMax(featureMinMax);
+        List<Feature> nodes = new ArrayList<>();
+        for (int i = 1; i <= featureNames.length; i++) {
+            if (featureValues.containsKey(featureNames[i - 1])) {
+                double fvalue = scaledFeatureValues.get(featureNames[i - 1]);
+                if (fvalue != 0) {
+                    nodes.add(new FeatureNode(i, fvalue));
+                }
+            }
+        }
+        vectorLiblinear = nodes.toArray(new Feature[0]);
+        return vectorLiblinear;
     }
 
     /**

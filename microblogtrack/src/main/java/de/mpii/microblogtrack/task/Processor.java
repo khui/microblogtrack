@@ -5,6 +5,7 @@ import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
 import de.mpii.microblogtrack.component.core.lucene.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
+import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorerSumRetrievalScores;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.LoadProperties;
@@ -77,7 +78,8 @@ public abstract class Processor {
         BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>(2000);
         BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>(2000);
         Map<String, LuceneDMConnector> queryTrackers = new HashMap<>(250);
-        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, new PointwiseScorerSumRetrievalScores());
+        PointwiseScorer pwpredictor = (PointwiseScorer) Class.forName(Configuration.POINTWISE_PREDICTOR).newInstance();
+        LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, pwpredictor);
         receiveStatus(lscorer, datadir, 1);
         lscorer.multiQuerySearch(queryfile, expandqueryfile, queueLucene2PointwiseDM, queueLucene2ListwiseDM);
         // set up output writer to print out the notification task results

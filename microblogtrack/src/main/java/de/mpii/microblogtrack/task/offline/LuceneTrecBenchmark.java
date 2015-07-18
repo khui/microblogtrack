@@ -96,12 +96,12 @@ public class LuceneTrecBenchmark {
             Query tweetcontent = qb.createBooleanQuery(Configuration.TWEET_CONTENT, qq.getValue(Configuration.QUERY_STR));
             tweetcontent.setBoost(1);
             Query querytweettime = NumericRangeQuery.newLongRange(Configuration.TWEET_ID, 0l, Long.valueOf(qq.getValue(Configuration.QUERY_QUERYTWEETTIME)), true, true);
-            Query urltitle = qb.createBooleanQuery(Configuration.TWEET_URL_TITLE, qq.getValue(Configuration.QUERY_STR));
-            tweetcontent.setBoost(0.8f);
-            Query urlcontent = qb.createBooleanQuery(Configuration.TWEET_URL_CONTENT, qq.getValue(Configuration.QUERY_STR));
-            urlcontent.setBoost(0.6f);
+           // Query urltitle = qb.createBooleanQuery(Configuration.TWEET_URL_TITLE, qq.getValue(Configuration.QUERY_STR));
+            //tweetcontent.setBoost(0.8f);
+            // Query urlcontent = qb.createBooleanQuery(Configuration.TWEET_URL_CONTENT, qq.getValue(Configuration.QUERY_STR));
+            // urlcontent.setBoost(0.6f);
             combine.add(tweetcontent, Occur.SHOULD);
-            //combine.add(querytweettime, Occur.MUST);
+            combine.add(querytweettime, Occur.MUST);
             //combine.add(urltitle, Occur.SHOULD);
             //combine.add(urlcontent, Occur.SHOULD);
             return combine;
@@ -167,25 +167,28 @@ public class LuceneTrecBenchmark {
         QualityStats[] stats = qrun.execute(judge, submitLog, null);
         // print an average sum of the results
         QualityStats avg = QualityStats.average(stats);
-        logger.info(searchername + "\tMAP: " + avg.getAvp() + "\t" + "P@30: " + avg.getPrecisionAt(30));
+
+        logger.info(searchername + "\tF1@30: " + avg.getF1(30) + "\t" + "P@30: " + avg.getPrecisionAt(30) + "\t" + "R@30: " + avg.getRecallAt(30));
+        logger.info(searchername + "\tF1@100: " + avg.getF1(100) + "\t" + "P@100: " + avg.getPrecisionAt(100) + "\t" + "R@100: " + avg.getRecallAt(100));
+
     }
 
     public static void main(String[] args) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, ParseException, Exception {
         String rootdir = "/home/khui/workspace/javaworkspace/twitter-localdebug";
-        String indexdir = rootdir + "/index_url";
+        String indexdir = rootdir + "/tweet2011-nourl-noRT";
         //"/tweet2011-index";
         String queryfile = rootdir + "/queries/";
         String qrelfile = rootdir + "/qrels/";
         String expandedquery = rootdir + "/queries/queryexpansion.res";
 
-        indexdir = "/GW/D5data-2/khui/microblogtrack/index/tweet2011-nort-url";
-        queryfile = "/GW/D5data-2/khui/microblogtrack/queries/";
-        qrelfile = "/GW/D5data-2/khui/microblogtrack/qrels/";
-        expandedquery = "/scratch/GW/pool0/khui/result/microblogtrack/queryexpansion.res";
+//        indexdir = "/GW/D5data-2/khui/microblogtrack/index/tweet2011-nort-url";
+//        queryfile = "/GW/D5data-2/khui/microblogtrack/queries/";
+//        qrelfile = "/GW/D5data-2/khui/microblogtrack/qrels/";
+//        expandedquery = "/scratch/GW/pool0/khui/result/microblogtrack/queryexpansion.res";
         Analyzer analyzer = (Analyzer) Class.forName(Configuration.LUCENE_ANALYZER).newInstance();
         for (String year : new String[]{"11", "12"}) {
             //LuceneTrecBenchmark ltb = new LuceneTrecBenchmark(analyzer, Configuration.TWEET_CONTENT, queryfile + year, expandedquery, qrelfile + year, 8);
-            LuceneTrecBenchmark ltb = new LuceneTrecBenchmark(analyzer, Configuration.TWEET_CONTENT, queryfile + year, qrelfile + year);
+            LuceneTrecBenchmark ltb = new LuceneTrecBenchmark(analyzer, Configuration.TWEET_CONTENT, queryfile + year + ".title", qrelfile + year);
 
             ltb.search(indexdir);
         }

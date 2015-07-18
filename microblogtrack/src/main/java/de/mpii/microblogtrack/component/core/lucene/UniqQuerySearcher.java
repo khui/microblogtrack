@@ -126,9 +126,8 @@ public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
                                             if (turl.isAvailable) {
                                                 similarity = TweetStringSimilarity.strJarcard(turl.urltitle,
                                                         querytypeQuery.get(Configuration.QUERY_TITLE).toString(Configuration.TWEET_CONTENT));
-                                                
+
                                                 //logger.info(similarity + "\t" + querytypeQuery.get(Configuration.QUERY_TITLE).toString(Configuration.TWEET_CONTENT) + "\t" + turl.urltitle);
-                                                
                                             }
                                             turl.similarity = similarity;
                                             return turl;
@@ -188,6 +187,7 @@ public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
         if (pwScorer != null) {
             for (QueryTweetPair qtp : searchresults.valueCollection()) {
                 pwScorer.predictor(qtp);
+                //logger.info(qtp.getAbsScore() + "\t" + qtp.queryid + "\t" + qtp.getTweetText());
             }
         }
         UniqQuerySearchResult uqsr = new UniqQuerySearchResult(queryid, searchresults.valueCollection());

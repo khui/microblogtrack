@@ -6,7 +6,6 @@ import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.component.filter.Filter;
 import de.mpii.microblogtrack.component.filter.LangFilterTW;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
-import de.mpii.microblogtrack.component.predictor.PointwiseScorerSumRetrievalScores;
 import de.mpii.microblogtrack.task.offline.qe.ExpandQueryWithWiki;
 import de.mpii.microblogtrack.userprofiles.TrecQuery;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
@@ -27,7 +26,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -86,9 +84,9 @@ public class LuceneScorer {
 
     private final PointwiseScorer pwScorer;
 
-    public LuceneScorer(String indexdir, Map<String, LuceneDMConnector> queryTweetList, PointwiseScorerSumRetrievalScores pwScorer) throws IOException {
+    public LuceneScorer(String indexdir, Map<String, LuceneDMConnector> queryTweetList, PointwiseScorer pwScorer) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
-        this.analyzer = new EnglishAnalyzer();
+        this.analyzer = (Analyzer) Class.forName(Configuration.LUCENE_ANALYZER).newInstance();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
         iwc.setOpenMode(OpenMode.CREATE);
         iwc.setRAMBufferSizeMB(Configuration.LUCENE_MEM_SIZE);
@@ -129,7 +127,7 @@ public class LuceneScorer {
     private Map<String, Map<String, Query>> prepareQuery(String queryfile) throws IOException, ParseException {
         TrecQuery tq = new TrecQuery();
 //        Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries(queryfile, analyzer);
-        Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries15(queryfile, analyzer);
+        Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries15(queryfile);
         return qidFieldQuery;
     }
 
