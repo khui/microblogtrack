@@ -142,7 +142,7 @@ public class TrecQuery {
             if (ratio > 0.25) {
                 if (!stopterms.contains(term)) {
                     stopterms.add(term);
-                    logger.info(term + "\t" + ratio);
+                    //logger.info(term + "\t" + ratio);
                 }
                 
             }

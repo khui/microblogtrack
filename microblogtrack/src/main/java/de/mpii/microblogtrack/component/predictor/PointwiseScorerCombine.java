@@ -29,7 +29,7 @@ public class PointwiseScorerCombine extends PointwiseScorerSVM {
         } else {
             result = alpha4svmPositive * svmscore + (1 - alpha4svmPositive) * lucenescore;
         }
-        logger.info(svmscore + "\t" + lucenescore + "\t" + result);
+        //logger.info(svmscore + "\t" + lucenescore + "\t" + result);
         qtr.setPredictScore(Configuration.PRED_ABSOLUTESCORE, result);
         return result;
     }

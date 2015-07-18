@@ -1,17 +1,18 @@
 package de.mpii.microblogtrack.task;
 
 import de.mpii.microblogtrack.component.DecisionMakerTimer;
-import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.component.core.ListwiseDecisionMaker;
+import de.mpii.microblogtrack.component.core.LuceneDMConnector;
 import de.mpii.microblogtrack.component.core.lucene.LuceneScorer;
 import de.mpii.microblogtrack.component.core.PointwiseDecisionMaker;
 import de.mpii.microblogtrack.component.predictor.PointwiseScorer;
-import de.mpii.microblogtrack.component.predictor.PointwiseScorerSumRetrievalScores;
 import de.mpii.microblogtrack.utility.Configuration;
 import de.mpii.microblogtrack.utility.LoadProperties;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -72,21 +73,23 @@ public abstract class Processor {
      * @throws java.lang.InstantiationException
      * @throws java.lang.IllegalAccessException
      * @throws twitter4j.TwitterException
+     * @throws java.lang.NoSuchMethodException
      */
-    public void start(String datadir, String indexdir, String queryfile, String expandqueryfile, String outdir, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException {
+    public void start(String datadir, String indexdir, String queryfile, String expandqueryfile, String outdir, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException {
         // communication between lucene search results and pointwise decision maker
         BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>(2000);
         BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>(2000);
         Map<String, LuceneDMConnector> queryTrackers = new HashMap<>(250);
         PointwiseScorer pwpredictor = (PointwiseScorer) Class.forName(Configuration.POINTWISE_PREDICTOR).newInstance();
         LuceneScorer lscorer = new LuceneScorer(indexdir, queryTrackers, pwpredictor);
-        receiveStatus(lscorer, datadir, 1);
+        receiveStatus(lscorer, datadir, Configuration.LISTENER_THREADNUM);
         lscorer.multiQuerySearch(queryfile, expandqueryfile, queueLucene2PointwiseDM, queueLucene2ListwiseDM);
         // set up output writer to print out the notification task results
         ResultPrinter resultprinterpw = new ResultPrinter(outdir + "/pointwise");
         ResultPrinter resultprinterlw = new ResultPrinter(outdir + "/listwise");
+        Constructor<?> decisionmaker = Class.forName(Configuration.LW_DM_METHOD).getConstructor(Map.class, BlockingQueue.class, ResultPrinter.class);
         DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW-DM", 2);
-        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer(new ListwiseDecisionMaker(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 2);
+        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer((ListwiseDecisionMaker) decisionmaker.newInstance(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 2);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
         scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, Configuration.TIMEUNIT);
@@ -107,7 +110,7 @@ public abstract class Processor {
 
     protected abstract void receiveStatus(LuceneScorer lscorer, String dataORkeydir, int numProcessingThreads);
 
-    public static void main(String[] args) throws InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, TwitterException, org.apache.commons.cli.ParseException {
+    public static void main(String[] args) throws InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, IOException, TwitterException, org.apache.commons.cli.ParseException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException {
 
         Options options = new Options();
         options.addOption("o", "outfile", true, "output file");

@@ -141,6 +141,9 @@ public class Configuration {
     public static int LW_DM_SELECTNUM = 100;
     // start delay for listwise decision maker
     public static int LW_DM_START_DELAY = 60;
+    //de.mpii.microblogtrack.component.core.ListwiseDecisionMakerNaiveSort
+    //de.mpii.microblogtrack.component.core.ListwiseDecisionMakerMapRep
+    public static String LW_DM_METHOD = "de.mpii.microblogtrack.component.core.ListwiseDecisionMakerNaiveSort";
 
     /**
      * parameter for maxrep
