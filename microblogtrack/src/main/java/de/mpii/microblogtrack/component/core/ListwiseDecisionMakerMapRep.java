@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import org.apache.log4j.Logger;
 
 /**
  * collect tweets from lucene, thereafter return top-100 list at the end of day.
@@ -20,11 +21,14 @@ import java.util.concurrent.PriorityBlockingQueue;
  * @author khui
  */
 public class ListwiseDecisionMakerMapRep extends ListwiseDecisionMaker {
-
+    
+    static Logger logger = Logger.getLogger(ListwiseDecisionMakerMapRep.class.getName());
+    
     public ListwiseDecisionMakerMapRep(Map<String, LuceneDMConnector> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         super(tracker, tweetqueue, resultprinter);
+        logger.info(ListwiseDecisionMakerMapRep.class.getName() + " is being used.");
     }
-
+    
     @Override
     protected List<CandidateTweet> decisionMake(PriorityBlockingQueue<QueryTweetPair> queue, String qid) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         List<QueryTweetPair> candidateTweets = new ArrayList<>();
@@ -62,5 +66,5 @@ public class ListwiseDecisionMakerMapRep extends ListwiseDecisionMaker {
         }
         return selectedQTPs;
     }
-
+    
 }

@@ -56,39 +56,39 @@ import twitter4j.Status;
  * @author khui
  */
 public class LuceneScorer {
-
+    
     static Logger logger = Logger.getLogger(LuceneScorer.class.getName());
-
+    
     static final FieldType TEXT_OPTIONS = new FieldType();
-
+    
     static {
         TEXT_OPTIONS.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         TEXT_OPTIONS.setStored(true);
         TEXT_OPTIONS.setTokenized(true);
     }
-
+    
     private final IndexWriter writer;
-
+    
     private DirectoryReader directoryReader;
-
+    
     private final Analyzer analyzer;
 
     // track duplicate tweet and allocate unique tweetCountId to each received tweet
     private final IndexTracker indexTracker;
-
+    
     private final ExtractTweetText textextractor;
     // language filter, retaining english tweets
     private final Filter langfilter;
-
+    
     private final Map<String, LuceneDMConnector> relativeScoreTracker;
-
+    
     private final PointwiseScorer pwScorer;
-
+    
     public LuceneScorer(String indexdir, Map<String, LuceneDMConnector> queryTweetList, PointwiseScorer pwScorer) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         Directory dir = FSDirectory.open(Paths.get(indexdir));
         this.analyzer = (Analyzer) Class.forName(Configuration.LUCENE_ANALYZER).newInstance();
         IndexWriterConfig iwc = new IndexWriterConfig(analyzer);
-        iwc.setOpenMode(OpenMode.CREATE);
+        iwc.setOpenMode(OpenMode.CREATE_OR_APPEND);
         iwc.setRAMBufferSizeMB(Configuration.LUCENE_MEM_SIZE);
         this.writer = new IndexWriter(dir, iwc);
         this.directoryReader = DirectoryReader.open(writer, false);
@@ -98,7 +98,7 @@ public class LuceneScorer {
         this.relativeScoreTracker = queryTweetList;
         this.pwScorer = pwScorer;
     }
-
+    
     public void multiQuerySearch(String queryfile, String expandqueryfile, BlockingQueue<QueryTweetPair> queue2offer4PW, BlockingQueue<QueryTweetPair> queue2offer4LW) throws IOException, InterruptedException, ExecutionException, ParseException {
         Map<String, Map<String, Query>> qidFieldQuery = prepareQuery(queryfile);
         Map<String, Map<String, Query>> eqidFieldQuery = prepareExpandedQuery(expandqueryfile);
@@ -111,7 +111,7 @@ public class LuceneScorer {
         }
         Executor downloadURLExcutor = Executors.newFixedThreadPool(Configuration.LUCENE_DOWNLOAD_URL_THREADNUM);
         Executor uniqquerysearchExecutor = Executors.newFixedThreadPool(Configuration.LUCENE_SEARCH_THREADNUM);
-
+        
         ScheduledExecutorService multiqueryScheduler = Executors.newScheduledThreadPool(1);
         MultiQuerySearcher mqs = new MultiQuerySearcher(qidFieldQuery, eqidFieldQuery, queue2offer4PW, queue2offer4LW, downloadURLExcutor, uniqquerysearchExecutor);
         final ScheduledFuture<?> sercherHandler = multiqueryScheduler.scheduleAtFixedRate(mqs, Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.LUCENE_SEARCH_FREQUENCY, Configuration.TIMEUNIT);
@@ -123,14 +123,14 @@ public class LuceneScorer {
 //                }, 12, TimeUnit.DAYS
 //        );
     }
-
+    
     private Map<String, Map<String, Query>> prepareQuery(String queryfile) throws IOException, ParseException {
         TrecQuery tq = new TrecQuery();
 //        Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries(queryfile, analyzer);
         Map<String, Map<String, Query>> qidFieldQuery = tq.readFieldQueries15(queryfile);
         return qidFieldQuery;
     }
-
+    
     private Map<String, Map<String, Query>> prepareExpandedQuery(String expandfile) throws IOException {
         Map<String, Map<String, Query>> qidFieldQuery = ExpandQueryWithWiki.readExpandedFieldQueries(expandfile, analyzer, Configuration.QUERY_EXPANSION_TERMNUM);
         return qidFieldQuery;
@@ -154,11 +154,11 @@ public class LuceneScorer {
         sb.append(" ").append(qtp.getTweetText());
         return sb.toString();
     }
-
+    
     public void closeWriter() throws IOException {
         writer.close();
     }
-
+    
     public long write2Index(Status tweet) throws IOException {
         boolean isEng = langfilter.isRetain(null, null, tweet);
         if (isEng) {
@@ -177,7 +177,7 @@ public class LuceneScorer {
         }
         return -1;
     }
-
+    
     private HashMap<String, String> status2Fields(Status status) throws IOException {
         HashMap<String, String> fieldnameStr = new HashMap<>();
         String tweetcontent = textextractor.getTweet(status);
@@ -185,7 +185,7 @@ public class LuceneScorer {
         fieldnameStr.put(Configuration.TWEET_CONTENT, tweetcontent);
         //fieldnameStr.put(Configuration.TWEET_URL_TITLE, tweeturltitle);
         return fieldnameStr;
-
+        
     }
 
     /**
@@ -195,24 +195,24 @@ public class LuceneScorer {
      *
      */
     private class MultiQuerySearcher implements Runnable {
-
+        
         private final Map<String, Map<String, Query>> qidFieldQuery;
-
+        
         private final Map<String, Map<String, Query>> eqidFieldQuery;
-
+        
         private final BlockingQueue<QueryTweetPair> queue2offer4PW;
-
+        
         private final BlockingQueue<QueryTweetPair> queue2offer4LW;
-
+        
         private final Executor downloadURLExcutor;
-
+        
         private final Executor uniqquerysearchExecutor;
         /**
          * to report how many tweets we received in last period
          */
         private int count_runningtime = 0;
         private int count_tweets = 0;
-
+        
         public MultiQuerySearcher(final Map<String, Map<String, Query>> qidFieldQuery,
                 final Map<String, Map<String, Query>> expandQueries,
                 BlockingQueue<QueryTweetPair> queue2offer4PW,
@@ -225,7 +225,7 @@ public class LuceneScorer {
             this.downloadURLExcutor = downloadURLExcutor;
             this.uniqquerysearchExecutor = uniqquerysearchExecutor;
         }
-
+        
         private Map<String, Query> generateQuery(long[] minmax, String queryId) {
             Map<String, Query> querytypeQuery = new HashMap<>();
             NumericRangeQuery rangeQuery = NumericRangeQuery.newLongRange(Configuration.TWEET_COUNT, minmax[0], minmax[1], true, false);
@@ -255,9 +255,10 @@ public class LuceneScorer {
             }
             return querytypeQuery;
         }
-
+        
         @Override
         public void run() {
+            logger.info("lucene search started");
             if (Thread.interrupted()) {
                 logger.info("lucene scorer get interrupted and will stop");
                 try {
@@ -267,7 +268,7 @@ public class LuceneScorer {
                 }
                 System.exit(0);
             }
-
+            
             Map<String, Query> querytypeQuery;
             CompletionService<UniqQuerySearchResult> completeservice = new ExecutorCompletionService<>(uniqquerysearchExecutor);
             long[] minmax = indexTracker.minMaxTweetCountInTimeInterval();
@@ -301,7 +302,7 @@ public class LuceneScorer {
                  */
                 int resultnum = 0;
                 try {
-
+                    
                     for (String queryid : qidFieldQuery.keySet()) {
                         querytypeQuery = generateQuery(minmax, queryid);
                         completeservice.submit(new UniqQuerySearcher(querytypeQuery, queryid, directoryReader, downloadURLExcutor, indexTracker, textextractor, pwScorer));
@@ -333,7 +334,7 @@ public class LuceneScorer {
                         } else {
                             logger.error("queryranking is null.");
                         }
-
+                        
                     } catch (ExecutionException | InterruptedException ex) {
                         logger.error("Write into the queue for DM", ex);
                     }
@@ -342,7 +343,7 @@ public class LuceneScorer {
                 logger.warn("Nothing added to the index since last open of reader.");
             }
         }
-
+        
     }
-
+    
 }

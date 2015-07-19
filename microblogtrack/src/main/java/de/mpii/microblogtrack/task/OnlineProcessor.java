@@ -30,9 +30,9 @@ import twitter4j.StatusListener;
  * @author khui
  */
 public class OnlineProcessor extends Processor {
-
+    
     static Logger logger = Logger.getLogger(OnlineProcessor.class.getName());
-
+    
     private BasicClient client;
 
     /**
@@ -95,7 +95,7 @@ public class OnlineProcessor extends Processor {
         logger.info("Readin key: " + keyfile);
         return new String[]{consumerKey, consumerSecret, accessToken, accessTokenSecret};
     }
-
+    
     @Override
     protected void receiveStatus(LuceneScorer lscorer, String keydir, int numProcessingThreads) {
         StatusListener listener = new HbcT4jListener(lscorer);
@@ -137,7 +137,7 @@ public class OnlineProcessor extends Processor {
         }
         logger.info("Connected to the API.");
     }
-
+    
     public void close() {
         client.stop();
     }

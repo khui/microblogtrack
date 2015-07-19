@@ -130,11 +130,16 @@ public class LoadProperties {
                         logger.info("LW_DM_METHOD: " + value);
                         break;
                     //21
+                    case "LW_DW_MART_MODEL":
+                        Configuration.LW_DW_MART_MODEL = value;
+                        logger.info("LW_DW_MART_MODEL: " + value);
+                        break;
+                    //22
                     case "MAXREP_SIMI_THRESHOLD":
                         Configuration.MAXREP_SIMI_THRESHOLD = Double.parseDouble(value);
                         logger.info("MAXREP_SIMI_THRESHOLD: " + value);
                         break;
-                    //22
+                    //23
                     case "TRACKER_CUMULATIVE_GRANULARITY":
                         Configuration.TRACKER_CUMULATIVE_GRANULARITY = Integer.parseInt(value);
                         logger.info("TRACKER_CUMULATIVE_GRANULARITY: " + value);

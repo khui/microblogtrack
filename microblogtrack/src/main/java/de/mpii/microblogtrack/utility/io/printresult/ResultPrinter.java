@@ -9,6 +9,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 import org.apache.log4j.Logger;
 
 /**
@@ -36,8 +37,8 @@ public class ResultPrinter {
     }
 
     public String getTimeStamp() throws ParseException {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss");
-        //dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyMMdd HH:mm:ss");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
         String timestamp = dateFormat.parse(dateFormat.format(new Date())).toString();
         return timestamp;
     }
@@ -53,7 +54,7 @@ public class ResultPrinter {
         if (!qidlogPs.containsKey(qid)) {
             qidlogPs.put(qid, new PrintStream(new File(directory, qid + ".log")));
         }
-        qidlogPs.get(qid).println(tweet + "\t" + urlString + "\t" + df.format(absscore) + "\t" + df.format(relscore));
+        qidlogPs.get(qid).println(tweet + "\t" + urlString + "\t" + df.format(absscore) + "\t" + df.format(relscore) + "\t" + getTimeStamp());
         qidlogPs.get(qid).println();
     }
 

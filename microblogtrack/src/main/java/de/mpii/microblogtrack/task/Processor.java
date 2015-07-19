@@ -64,7 +64,6 @@ public abstract class Processor {
      * @param queryfile
      * @param expandqueryfile
      * @param outdir
-     * @param scalefile
      * @throws java.io.IOException
      * @throws java.lang.InterruptedException
      * @throws java.util.concurrent.ExecutionException
@@ -75,7 +74,7 @@ public abstract class Processor {
      * @throws twitter4j.TwitterException
      * @throws java.lang.NoSuchMethodException
      */
-    public void start(String datadir, String indexdir, String queryfile, String expandqueryfile, String outdir, String scalefile) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException {
+    public void start(String datadir, String indexdir, String queryfile, String expandqueryfile, String outdir) throws IOException, InterruptedException, ExecutionException, ParseException, ClassNotFoundException, InstantiationException, IllegalAccessException, TwitterException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException {
         // communication between lucene search results and pointwise decision maker
         BlockingQueue<QueryTweetPair> queueLucene2PointwiseDM = new LinkedBlockingQueue<>(2000);
         BlockingQueue<QueryTweetPair> queueLucene2ListwiseDM = new LinkedBlockingQueue<>(2000);
@@ -88,8 +87,8 @@ public abstract class Processor {
         ResultPrinter resultprinterpw = new ResultPrinter(outdir + "/pointwise");
         ResultPrinter resultprinterlw = new ResultPrinter(outdir + "/listwise");
         Constructor<?> decisionmaker = Class.forName(Configuration.LW_DM_METHOD).getConstructor(Map.class, BlockingQueue.class, ResultPrinter.class);
-        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW-DM", 2);
-        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer((ListwiseDecisionMaker) decisionmaker.newInstance(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 2);
+        DecisionMakerTimer periodicalStartPointwiseDM = new DecisionMakerTimer(new PointwiseDecisionMaker(queryTrackers, queueLucene2PointwiseDM, resultprinterpw), "PW-DM", 5);
+        DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer((ListwiseDecisionMaker) decisionmaker.newInstance(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 5);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
         scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.DM_START_DELAY, Configuration.PW_DM_PERIOD, Configuration.TIMEUNIT);
@@ -101,7 +100,7 @@ public abstract class Processor {
             if (api2indexqueue.size() >= 2000) {
                 logger.error("api2indexqueue is full: " + api2indexqueue.size());
                 try {
-                    Thread.sleep(1000 * 60 * 60);
+                    Thread.sleep(1000 * 60 * 10);
                 } catch (InterruptedException ex) {
                 }
             }
@@ -172,7 +171,7 @@ public abstract class Processor {
         logger.info("online proecss start.");
         //Processor op = new OnlineProcessor();
         Processor op = new OfflineProcessor();
-        op.start(data_key_dir, indexdir, queryfile, expandqueryfile, outputdir, scalefile);
+        op.start(data_key_dir, indexdir, queryfile, expandqueryfile, outputdir);
 
     }
 }

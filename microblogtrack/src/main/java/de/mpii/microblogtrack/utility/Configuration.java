@@ -22,7 +22,7 @@ public class Configuration {
 
     public static String RUN_ID = "MPII";
     // for debug, default is miniute
-    public final static TimeUnit TIMEUNIT = TimeUnit.MINUTES;
+    public final static TimeUnit TIMEUNIT = TimeUnit.SECONDS;//TimeUnit.MINUTES;
 
     /**
      * fields name used for retrieval of tweets
@@ -141,7 +141,10 @@ public class Configuration {
     public final static int LW_DM_SELECTNUM = 100;
     //de.mpii.microblogtrack.component.core.ListwiseDecisionMakerNaiveSort
     //de.mpii.microblogtrack.component.core.ListwiseDecisionMakerMapRep
-    public static String LW_DM_METHOD = "de.mpii.microblogtrack.component.core.ListwiseDecisionMakerNaiveSort";
+    //de.mpii.microblogtrack.component.core.ListwiseDecisionMakerMART
+    public static String LW_DM_METHOD = "de.mpii.microblogtrack.component.core.ListwiseDecisionMakerMART";
+
+    public static String LW_DW_MART_MODEL = "/home/khui/workspace/javaworkspace/twitter-localdebug/model_file/MART_NDCG_on_121314";
 
     /**
      * parameter for maxrep
@@ -153,7 +156,6 @@ public class Configuration {
      * tweet tracker parameters: track both relative score and tweet clustering
      * centroids
      */
-
     // when we convert the absolute pointwise predict score to relative score,
     // we only convert the top-p% for effiency reason
     public final static double TRACKER_CUMULATIVE_TOPPERC = 0.5;

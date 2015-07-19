@@ -1,7 +1,10 @@
 package de.mpii.microblogtrack.component.core;
 
+import ciir.umass.edu.learning.Ranker;
+import ciir.umass.edu.learning.RankerFactory;
 import de.mpii.microblogtrack.utility.CandidateTweet;
 import de.mpii.microblogtrack.utility.Configuration;
+import de.mpii.microblogtrack.utility.QTPDataPoint;
 import de.mpii.microblogtrack.utility.QueryTweetPair;
 import de.mpii.microblogtrack.utility.io.printresult.ResultPrinter;
 import java.util.ArrayList;
@@ -19,13 +22,20 @@ import org.apache.log4j.Logger;
  *
  * @author khui
  */
-public class ListwiseDecisionMakerNaiveSort extends ListwiseDecisionMaker {
+public class ListwiseDecisionMakerMART extends ListwiseDecisionMaker {
 
-    static Logger logger = Logger.getLogger(ListwiseDecisionMakerNaiveSort.class.getName());
+    static Logger logger = Logger.getLogger(ListwiseDecisionMakerMART.class.getName());
 
-    public ListwiseDecisionMakerNaiveSort(Map<String, LuceneDMConnector> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+    private final String modelfile = Configuration.LW_DW_MART_MODEL;
+    
+    private final Ranker ranker;
+
+    public ListwiseDecisionMakerMART(Map<String, LuceneDMConnector> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
         super(tracker, tweetqueue, resultprinter);
-        logger.info(ListwiseDecisionMakerNaiveSort.class.getName() + " is being used.");
+        logger.info(ListwiseDecisionMakerMART.class.getName() + " is being used.");
+        RankerFactory rFact = new RankerFactory();
+        ranker = rFact.loadRankerFromFile(modelfile);
+        Ranker.verbose = false;
     }
 
     /**
@@ -48,6 +58,14 @@ public class ListwiseDecisionMakerNaiveSort extends ListwiseDecisionMaker {
             logger.error("The candidate tweet list is empty");
             return null;
         }
+
+        
+        for (QueryTweetPair candidatetweet : candidateTweets) {
+            double score = ranker.eval(new QTPDataPoint(candidatetweet));
+            // replace the pointwise score with this l2r score
+            candidatetweet.setPredictScore(Configuration.PRED_ABSOLUTESCORE, score);
+        }
+
         // decreasing order
         candidateTweets.sort((QueryTweetPair o1, QueryTweetPair o2) -> {
             if (o1.getAbsScore() > o2.getAbsScore()) {

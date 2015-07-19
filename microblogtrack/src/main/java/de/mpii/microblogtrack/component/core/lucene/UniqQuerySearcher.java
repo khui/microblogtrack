@@ -38,26 +38,26 @@ import twitter4j.URLEntity;
  * @author khui
  */
 public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
-    
+
     static Logger logger = Logger.getLogger(UniqQuerySearcher.class.getName());
-    
+
     private final int topN = Configuration.LUCENE_TOP_N_SEARCH;
-    
+
     private final String queryid;
-    
+
     private final Map<String, Query> querytypeQuery;
-    
+
     private final DirectoryReader reader;
-    
+
     private final Executor downloadURLExcutor;
 
     // track duplicate tweet and allocate unique tweetCountId to each received tweet
     private final IndexTracker indexTracker;
-    
+
     private final ExtractTweetText textextractor;
-    
+
     private final PointwiseScorer pwScorer;
-    
+
     public UniqQuerySearcher(Map<String, Query> querytypeQuery, String queryId,
             DirectoryReader reader, Executor downloadURLExcutor, IndexTracker indexTracker,
             ExtractTweetText textextractor,
@@ -70,7 +70,7 @@ public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
         this.textextractor = textextractor;
         this.pwScorer = pwScorer;
     }
-    
+
     private UniqQuerySearchResult mutliScorers(IndexReader reader, Map<String, Query> querytypeQuery, String queryId) throws Exception {
         CompletionService<ExtractTweetText.TweetidUrl> urldownloader = new ExecutorCompletionService<>(downloadURLExcutor);
         TLongObjectMap<QueryTweetPair> searchresults = new TLongObjectHashMap<>();
@@ -118,7 +118,7 @@ public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
                                     String url = urlentity[0].getURL();
                                     final ExtractTweetText.TweetidUrl turl = textextractor.new TweetidUrl(tweetid, url);
                                     urldownloader.submit(new Callable() {
-                                        
+
                                         @Override
                                         public ExtractTweetText.TweetidUrl call() throws Exception {
                                             double similarity = 0;
@@ -193,11 +193,11 @@ public class UniqQuerySearcher implements Callable<UniqQuerySearchResult> {
         UniqQuerySearchResult uqsr = new UniqQuerySearchResult(queryid, searchresults.valueCollection());
         return uqsr;
     }
-    
+
     @Override
     public UniqQuerySearchResult call() throws Exception {
         UniqQuerySearchResult qtpairs = mutliScorers(this.reader, this.querytypeQuery, this.queryid);
         return qtpairs;
     }
-    
+
 }
