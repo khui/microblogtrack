@@ -219,8 +219,8 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             }
         } else {
             // if this is the first qtp to pop-up, we should make sure this is the 
-            // qtp that have nearly highest relevance score since start, meanwhile we store this
-            // relevance as threshold
+            // qtp that have nearly highest relevance score since recent start, meanwhile we store this
+            // relevance as initial absolute score threshold
             if (!qidInitRelativeThread2SentFirstTweet.containsKey(queryId)) {
                 qidInitRelativeThread2SentFirstTweet.put(queryId, Configuration.PW_DM_FIRSTPOPUP_SCORETHRESD);
             }

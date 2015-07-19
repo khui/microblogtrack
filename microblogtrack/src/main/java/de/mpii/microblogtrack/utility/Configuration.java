@@ -22,7 +22,7 @@ public class Configuration {
 
     public static String RUN_ID = "MPII";
     // for debug, default is miniute
-    public static TimeUnit TIMEUNIT = TimeUnit.SECONDS;
+    public final static TimeUnit TIMEUNIT = TimeUnit.MINUTES;
 
     /**
      * fields name used for retrieval of tweets
@@ -74,10 +74,10 @@ public class Configuration {
      * parameters for lucene systems
      */
     // the size of the in-memory index, determining how often the writer dump the index to the disk
-    public final static double LUCENE_MEM_SIZE = 1024.0 * 10;
+    public final static double LUCENE_MEM_SIZE = 1024.0;
 
     public final static String LUCENE_ANALYZER = "org.apache.lucene.analysis.en.EnglishAnalyzer";
-    // lucene perform search per LUCENE_SEARCH_FREQUENCY seconds
+    // lucene perform search per LUCENE_SEARCH_FREQUENCY minutes
     public final static int LUCENE_SEARCH_FREQUENCY = 15;
     // every time invertal, we retrieve top_n tweets for each query for further processin from lucene
     public static int LUCENE_TOP_N_SEARCH = 10;
@@ -120,13 +120,13 @@ public class Configuration {
     // most suspicious sent tweets
     public static int PW_DM_SENT_QUEUETRACKER_LENLIMIT = 30;
     // start delay for the decision maker in minutes 
-    public static int PW_DM_START_DELAY = 60;
+    public static int DM_START_DELAY = 60;
     // decision maker calling period in minutes, should be 1440 if one day is a period  
     public static int PW_DM_PERIOD = 1440;
     // top-k to report for one day, in notification tasks we at most report 10
-    public static int PW_DM_SELECTNUM = 10;
+    public final static int PW_DM_SELECTNUM = 10;
     // make decision untill we have receive enough tweets
-    public static int PW_DW_CUMULATECOUNT_DELAY = LUCENE_TOP_N_SEARCH * 10;
+    public static int PW_DW_CUMULATECOUNT_DELAY = LUCENE_TOP_N_SEARCH * 48;
     /**
      * listwise decision maker for e-mail digest task
      */
@@ -138,9 +138,7 @@ public class Configuration {
     // governing on how many tweets we want to conduct rerank
     public static int LW_DM_QUEUE2PROCESS_LEN = 500;
     // top-k to return for email digest task, the upper bound is 100
-    public static int LW_DM_SELECTNUM = 100;
-    // start delay for listwise decision maker
-    public static int LW_DM_START_DELAY = 60;
+    public final static int LW_DM_SELECTNUM = 100;
     //de.mpii.microblogtrack.component.core.ListwiseDecisionMakerNaiveSort
     //de.mpii.microblogtrack.component.core.ListwiseDecisionMakerMapRep
     public static String LW_DM_METHOD = "de.mpii.microblogtrack.component.core.ListwiseDecisionMakerNaiveSort";
@@ -151,7 +149,6 @@ public class Configuration {
     // depends on what type of similarity we used
     public static double MAXREP_SIMI_THRESHOLD = 0.1;
 
-    public final static String MAXREP_DISTANT_MEASURE = "";
     /**
      * tweet tracker parameters: track both relative score and tweet clustering
      * centroids

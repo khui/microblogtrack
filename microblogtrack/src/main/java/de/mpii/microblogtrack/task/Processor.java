@@ -92,16 +92,16 @@ public abstract class Processor {
         DecisionMakerTimer periodicalStartListwiseDM = new DecisionMakerTimer((ListwiseDecisionMaker) decisionmaker.newInstance(queryTrackers, queueLucene2ListwiseDM, resultprinterlw), "LW-DM", 2);
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
-        scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.PW_DM_START_DELAY, Configuration.PW_DM_PERIOD, Configuration.TIMEUNIT);
-        scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.LW_DM_START_DELAY, Configuration.LW_DM_PERIOD, Configuration.TIMEUNIT);
+        scheduler.scheduleAtFixedRate(periodicalStartPointwiseDM, Configuration.DM_START_DELAY, Configuration.PW_DM_PERIOD, Configuration.TIMEUNIT);
+        scheduler.scheduleAtFixedRate(periodicalStartListwiseDM, Configuration.DM_START_DELAY, Configuration.LW_DM_PERIOD, Configuration.TIMEUNIT);
         /**
-         * for debug, check whether the hbc output queue get stuck
+         * check whether the hbc output queue get stuck
          */
         while (!Thread.interrupted()) {
             if (api2indexqueue.size() >= 2000) {
                 logger.error("api2indexqueue is full: " + api2indexqueue.size());
                 try {
-                    Thread.sleep(1000 * 30);
+                    Thread.sleep(1000 * 60 * 60);
                 } catch (InterruptedException ex) {
                 }
             }
