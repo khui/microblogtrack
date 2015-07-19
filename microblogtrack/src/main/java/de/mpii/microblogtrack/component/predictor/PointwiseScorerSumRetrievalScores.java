@@ -90,6 +90,7 @@ public class PointwiseScorerSumRetrievalScores implements PointwiseScorer {
                 logger.error("", ex);
             }
         }
+        finalScore /= topScore2Consider;
         qtr.setPredictScore(Configuration.PRED_ABSOLUTESCORE, finalScore);
         return finalScore;
     }

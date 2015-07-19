@@ -27,7 +27,7 @@ public class ListwiseDecisionMakerMART extends ListwiseDecisionMaker {
     static Logger logger = Logger.getLogger(ListwiseDecisionMakerMART.class.getName());
 
     private final String modelfile = Configuration.LW_DW_MART_MODEL;
-    
+
     private final Ranker ranker;
 
     public ListwiseDecisionMakerMART(Map<String, LuceneDMConnector> tracker, BlockingQueue<QueryTweetPair> tweetqueue, ResultPrinter resultprinter) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
@@ -59,11 +59,12 @@ public class ListwiseDecisionMakerMART extends ListwiseDecisionMaker {
             return null;
         }
 
-        
         for (QueryTweetPair candidatetweet : candidateTweets) {
             double score = ranker.eval(new QTPDataPoint(candidatetweet));
-            // replace the pointwise score with this l2r score
-            candidatetweet.setPredictScore(Configuration.PRED_ABSOLUTESCORE, score);
+            if (score > 0) {
+                // replace the pointwise score with this l2r score
+                candidatetweet.setPredictScore(Configuration.PRED_ABSOLUTESCORE, score);
+            }
         }
 
         // decreasing order

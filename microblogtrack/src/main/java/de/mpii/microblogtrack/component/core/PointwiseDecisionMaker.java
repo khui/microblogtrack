@@ -228,9 +228,13 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             // get the updated relative score, this is expensive however
             double relativeScore = queryRelativeScoreTracker.get(queryId).relativeScore(absoluteScore);
             if (relativeScore > currentThread) {
-                avggain = absoluteScore;
-                resultTweet.rank = queryNumberCount.get(queryId) + 1;
-                adjustThreshold(queryId, avggain);
+                if (firstTweetDecider(tweet)) {
+                    avggain = absoluteScore;
+                    resultTweet.rank = queryNumberCount.get(queryId) + 1;
+                    adjustThreshold(queryId, avggain);
+                } else {
+                    logger.info(tweet.getTweetText() + " for " + queryId + " didnt get thru our hand-code rules");
+                }
             } else {
                 currentThread *= (1 - Configuration.PW_DM_THRESHOLD_ALPHA);
                 qidInitRelativeThread2SentFirstTweet.put(queryId, currentThread);
@@ -241,6 +245,42 @@ public class PointwiseDecisionMaker extends SentTweetTracker implements Runnable
             updateSentTracker(resultTweet, qidSentTweetQueues, Configuration.PW_DM_SENT_QUEUETRACKER_LENLIMIT);
         }
         return resultTweet;
+    }
+
+    /**
+     * some hand-code rules to decide whether to pop-up the first tweet for the
+     * query, which actually set the threshold for all follow-up decision
+     * making. Intuitively, if the tweet is long enough, with high retrieval
+     * score, or it contains url with high similarity with the query (title), it
+     * is very likely to be useful. Since we make decision for the first tweet
+     * according to relative score, we dont want to have a too low bar.
+     * Alternatively, we could pick up the tweets that contain all query terms,
+     * which however will change our system design a little bit.
+     *
+     * @param tweet
+     * @return
+     */
+    private boolean firstTweetDecider(QueryTweetPair tweet) {
+        double tweetlength = 0;
+        double urltitlescore = 0;
+        boolean toSelect = false;
+        try {
+            tweetlength = tweet.getFeature(Configuration.FEATURE_T_LENGTH);
+            urltitlescore = tweet.getFeature(Configuration.TWEET_URL_TITLE);
+            // long enough, this is 2-3 setences
+            if (tweetlength > 80) {
+                toSelect = true;
+                // high similarity between embedding url and query
+            } else if (urltitlescore > 0.5) {
+                toSelect = true;
+                // at least one setence and include some relevant url tilte
+            } else if (tweetlength > 40 && urltitlescore > 0.3) {
+                toSelect = true;
+            }
+        } catch (Exception ex) {
+            logger.error("", ex);
+        }
+        return toSelect;
     }
 
     /**
