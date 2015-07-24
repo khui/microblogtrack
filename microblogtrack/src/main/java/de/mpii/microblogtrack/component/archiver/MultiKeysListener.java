@@ -21,24 +21,24 @@ import org.apache.log4j.Logger;
  * @author khui
  */
 public abstract class MultiKeysListener implements Callable<Void> {
-
+    
     final Logger logger = Logger.getLogger(MultiKeysListener.class);
-
+    
     protected final BlockingQueue<String> outQueue;
-
+    
     private final String keydirectory;
-
+    
     private String currentKey = "";
-
+    
     protected TObjectLongHashMap<String> apikeyTimestamp = new TObjectLongHashMap<>();
-
+    
     protected HashMap<String, String[]> apikayKeys = new HashMap<>();
-
+    
     public MultiKeysListener(final BlockingQueue<String> outQueue, final String keydirectory) throws IOException {
         this.outQueue = outQueue;
         this.keydirectory = keydirectory;
     }
-
+    
     @Override
     public Void call() throws Exception {
         // recorder for multiple api-keys, for the sake of robustness
@@ -126,30 +126,36 @@ public abstract class MultiKeysListener implements Callable<Void> {
         }
         // api-key should be spared for more than 15 min (the length of
         // time window)
-        if ((currentTime - minimumTime) <= 15 * 1000) {
-            logger.info(currentKey + " sleep for " + (currentTime - minimumTime));
-            Thread.sleep(currentTime - minimumTime);
-        }
-        for (String apikey : apikayKeys.keySet()) {
-            if (apikeyTimestamp.get(apikey) <= minimumTime) {
-                keywords = apikayKeys.get(apikey);
-                logger.info(apikey + " is being used to connect twiter API.");
-                currentKey = apikey;
-                listener(keywords[0], keywords[1], keywords[2], keywords[3]);
-                break;
+        try {
+            if ((currentTime - minimumTime) <= 15 * 1000) {
+                logger.info(currentKey + " sleep for " + (currentTime - minimumTime));
+                Thread.sleep(currentTime - minimumTime);
             }
-        }
-        // update and rewrite the file records the key and the time stamp
-        currentTime = System.currentTimeMillis();
-        try (PrintStream ps = new PrintStream(
-                new File(keydirectory, "key-timestamp"))) {
-            for (String apikey : apikeyTimestamp.keys(new String[0])) {
-                if (apikey.equals(currentKey)) {
-                    ps.println(currentKey + " " + String.valueOf(currentTime));
-                    continue;
+            for (String apikey : apikayKeys.keySet()) {
+                if (apikeyTimestamp.get(apikey) <= minimumTime) {
+                    keywords = apikayKeys.get(apikey);
+                    logger.info(apikey + " is being used to connect twiter API.");
+                    currentKey = apikey;
+                    listener(keywords[0], keywords[1], keywords[2], keywords[3]);
+                    break;
                 }
-                ps.println(apikey + " "
-                        + String.valueOf(apikeyTimestamp.get(apikey)));
+            }
+        } catch (Exception ex) {
+            logger.error("", ex);
+            
+        } finally {
+            // update and rewrite the file records the key and the time stamp
+            currentTime = System.currentTimeMillis();
+            try (PrintStream ps = new PrintStream(
+                    new File(keydirectory, "key-timestamp"))) {
+                for (String apikey : apikeyTimestamp.keys(new String[0])) {
+                    if (apikey.equals(currentKey)) {
+                        ps.println(currentKey + " " + String.valueOf(currentTime));
+                        continue;
+                    }
+                    ps.println(apikey + " "
+                            + String.valueOf(apikeyTimestamp.get(apikey)));
+                }
             }
         }
     }
@@ -165,6 +171,6 @@ public abstract class MultiKeysListener implements Callable<Void> {
      * @throws Exception
      */
     protected abstract void listener(String consumerKey, String consumerSecret, String token, String secret) throws Exception;
-
+    
     protected abstract void keepconnecting() throws FileNotFoundException, InterruptedException, Exception;
 }

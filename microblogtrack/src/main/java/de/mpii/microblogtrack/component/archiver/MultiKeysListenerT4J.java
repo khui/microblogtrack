@@ -4,13 +4,10 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import twitter4j.StallWarning;
 import twitter4j.Status;
 import twitter4j.StatusDeletionNotice;
 import twitter4j.StatusListener;
-import twitter4j.TwitterException;
 import twitter4j.TwitterObjectFactory;
 import twitter4j.TwitterStream;
 import twitter4j.TwitterStreamFactory;
@@ -61,20 +58,7 @@ public class MultiKeysListenerT4J extends MultiKeysListener {
         
         @Override
         public void onException(Exception ex) {
-            if (ex instanceof TwitterException) {
-                TwitterException tw_ex = (TwitterException) ex;
-                logger.error(tw_ex.getErrorMessage());
-            } else {
-                logger.error(ex);
-            }
-            try {
-                keepconnecting();
-            } catch (InterruptedException ex1) {
-                Logger.getLogger(MultiKeysListenerT4J.class.getName()).log(Level.SEVERE, null, ex1);
-            } catch (Exception ex1) {
-                Logger.getLogger(MultiKeysListenerT4J.class.getName()).log(Level.SEVERE, null, ex1);
-            }
-            
+            logger.error("", ex);
         }
         
         @Override
