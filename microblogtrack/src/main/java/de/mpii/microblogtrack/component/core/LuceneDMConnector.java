@@ -105,6 +105,10 @@ public class LuceneDMConnector implements ScoreTracker {
             copyOfScoreTracker = new TDoubleIntHashMap(predictScoreTracker);
         }
         TDoubleList scores = new TDoubleArrayList(copyOfScoreTracker.keys());
+        // for maximum bin, we update the pointwise score threshold accordingly
+        // intuitively, we will not filter out the relative score if the score is in
+        // fisrt bin
+        boolean isMaximum = true;
         while (scores.size() > 0) {
             double minV = scores.min();
             if (score <= minV) {
@@ -112,6 +116,11 @@ public class LuceneDMConnector implements ScoreTracker {
             }
             double maxV = scores.max();
             cumulativeCount += copyOfScoreTracker.get(maxV);
+            if (isMaximum){
+                isMaximum = false;
+                prob = 1 - (double) cumulativeCount / currentTweetCount;
+                Configuration.PW_DM_SCORE_FILTER = Math.min(0.95, prob);
+            }
             scores.remove(maxV);
             if (cumulativeCount >= topNumber || score >= maxV) {
                 // for absolute score little than maxV, use the default value

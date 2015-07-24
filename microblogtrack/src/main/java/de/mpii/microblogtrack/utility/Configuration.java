@@ -109,7 +109,7 @@ public class Configuration {
     // adjust the threshold for pop-up tweets dynamically, governing the adjusting step
     public final static double PW_DM_THRESHOLD_ALPHA = 0.01;
     // filter out the tweet with less than threshold relative score
-    public final static double PW_DM_SCORE_FILTER = 0.95;
+    public static volatile double PW_DM_SCORE_FILTER = 0.95;
     // if it is the first tweet to pop-up, we require a relative high threshold
     public final static double PW_DM_FIRSTPOPUP_SCORETHRESD = 0.999;
     // filter out the tweets that are too similar with at least one of the pop-up tweet
